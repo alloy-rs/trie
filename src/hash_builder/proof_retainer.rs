@@ -3,7 +3,7 @@ use alloy_primitives::Bytes;
 use std::collections::BTreeMap;
 
 /// Proof retainer is used to store proofs during merkle trie construction.
-/// It is intended to be used within the [`HashBuilder`](crate::trie::HashBuilder).
+/// It is intended to be used within the [`HashBuilder`](crate::HashBuilder).
 #[derive(Debug)]
 pub struct ProofRetainer {
     /// The nibbles of the target trie keys to retain proofs for.

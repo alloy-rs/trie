@@ -31,9 +31,6 @@ pub use mask::TrieMask;
 mod storage;
 pub use storage::StorageTrieEntry;
 
-mod subnode;
-pub use subnode::StoredSubNode;
-
 pub use nybbles::Nibbles;
 
 /// Root hash of an empty trie.

@@ -13,7 +13,7 @@ pub struct BranchNode<'a> {
 
 impl<'a> BranchNode<'a> {
     /// Create a new branch node from the stack of nodes.
-    pub fn new(stack: &'a [Vec<u8>]) -> Self {
+    pub const fn new(stack: &'a [Vec<u8>]) -> Self {
         Self { stack }
     }
 

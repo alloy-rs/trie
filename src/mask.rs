@@ -29,13 +29,13 @@ pub struct TrieMask(u16);
 impl TrieMask {
     /// Creates a new `TrieMask` from the given inner value.
     #[inline]
-    pub fn new(inner: u16) -> Self {
+    pub const fn new(inner: u16) -> Self {
         Self(inner)
     }
 
     /// Creates a new `TrieMask` from the given nibble.
     #[inline]
-    pub fn from_nibble(nibble: u8) -> Self {
+    pub const fn from_nibble(nibble: u8) -> Self {
         Self(1u16 << nibble)
     }
 
@@ -47,13 +47,13 @@ impl TrieMask {
 
     /// Returns `true` if a given bit is set in a mask.
     #[inline]
-    pub fn is_bit_set(self, index: u8) -> bool {
+    pub const fn is_bit_set(self, index: u8) -> bool {
         self.0 & (1u16 << index) != 0
     }
 
     /// Returns `true` if the mask is empty.
     #[inline]
-    pub fn is_empty(self) -> bool {
+    pub const fn is_empty(self) -> bool {
         self.0 == 0
     }
 }
