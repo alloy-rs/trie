@@ -1,8 +1,47 @@
 [package]
-name = "trie"
+name = "alloy-trie"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = """
+Fast Merkle-Patricia Trie (MPT) state root calculator
+and proof generator for prefix-sorted nibbles
+"""
 
 [dependencies]
+alloy-primitives = { version = "0.5", features = ["rlp"] }
+alloy-rlp = { version = "0.3", features = ["derive"] }
+derive_more = "0.99"
+itertools = "0.12"
+nybbles = "0.1"
+serde = { version = "1.0", features = ["derive"], optional = true }
+tracing = "0.1"
+smallvec = "1.11"
+
+# triehash-compat
+hash-db = { version = "0.15", optional = true }
+plain_hasher = { version = "0.2", optional = true }
+
+# arbitrary
+arbitrary = { version = "1.3", optional = true }
+derive_arbitrary = { version = "1.3", optional = true }
+proptest = { version = "1.4", optional = true }
+proptest-derive = { version = "0.4", optional = true }
+
+[dev-dependencies]
+alloy-trie = { path = ".", features = ["triehash-compat"] }
+alloy-primitives = { version = "0.5", features = ["rlp", "serde", "rand", "arbitrary"] }
+alloy-rlp = { version = "0.3", features = ["arrayvec"] }
+bytes = "1.5"
+proptest = "1.4"
+triehash = "0.8.4"
+
+[features]
+serde = ["dep:serde", "alloy-primitives/serde", "nybbles/serde"]
+arbitrary = [
+    "dep:arbitrary",
+    "dep:derive_arbitrary",
+    "dep:proptest",
+    "dep:proptest-derive",
+    "alloy-primitives/arbitrary",
+]
+triehash-compat = ["dep:hash-db", "dep:plain_hasher"]
