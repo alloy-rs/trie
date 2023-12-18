@@ -480,6 +480,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "no proptest")]
     fn arbitrary_hashed_root() {
         proptest!(|(state: BTreeMap<B256, U256>)| {
             assert_hashed_trie_root(state.iter());
