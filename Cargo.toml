@@ -29,7 +29,7 @@ proptest = { version = "1.4", optional = true }
 proptest-derive = { version = "0.4", optional = true }
 
 [dev-dependencies]
-alloy-trie = { path = ".", features = ["triehash-compat"] }
+alloy-trie = { version = "0.1", path = ".", features = ["triehash-compat"] }
 alloy-primitives = { version = "0.5", features = ["rlp", "serde", "rand", "arbitrary"] }
 alloy-rlp = { version = "0.3", features = ["arrayvec"] }
 bytes = "1.5"
