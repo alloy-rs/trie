@@ -19,22 +19,18 @@ impl<'a> BranchNode<'a> {
 
     /// Given the hash and state mask of children present, return an iterator over the stack items
     /// that match the mask.
-    pub fn children(
-        &self,
-        state_mask: TrieMask,
-        hash_mask: TrieMask,
-    ) -> impl Iterator<Item = B256> + '_ {
+    pub fn children(&self, state_mask: TrieMask, hash_mask: TrieMask) -> Vec<B256> {
         let mut index = self.stack.len() - state_mask.count_ones() as usize;
-        CHILD_INDEX_RANGE.filter_map(move |digit| {
-            let mut child = None;
+        let mut children = Vec::with_capacity(CHILD_INDEX_RANGE.len());
+        for digit in CHILD_INDEX_RANGE {
             if state_mask.is_bit_set(digit) {
                 if hash_mask.is_bit_set(digit) {
-                    child = Some(&self.stack[index]);
+                    children.push(B256::from_slice(&self.stack[index][1..]));
                 }
                 index += 1;
             }
-            child.map(|child| B256::from_slice(&child[1..]))
-        })
+        }
+        children
     }
 
     /// Returns the RLP encoding of the branch node given the state mask of children present.
