@@ -1,12 +1,19 @@
 [package]
 name = "alloy-trie"
 version = "0.1.0"
-edition = "2021"
-rust-version = "1.65"
+authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
 description = """
 Fast Merkle-Patricia Trie (MPT) state root calculator
 and proof generator for prefix-sorted nibbles
 """
+edition = "2021"
+rust-version = "1.65"
+license = "MIT OR Apache-2.0"
+categories = ["data-structures", "no-std"]
+keywords = ["nibbles", "trie", "mpt", "merkle", "ethereum"]
+homepage = "https://github.com/alloy-rs/trie"
+repository = "https://github.com/alloy-rs/trie"
+exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
 [dependencies]
 alloy-primitives = { version = "0.5", features = ["rlp"] }
