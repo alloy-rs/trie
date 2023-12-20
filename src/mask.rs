@@ -1,3 +1,4 @@
+use core::fmt;
 use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, From, Not};
 
 /// A struct representing a mask of 16 bits, used for Ethereum trie operations.
@@ -25,6 +26,12 @@ use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, From, Not};
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
 pub struct TrieMask(u16);
+
+impl fmt::Debug for TrieMask {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "TrieMask({:016b})", self.0)
+    }
+}
 
 impl TrieMask {
     /// Creates a new `TrieMask` from the given inner value.
@@ -55,11 +62,5 @@ impl TrieMask {
     #[inline]
     pub const fn is_empty(self) -> bool {
         self.0 == 0
-    }
-}
-
-impl std::fmt::Debug for TrieMask {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TrieMask({:016b})", self.0)
     }
 }

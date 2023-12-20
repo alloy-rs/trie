@@ -24,10 +24,8 @@ pub use hash_builder::HashBuilder;
 mod mask;
 pub use mask::TrieMask;
 
-mod storage;
-pub use storage::StorageTrieEntry;
-
-pub use nybbles::Nibbles;
+#[doc(no_inline)]
+pub use nybbles::{self, Nibbles};
 
 /// Root hash of an empty trie.
 pub const EMPTY_ROOT_HASH: alloy_primitives::B256 =
