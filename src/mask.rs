@@ -40,6 +40,12 @@ impl TrieMask {
         Self(inner)
     }
 
+    /// Returns the inner value of the `TrieMask`.
+    #[inline]
+    pub const fn get(self) -> u16 {
+        self.0
+    }
+
     /// Creates a new `TrieMask` from the given nibble.
     #[inline]
     pub const fn from_nibble(nibble: u8) -> Self {

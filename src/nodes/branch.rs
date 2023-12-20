@@ -134,29 +134,3 @@ impl BranchNodeCompact {
         self.hashes[index as usize]
     }
 }
-
-/*
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use alloy_primitives::hex;
-
-    #[test]
-    fn node_encoding() {
-        let n = BranchNodeCompact::new(
-            0xf607,
-            0x0005,
-            0x4004,
-            vec![
-                hex!("90d53cd810cc5d4243766cd4451e7b9d14b736a1148b26b3baac7617f617d321").into(),
-                hex!("cc35c964dda53ba6c0b87798073a9628dbc9cd26b5cce88eb69655a9c609caf1").into(),
-            ],
-            Some(hex!("aaaabbbb0006767767776fffffeee44444000005567645600000000eeddddddd").into()),
-        );
-
-        let mut out = Vec::new();
-        let compact_len = BranchNodeCompact::to_compact(n.clone(), &mut out);
-        assert_eq!(BranchNodeCompact::from_compact(&out, compact_len).0, n);
-    }
-}
-*/

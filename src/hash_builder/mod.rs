@@ -41,21 +41,22 @@ pub use proof_retainer::ProofRetainer;
 /// can then be used to verify the integrity and authenticity of the trie's data by constructing and
 /// verifying Merkle proofs.
 #[derive(Debug, Default)]
+#[allow(missing_docs)]
 pub struct HashBuilder {
-    key: Nibbles,
-    stack: Vec<Vec<u8>>,
-    value: HashBuilderValue,
+    pub key: Nibbles,
+    pub stack: Vec<Vec<u8>>,
+    pub value: HashBuilderValue,
 
-    groups: Vec<TrieMask>,
-    tree_masks: Vec<TrieMask>,
-    hash_masks: Vec<TrieMask>,
+    pub groups: Vec<TrieMask>,
+    pub tree_masks: Vec<TrieMask>,
+    pub hash_masks: Vec<TrieMask>,
 
-    stored_in_database: bool,
+    pub stored_in_database: bool,
 
-    updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
-    proof_retainer: Option<ProofRetainer>,
+    pub updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
+    pub proof_retainer: Option<ProofRetainer>,
 
-    rlp_buf: Vec<u8>,
+    pub rlp_buf: Vec<u8>,
 }
 
 impl HashBuilder {
