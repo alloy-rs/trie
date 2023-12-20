@@ -5,7 +5,6 @@ use super::{
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use alloy_primitives::{keccak256, Bytes, B256};
-use itertools::Itertools;
 use std::{
     collections::{BTreeMap, HashMap},
     fmt::Debug,
@@ -109,7 +108,7 @@ impl HashBuilder {
         println!("============ END STACK ===============");
     }
 
-    /// Adds a new leaf element & its value to the trie hash builder.
+    /// Adds a new leaf element and its value to the trie hash builder.
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
         assert!(key > self.key);
         if !self.key.is_empty() {
@@ -118,7 +117,7 @@ impl HashBuilder {
         self.set_key_value(key, value);
     }
 
-    /// Adds a new branch element & its hash to the trie hash builder.
+    /// Adds a new branch element and its hash to the trie hash builder.
     pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
         assert!(key > self.key || (self.key.is_empty() && key.is_empty()));
         if !self.key.is_empty() {
@@ -214,7 +213,7 @@ impl HashBuilder {
             trace!(
                 target: "trie::hash_builder",
                 ?extra_digit,
-                groups = ?self.groups.iter().format(", "),
+                groups = ?self.groups,
             );
 
             // Adjust the tree masks for exporting to the DB
@@ -417,23 +416,33 @@ impl HashBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{hex, B256, U256};
+    use alloy_primitives::{b256, hex, keccak256, B256, U256};
     use alloy_rlp::Encodable;
-    use bytes::BytesMut;
-    use proptest::prelude::*;
     use std::collections::{BTreeMap, HashMap};
 
-    fn trie_root<I, K, V>(iter: I) -> B256
+    fn triehash_trie_root<I, K, V>(iter: I) -> B256
     where
         I: IntoIterator<Item = (K, V)>,
         K: AsRef<[u8]> + Ord,
         V: AsRef<[u8]>,
     {
+        struct Keccak256Hasher;
+        impl hash_db::Hasher for Keccak256Hasher {
+            type Out = B256;
+            type StdHasher = plain_hasher::PlainHasher;
+
+            const LENGTH: usize = 32;
+
+            fn hash(x: &[u8]) -> Self::Out {
+                keccak256(x)
+            }
+        }
+
         // We use `trie_root` instead of `sec_trie_root` because we assume
         // the incoming keys are already hashed, which makes sense given
         // we're going to be using the Hashed tables & pre-hash the data
         // on the way in.
-        triehash::trie_root::<crate::triehash_compat::KeccakHasher, _, _, _>(iter)
+        triehash::trie_root::<Keccak256Hasher, _, _, _>(iter)
     }
 
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.
@@ -443,7 +452,7 @@ mod tests {
         K: AsRef<[u8]> + Ord,
     {
         let hashed = iter
-            .map(|(k, v)| (keccak256(k.as_ref()), alloy_rlp::encode_fixed_size(v).to_vec()))
+            .map(|(k, v)| (keccak256(k.as_ref()), alloy_rlp::encode(v).to_vec()))
             // Collect into a btree map to sort the data
             .collect::<BTreeMap<_, _>>();
 
@@ -454,7 +463,7 @@ mod tests {
             hb.add_leaf(nibbles, val);
         });
 
-        assert_eq!(hb.root(), trie_root(&hashed));
+        assert_eq!(hb.root(), triehash_trie_root(&hashed));
     }
 
     // No hashing involved
@@ -471,7 +480,8 @@ mod tests {
             let nibbles = Nibbles::unpack(key);
             hb.add_leaf(nibbles, val.as_ref());
         });
-        assert_eq!(hb.root(), trie_root(data));
+
+        assert_eq!(hb.root(), triehash_trie_root(data));
     }
 
     #[test]
@@ -480,8 +490,10 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "arbitrary")]
     #[cfg_attr(miri, ignore = "no proptest")]
     fn arbitrary_hashed_root() {
+        use proptest::prelude::*;
         proptest!(|(state: BTreeMap<B256, U256>)| {
             assert_hashed_trie_root(state.iter());
         });
@@ -535,7 +547,7 @@ mod tests {
             let nibbles = Nibbles::unpack(key);
             hb.add_leaf(nibbles, val.as_ref());
         });
-        let root = hb.root();
+        let _root = hb.root();
 
         let (_, updates) = hb.split();
 
@@ -545,7 +557,7 @@ mod tests {
         assert_eq!(update.hash_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches with `hashes`
         assert_eq!(update.hashes.len(), 2); // calculated while the builder is running
 
-        assert_eq!(root, trie_root(data));
+        assert_eq!(_root, triehash_trie_root(data));
     }
 
     #[test]
@@ -570,7 +582,7 @@ mod tests {
 
     #[test]
     fn test_root_known_hash() {
-        let root_hash = B256::random();
+        let root_hash = b256!("45596e474b536a6b4d64764e4f75514d544577646c414e684271706871446456");
         let mut hb = HashBuilder::default();
         hb.add_branch(Nibbles::default(), root_hash, false);
         assert_eq!(hb.root(), root_hash);
@@ -601,7 +613,7 @@ mod tests {
         // leaves. We set this to `7` because the 2nd element of Leaf 1 is `7`.
         branch[4] = &leaf1;
         branch[7] = &leaf2;
-        let mut branch_node_rlp = BytesMut::new();
+        let mut branch_node_rlp = Vec::new();
         alloy_rlp::encode_list::<_, dyn Encodable>(&branch, &mut branch_node_rlp);
         let branch_node_hash = keccak256(branch_node_rlp);
 
@@ -609,7 +621,7 @@ mod tests {
         // Insert the branch with the `0x6` shared prefix.
         hb2.add_branch(Nibbles::from_nibbles_unchecked([0x6]), branch_node_hash, false);
 
-        let expected = trie_root(raw_input.clone());
+        let expected = triehash_trie_root(raw_input.clone());
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);
     }
