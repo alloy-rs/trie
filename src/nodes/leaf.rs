@@ -59,6 +59,7 @@ impl fmt::Debug for LeafNode<'_> {
 mod tests {
     use super::*;
     use alloy_primitives::hex;
+    use std::vec;
 
     // From manual regression test
     #[test]

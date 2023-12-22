@@ -28,6 +28,8 @@ pub use hash_builder::HashBuilder;
 mod mask;
 pub use mask::TrieMask;
 
+pub use hashbrown::HashMap;
+
 #[doc(no_inline)]
 pub use nybbles::{self, Nibbles};
 

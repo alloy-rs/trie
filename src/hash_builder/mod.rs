@@ -6,10 +6,7 @@ use super::{
 };
 use alloy_primitives::{keccak256, Bytes, B256};
 use core::cmp;
-#[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
-#[cfg(feature = "std")]
-use std::collections::HashMap;
 use std::{collections::BTreeMap, fmt::Debug, format, vec, vec::Vec};
 use tracing::trace;
 
@@ -422,7 +419,8 @@ mod tests {
     use super::*;
     use alloy_primitives::{b256, hex, keccak256, B256, U256};
     use alloy_rlp::Encodable;
-    use std::collections::{BTreeMap, HashMap};
+    use hashbrown::HashMap;
+    use std::collections::BTreeMap;
 
     fn triehash_trie_root<I, K, V>(iter: I) -> B256
     where
@@ -577,7 +575,7 @@ mod tests {
 
     #[test]
     fn test_root_rlp_hashed_data() {
-        let data = HashMap::from([
+        let data: HashMap<_, _, _> = HashMap::from([
             (B256::with_last_byte(1), U256::from(2)),
             (B256::with_last_byte(3), U256::from(4)),
         ]);

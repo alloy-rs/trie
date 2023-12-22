@@ -22,7 +22,7 @@ derive_more = "0.99"
 nybbles = { version = "0.1", default-features = false }
 smallvec = "1.11"
 tracing = { version = "0.1", default-features = false }
-hashbrown = { version = "0.14" }
+hashbrown = { version = "0.14", features = ["serde", "ahash", "inline-more"] }
 # serde
 serde = { version = "1.0", default-features = false, features = ["derive"], optional = true }
 
@@ -33,7 +33,7 @@ proptest = { version = "1.4", optional = true }
 proptest-derive = { version = "0.4", optional = true }
 
 [dev-dependencies]
-hash-db = "0.16"
+hash-db = "0.15"
 plain_hasher = "0.2"
 triehash = "0.8.4"
 
