@@ -2,7 +2,8 @@
 
 use alloy_primitives::{keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
-use std::ops::Range;
+use core::ops::Range;
+use std::vec::Vec;
 
 mod branch;
 pub use branch::{BranchNode, BranchNodeCompact};

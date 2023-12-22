@@ -5,10 +5,12 @@ use super::{
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use alloy_primitives::{keccak256, Bytes, B256};
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Debug,
-};
+use core::cmp;
+#[cfg(not(feature = "std"))]
+use hashbrown::HashMap;
+#[cfg(feature = "std")]
+use std::collections::HashMap;
+use std::{collections::BTreeMap, fmt::Debug, format, vec, vec::Vec};
 use tracing::trace;
 
 mod value;
@@ -79,7 +81,7 @@ impl HashBuilder {
     /// Call [HashBuilder::split] to get the updates to branch nodes.
     pub fn set_updates(&mut self, retain_updates: bool) {
         if retain_updates {
-            self.updated_branch_nodes = Some(HashMap::default());
+            self.updated_branch_nodes = Some(HashMap::new());
         }
     }
 
@@ -101,6 +103,7 @@ impl HashBuilder {
     }
 
     /// Print the current stack of the Hash Builder.
+    #[cfg(feature = "std")]
     pub fn print_stack(&self) {
         println!("============ STACK ===============");
         for item in &self.stack {
@@ -191,7 +194,7 @@ impl HashBuilder {
             let preceding_len = self.groups.len().saturating_sub(1);
 
             let common_prefix_len = succeeding.common_prefix_length(current.as_slice());
-            let len = std::cmp::max(preceding_len, common_prefix_len);
+            let len = cmp::max(preceding_len, common_prefix_len);
             assert!(len < current.len());
 
             trace!(
