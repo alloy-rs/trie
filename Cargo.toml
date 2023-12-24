@@ -48,6 +48,7 @@ std = [
 ]
 serde = ["dep:serde", "alloy-primitives/serde", "nybbles/serde"]
 arbitrary = [
+    "std",
     "dep:arbitrary",
     "dep:derive_arbitrary",
     "dep:proptest",
