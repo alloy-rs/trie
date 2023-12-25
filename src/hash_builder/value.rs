@@ -1,4 +1,5 @@
 use alloy_primitives::B256;
+use std::{vec, vec::Vec};
 
 /// The current value of the hash builder.
 #[derive(Clone, PartialEq)]

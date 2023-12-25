@@ -5,10 +5,9 @@ use super::{
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use alloy_primitives::{keccak256, Bytes, B256};
-use std::{
-    collections::{BTreeMap, HashMap},
-    fmt::Debug,
-};
+use core::cmp;
+use hashbrown::HashMap;
+use std::{collections::BTreeMap, fmt::Debug, format, vec, vec::Vec};
 use tracing::trace;
 
 mod value;
@@ -79,7 +78,7 @@ impl HashBuilder {
     /// Call [HashBuilder::split] to get the updates to branch nodes.
     pub fn set_updates(&mut self, retain_updates: bool) {
         if retain_updates {
-            self.updated_branch_nodes = Some(HashMap::default());
+            self.updated_branch_nodes = Some(HashMap::new());
         }
     }
 
@@ -101,6 +100,7 @@ impl HashBuilder {
     }
 
     /// Print the current stack of the Hash Builder.
+    #[cfg(feature = "std")]
     pub fn print_stack(&self) {
         println!("============ STACK ===============");
         for item in &self.stack {
@@ -191,7 +191,7 @@ impl HashBuilder {
             let preceding_len = self.groups.len().saturating_sub(1);
 
             let common_prefix_len = succeeding.common_prefix_length(current.as_slice());
-            let len = std::cmp::max(preceding_len, common_prefix_len);
+            let len = cmp::max(preceding_len, common_prefix_len);
             assert!(len < current.len());
 
             trace!(
@@ -419,7 +419,8 @@ mod tests {
     use super::*;
     use alloy_primitives::{b256, hex, keccak256, B256, U256};
     use alloy_rlp::Encodable;
-    use std::collections::{BTreeMap, HashMap};
+    use hashbrown::HashMap;
+    use std::collections::BTreeMap;
 
     fn triehash_trie_root<I, K, V>(iter: I) -> B256
     where
@@ -574,7 +575,7 @@ mod tests {
 
     #[test]
     fn test_root_rlp_hashed_data() {
-        let data = HashMap::from([
+        let data: HashMap<_, _, _> = HashMap::from([
             (B256::with_last_byte(1), U256::from(2)),
             (B256::with_last_byte(3), U256::from(4)),
         ]);
