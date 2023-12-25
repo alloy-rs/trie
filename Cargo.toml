@@ -1,7 +1,11 @@
 [package]
 name = "alloy-trie"
 version = "0.1.0"
-authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
+authors = [
+    "rkrasiuk <rokrassyuk@gmail.com>",
+    "gakonst <me@gakonst.com>",
+    "DaniPopes <57450786+DaniPopes@users.noreply.github.com>"
+]
 description = """
 Fast Merkle-Patricia Trie (MPT) state root calculator
 and proof generator for prefix-sorted nibbles
