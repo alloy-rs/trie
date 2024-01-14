@@ -17,7 +17,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[cfg(not(feature = "std"))]
-extern crate alloc as std;
+extern crate alloc;
 
 pub mod nodes;
 pub use nodes::BranchNodeCompact;
@@ -26,9 +26,9 @@ pub mod hash_builder;
 pub use hash_builder::HashBuilder;
 
 mod mask;
-pub use mask::TrieMask;
-
+#[cfg(not(feature = "std"))]
 pub use hashbrown::HashMap;
+pub use mask::TrieMask;
 
 #[doc(no_inline)]
 pub use nybbles::{self, Nibbles};

@@ -4,10 +4,14 @@ use super::{
     nodes::{word_rlp, BranchNode, ExtensionNode, LeafNode},
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
+#[cfg(not(feature = "std"))]
+use alloc::{collections::BTreeMap, fmt::Debug, format, vec, vec::Vec};
 use alloy_primitives::{keccak256, Bytes, B256};
 use core::cmp;
+#[cfg(not(feature = "std"))]
 use hashbrown::HashMap;
-use std::{collections::BTreeMap, fmt::Debug, format, vec, vec::Vec};
+#[cfg(feature = "std")]
+use std::collections::{BTreeMap, HashMap};
 use tracing::trace;
 
 mod value;
@@ -419,8 +423,7 @@ mod tests {
     use super::*;
     use alloy_primitives::{b256, hex, keccak256, B256, U256};
     use alloy_rlp::Encodable;
-    use hashbrown::HashMap;
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
 
     fn triehash_trie_root<I, K, V>(iter: I) -> B256
     where

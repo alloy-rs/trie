@@ -1,5 +1,7 @@
+#[cfg(not(feature = "std"))]
+use alloc::{vec, vec::Vec};
 use alloy_primitives::B256;
-use std::{vec, vec::Vec};
+use core::fmt;
 
 /// The current value of the hash builder.
 #[derive(Clone, PartialEq)]
@@ -12,8 +14,8 @@ pub enum HashBuilderValue {
     Bytes(Vec<u8>),
 }
 
-impl std::fmt::Debug for HashBuilderValue {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for HashBuilderValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Bytes(bytes) => write!(f, "Bytes({:?})", alloy_primitives::hex::encode(bytes)),
             Self::Hash(hash) => write!(f, "Hash({:?})", hash),

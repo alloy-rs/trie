@@ -1,7 +1,9 @@
 use super::{super::Nibbles, rlp_node};
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 use alloy_rlp::{BufMut, Encodable};
+use core::fmt;
 use smallvec::SmallVec;
-use std::vec::Vec;
 
 /// An intermediate node that exists solely to compress the trie's paths. It contains a path segment
 /// (a shared prefix of keys) and a single child pointer. Essentially, an extension node can be
@@ -44,8 +46,8 @@ impl Encodable for ExtensionNode<'_> {
     }
 }
 
-impl std::fmt::Debug for ExtensionNode<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for ExtensionNode<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ExtensionNode")
             .field("prefix", &alloy_primitives::hex::encode(&self.prefix))
             .field("node", &alloy_primitives::hex::encode(self.node))
