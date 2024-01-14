@@ -1,7 +1,11 @@
 [package]
 name = "alloy-trie"
-version = "0.1.0"
-authors = ["DaniPopes <57450786+DaniPopes@users.noreply.github.com>"]
+version = "0.2.0"
+authors = [
+    "rkrasiuk <rokrassyuk@gmail.com>",
+    "gakonst <me@gakonst.com>",
+    "DaniPopes <57450786+DaniPopes@users.noreply.github.com>",
+]
 description = """
 Fast Merkle-Patricia Trie (MPT) state root calculator
 and proof generator for prefix-sorted nibbles
@@ -16,7 +20,7 @@ repository = "https://github.com/alloy-rs/trie"
 exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
 [dependencies]
-alloy-primitives = { version = "0.5", default-features = false, features = ["rlp"] }
+alloy-primitives = { version = "0.6", default-features = false, features = ["rlp"] }
 alloy-rlp = { version = "0.3", default-features = false, features = ["derive"] }
 derive_more = "0.99"
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
