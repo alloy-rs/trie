@@ -59,8 +59,9 @@ impl fmt::Debug for LeafNode<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec;
     use alloy_primitives::hex;
-    use std::vec;
 
     // From manual regression test
     #[test]

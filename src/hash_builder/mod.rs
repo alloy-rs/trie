@@ -421,8 +421,13 @@ impl HashBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "std"))]
+    use alloc::collections::BTreeMap;
     use alloy_primitives::{b256, hex, keccak256, B256, U256};
     use alloy_rlp::Encodable;
+    #[cfg(not(feature = "std"))]
+    use hashbrown::HashMap;
+    #[cfg(feature = "std")]
     use std::collections::{BTreeMap, HashMap};
 
     fn triehash_trie_root<I, K, V>(iter: I) -> B256
