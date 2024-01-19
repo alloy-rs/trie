@@ -26,6 +26,8 @@ pub mod hash_builder;
 pub use hash_builder::HashBuilder;
 
 mod mask;
+#[cfg(feature = "std")]
+use hashbrown as _;
 #[cfg(not(feature = "std"))]
 pub use hashbrown::HashMap;
 pub use mask::TrieMask;
