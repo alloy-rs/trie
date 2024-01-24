@@ -1,4 +1,6 @@
 use super::{super::TrieMask, rlp_node, CHILD_INDEX_RANGE};
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 use alloy_primitives::B256;
 use alloy_rlp::{BufMut, EMPTY_STRING_CODE};
 

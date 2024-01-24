@@ -1,6 +1,10 @@
 use super::{super::Nibbles, rlp_node};
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 use alloy_rlp::{BufMut, Encodable};
 use smallvec::SmallVec;
+
+use core::fmt;
 
 /// A leaf node represents the endpoint or terminal node in the trie. In other words, a leaf node is
 /// where actual values are stored.
@@ -43,8 +47,8 @@ impl Encodable for LeafNode<'_> {
     }
 }
 
-impl std::fmt::Debug for LeafNode<'_> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl fmt::Debug for LeafNode<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LeafNode")
             .field("key", &alloy_primitives::hex::encode(&self.key))
             .field("value", &alloy_primitives::hex::encode(self.value))
@@ -55,6 +59,8 @@ impl std::fmt::Debug for LeafNode<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(not(feature = "std"))]
+    use alloc::vec;
     use alloy_primitives::hex;
 
     // From manual regression test

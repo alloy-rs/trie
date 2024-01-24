@@ -14,6 +14,10 @@
 #![cfg_attr(not(test), warn(unused_crate_dependencies))]
 #![deny(unused_must_use, rust_2018_idioms)]
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(not(feature = "std"))]
+extern crate alloc;
 
 pub mod nodes;
 pub use nodes::BranchNodeCompact;
@@ -22,6 +26,10 @@ pub mod hash_builder;
 pub use hash_builder::HashBuilder;
 
 mod mask;
+#[cfg(feature = "std")]
+use hashbrown as _;
+#[cfg(not(feature = "std"))]
+pub use hashbrown::HashMap;
 pub use mask::TrieMask;
 
 #[doc(no_inline)]
