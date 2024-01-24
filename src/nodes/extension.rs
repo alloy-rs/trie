@@ -1,5 +1,4 @@
 use super::{super::Nibbles, rlp_node};
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 use alloy_rlp::{BufMut, Encodable};
 use core::fmt;

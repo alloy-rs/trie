@@ -4,14 +4,10 @@ use super::{
     nodes::{word_rlp, BranchNode, ExtensionNode, LeafNode},
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
-#[cfg(not(feature = "std"))]
-use alloc::{collections::BTreeMap, fmt::Debug, format, vec, vec::Vec};
+use crate::HashMap;
+use alloc::{collections::BTreeMap, vec::Vec};
 use alloy_primitives::{keccak256, Bytes, B256};
 use core::cmp;
-#[cfg(not(feature = "std"))]
-use hashbrown::HashMap;
-#[cfg(feature = "std")]
-use std::collections::{BTreeMap, HashMap};
 use tracing::trace;
 
 mod value;
@@ -421,14 +417,10 @@ impl HashBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(not(feature = "std"))]
+    use crate::HashMap;
     use alloc::collections::BTreeMap;
     use alloy_primitives::{b256, hex, keccak256, B256, U256};
     use alloy_rlp::Encodable;
-    #[cfg(not(feature = "std"))]
-    use hashbrown::HashMap;
-    #[cfg(feature = "std")]
-    use std::collections::{BTreeMap, HashMap};
 
     fn triehash_trie_root<I, K, V>(iter: I) -> B256
     where

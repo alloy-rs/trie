@@ -1,5 +1,4 @@
 use super::{super::Nibbles, rlp_node};
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 use alloy_rlp::{BufMut, Encodable};
 use smallvec::SmallVec;
@@ -59,8 +58,6 @@ impl fmt::Debug for LeafNode<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    #[cfg(not(feature = "std"))]
-    use alloc::vec;
     use alloy_primitives::hex;
 
     // From manual regression test

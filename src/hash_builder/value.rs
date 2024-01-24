@@ -1,5 +1,4 @@
-#[cfg(not(feature = "std"))]
-use alloc::{vec, vec::Vec};
+use alloc::vec::Vec;
 use alloy_primitives::B256;
 use core::fmt;
 

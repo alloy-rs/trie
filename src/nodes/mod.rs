@@ -1,6 +1,5 @@
 //! Various branch nodes produced by the hash builder.
 
-#[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
 use alloy_primitives::{keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;

@@ -16,7 +16,7 @@
 #![cfg_attr(docsrs, feature(doc_cfg, doc_auto_cfg))]
 #![cfg_attr(not(feature = "std"), no_std)]
 
-#[cfg(not(feature = "std"))]
+#[macro_use]
 extern crate alloc;
 
 pub mod nodes;
@@ -26,11 +26,15 @@ pub mod hash_builder;
 pub use hash_builder::HashBuilder;
 
 mod mask;
+pub use mask::TrieMask;
+
 #[cfg(feature = "std")]
 use hashbrown as _;
+#[cfg(feature = "std")]
+pub use std::collections::HashMap;
+
 #[cfg(not(feature = "std"))]
 pub use hashbrown::HashMap;
-pub use mask::TrieMask;
 
 #[doc(no_inline)]
 pub use nybbles::{self, Nibbles};
