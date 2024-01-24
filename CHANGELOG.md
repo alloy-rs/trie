@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased](https://github.com/alloy-rs/trie/compare/v0.2.0...HEAD)
+## [0.2.1](https://github.com/alloy-rs/trie/releases/tag/v0.2.1) - 2024-01-24
 
 ### Features
 
@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Add cliff.toml and scripts
 - Simplify no_std
 
 ## [0.2.0](https://github.com/alloy-rs/trie/releases/tag/v0.2.0) - 2024-01-10
