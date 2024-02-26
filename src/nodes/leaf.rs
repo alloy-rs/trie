@@ -1,9 +1,10 @@
 use super::{super::Nibbles, rlp_node};
-use alloc::vec::Vec;
 use alloy_rlp::{BufMut, Encodable};
+use core::fmt;
 use smallvec::SmallVec;
 
-use core::fmt;
+#[allow(unused_imports)]
+use alloc::vec::Vec;
 
 /// A leaf node represents the endpoint or terminal node in the trie. In other words, a leaf node is
 /// where actual values are stored.

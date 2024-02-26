@@ -1,9 +1,11 @@
 //! Various branch nodes produced by the hash builder.
 
-use alloc::vec::Vec;
 use alloy_primitives::{keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::ops::Range;
+
+#[allow(unused_imports)]
+use alloc::vec::Vec;
 
 mod branch;
 pub use branch::{BranchNode, BranchNodeCompact};

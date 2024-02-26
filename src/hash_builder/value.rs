@@ -1,6 +1,8 @@
-use alloc::vec::Vec;
 use alloy_primitives::B256;
 use core::fmt;
+
+#[allow(unused_imports)]
+use alloc::vec::Vec;
 
 /// The current value of the hash builder.
 #[derive(Clone, PartialEq)]

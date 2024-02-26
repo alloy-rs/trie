@@ -5,10 +5,12 @@ use super::{
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use crate::HashMap;
-use alloc::{collections::BTreeMap, vec::Vec};
 use alloy_primitives::{keccak256, Bytes, B256};
 use core::cmp;
 use tracing::trace;
+
+#[allow(unused_imports)]
+use alloc::{collections::BTreeMap, vec::Vec};
 
 mod value;
 pub use value::HashBuilderValue;
@@ -417,9 +419,7 @@ impl HashBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::HashMap;
-    use alloc::collections::BTreeMap;
-    use alloy_primitives::{b256, hex, keccak256, B256, U256};
+    use alloy_primitives::{b256, hex, U256};
     use alloy_rlp::Encodable;
 
     fn triehash_trie_root<I, K, V>(iter: I) -> B256
