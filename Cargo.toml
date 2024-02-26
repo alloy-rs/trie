@@ -24,7 +24,7 @@ alloy-primitives = { version = "0.6", default-features = false, features = ["rlp
 alloy-rlp = { version = "0.3", default-features = false, features = ["derive"] }
 derive_more = "0.99"
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
-nybbles = { version = "0.1", default-features = false }
+nybbles = { version = "0.2", default-features = false }
 smallvec = "1.11"
 tracing = { version = "0.1", default-features = false }
 
@@ -44,13 +44,7 @@ triehash = "0.8.4"
 
 [features]
 default = ["std"]
-std = [
-    "alloy-primitives/std",
-    "alloy-rlp/std",
-    "nybbles/std",
-    "tracing/std",
-    "serde?/std",    
-]
+std = ["alloy-primitives/std", "alloy-rlp/std", "nybbles/std", "tracing/std", "serde?/std"]
 serde = ["dep:serde", "alloy-primitives/serde", "hashbrown/serde", "nybbles/serde"]
 arbitrary = [
     "std",
