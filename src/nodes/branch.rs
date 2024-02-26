@@ -1,7 +1,9 @@
 use super::{super::TrieMask, rlp_node, CHILD_INDEX_RANGE};
-use alloc::vec::Vec;
 use alloy_primitives::B256;
 use alloy_rlp::{BufMut, EMPTY_STRING_CODE};
+
+#[allow(unused_imports)]
+use alloc::{collections::BTreeMap, vec::Vec};
 
 /// A Branch node is only a pointer to the stack of nodes and is used to
 /// create the RLP encoding of the node using masks which filter from

@@ -1,8 +1,10 @@
 use super::{super::Nibbles, rlp_node};
-use alloc::vec::Vec;
 use alloy_rlp::{BufMut, Encodable};
 use core::fmt;
 use smallvec::SmallVec;
+
+#[allow(unused_imports)]
+use alloc::{collections::BTreeMap, vec::Vec};
 
 /// An intermediate node that exists solely to compress the trie's paths. It contains a path segment
 /// (a shared prefix of keys) and a single child pointer. Essentially, an extension node can be
