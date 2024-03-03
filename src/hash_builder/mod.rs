@@ -175,7 +175,7 @@ impl HashBuilder {
 
         let mut i = 0usize;
         loop {
-            let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions);
+            let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
 
             let preceding_exists = !self.groups.is_empty();
             let preceding_len = self.groups.len().saturating_sub(1);
