@@ -174,20 +174,8 @@ impl HashBuilder {
         trace!(target: "trie::hash_builder", ?current, ?succeeding, "updating merkle tree");
 
         let mut i = 0usize;
-        let span = tracing::trace_span!(
-            target: "trie::hash_builder",
-            "loop",
-            i = tracing::field::Empty,
-            current = tracing::field::Empty,
-            build_extensions = tracing::field::Empty,
-        )
-        .entered();
         loop {
-            if !span.is_disabled() {
-                span.record("i", i);
-                span.record("current", &format!("{current:?}"));
-                span.record("build_extensions", build_extensions);
-            }
+            let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions);
 
             let preceding_exists = !self.groups.is_empty();
             let preceding_len = self.groups.len().saturating_sub(1);
