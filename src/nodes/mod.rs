@@ -9,7 +9,7 @@ use nybbles::Nibbles;
 use alloc::vec::Vec;
 
 mod branch;
-pub use branch::{BranchNode, BranchNodeCompact};
+pub use branch::{BranchNode, BranchNodeCompact, BranchNodeRef};
 
 mod extension;
 pub use extension::{ExtensionNode, ExtensionNodeRef};

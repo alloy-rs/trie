@@ -1,4 +1,4 @@
-use alloy_primitives::B256;
+use alloy_primitives::{hex, B256};
 use core::fmt;
 
 #[allow(unused_imports)]
@@ -18,7 +18,7 @@ pub enum HashBuilderValue {
 impl fmt::Debug for HashBuilderValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Bytes(bytes) => write!(f, "Bytes({:?})", alloy_primitives::hex::encode(bytes)),
+            Self::Bytes(bytes) => write!(f, "Bytes({:?})", hex::encode(bytes)),
             Self::Hash(hash) => write!(f, "Hash({:?})", hash),
         }
     }
