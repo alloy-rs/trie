@@ -25,7 +25,6 @@ alloy-rlp = { version = "0.3", default-features = false, features = ["derive"] }
 derive_more = "0.99"
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
 nybbles = { version = "0.2", default-features = false }
-smallvec = "1.11"
 tracing = { version = "0.1", default-features = false }
 
 # serde

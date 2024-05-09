@@ -1,7 +1,7 @@
 //! The implementation of the hash builder.
 
 use super::{
-    nodes::{word_rlp, BranchNode, ExtensionNode, LeafNodeRef},
+    nodes::{word_rlp, BranchNode, ExtensionNodeRef, LeafNodeRef},
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use crate::HashMap;
@@ -257,7 +257,7 @@ impl HashBuilder {
                 self.update_masks(&current, len_from);
                 let stack_last =
                     self.stack.pop().expect("there should be at least one stack item; qed");
-                let extension_node = ExtensionNode::new(&short_node_key, &stack_last);
+                let extension_node = ExtensionNodeRef::new(&short_node_key, &stack_last);
                 trace!(target: "trie::hash_builder", ?extension_node, "pushing extension node");
                 trace!(target: "trie::hash_builder", rlp = {
                     self.rlp_buf.clear();
