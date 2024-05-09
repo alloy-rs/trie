@@ -53,7 +53,7 @@ impl Decodable for ExtensionNode {
         };
 
         let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
-        let child = Vec::from(&bytes[..]);
+        let child = Vec::from(bytes);
         Ok(Self { key, child })
     }
 }
