@@ -107,16 +107,15 @@ impl Encodable for LeafNodeRef<'_> {
 
 impl<'a> LeafNodeRef<'a> {
     /// Creates a new leaf node with the given key and value.
-    pub fn new(key: &'a Nibbles, value: &'a [u8]) -> Self {
+    pub const fn new(key: &'a Nibbles, value: &'a [u8]) -> Self {
         Self { key, value }
     }
 
     /// Returns the length of RLP encoded fields of leaf node.
     fn rlp_payload_length(&self) -> usize {
         let mut encoded_key_len = self.key.len() / 2 + 1;
-        let odd_nibbles = self.key.len() % 2 != 0;
-        // For leaf nodes the first byte can be greater than 0x80 only if the key has odd length.
-        if encoded_key_len != 1 || (odd_nibbles && 0x30 | self.key[0] >= EMPTY_STRING_CODE) {
+        // For leaf nodes the first byte cannot be greater than 0x80.
+        if encoded_key_len != 1 {
             encoded_key_len += length_of_length(encoded_key_len);
         }
         encoded_key_len + Encodable::length(&self.value)
