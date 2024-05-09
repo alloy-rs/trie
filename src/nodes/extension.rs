@@ -1,5 +1,5 @@
 use super::{super::Nibbles, rlp_node, unpack_path_to_nibbles};
-use alloy_primitives::Bytes;
+use alloy_primitives::{hex, Bytes};
 use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable, Header};
 use core::fmt;
 
@@ -25,7 +25,7 @@ impl fmt::Debug for ExtensionNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ExtensionNode")
             .field("key", &self.key)
-            .field("child", &alloy_primitives::hex::encode(&self.child))
+            .field("child", &hex::encode(&self.child))
             .finish()
     }
 }
@@ -33,6 +33,10 @@ impl fmt::Debug for ExtensionNode {
 impl Encodable for ExtensionNode {
     fn encode(&self, out: &mut dyn BufMut) {
         self.as_ref().encode(out)
+    }
+
+    fn length(&self) -> usize {
+        self.as_ref().length()
     }
 }
 
@@ -82,7 +86,7 @@ impl fmt::Debug for ExtensionNodeRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ExtensionNodeRef")
             .field("key", &self.key)
-            .field("node", &alloy_primitives::hex::encode(self.child))
+            .field("node", &hex::encode(self.child))
             .finish()
     }
 }
@@ -127,7 +131,6 @@ impl<'a> ExtensionNodeRef<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::hex;
 
     #[test]
     fn rlp_extension_node_roundtrip() {

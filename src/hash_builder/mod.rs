@@ -1,11 +1,11 @@
 //! The implementation of the hash builder.
 
 use super::{
-    nodes::{word_rlp, BranchNode, ExtensionNodeRef, LeafNodeRef},
+    nodes::{word_rlp, BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use crate::HashMap;
-use alloy_primitives::{keccak256, Bytes, B256};
+use alloy_primitives::{hex, keccak256, Bytes, B256};
 use core::cmp;
 use tracing::trace;
 
@@ -106,7 +106,7 @@ impl HashBuilder {
     pub fn print_stack(&self) {
         println!("============ STACK ===============");
         for item in &self.stack {
-            println!("{}", alloy_primitives::hex::encode(item));
+            println!("{}", hex::encode(item));
         }
         println!("============ END STACK ===============");
     }
@@ -230,7 +230,7 @@ impl HashBuilder {
                         trace!(target: "trie::hash_builder", ?leaf_node, "pushing leaf node");
                         trace!(target: "trie::hash_builder", rlp = {
                             self.rlp_buf.clear();
-                            alloy_primitives::hex::encode(&leaf_node.rlp(&mut self.rlp_buf))
+                            hex::encode(&leaf_node.rlp(&mut self.rlp_buf))
                         }, "leaf node rlp");
 
                         self.rlp_buf.clear();
@@ -261,7 +261,7 @@ impl HashBuilder {
                 trace!(target: "trie::hash_builder", ?extension_node, "pushing extension node");
                 trace!(target: "trie::hash_builder", rlp = {
                     self.rlp_buf.clear();
-                    alloy_primitives::hex::encode(&extension_node.rlp(&mut self.rlp_buf))
+                    hex::encode(&extension_node.rlp(&mut self.rlp_buf))
                 }, "extension node rlp");
                 self.rlp_buf.clear();
                 self.stack.push(extension_node.rlp(&mut self.rlp_buf));
@@ -311,11 +311,11 @@ impl HashBuilder {
     fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
         let state_mask = self.groups[len];
         let hash_mask = self.hash_masks[len];
-        let branch_node = BranchNode::new(&self.stack);
-        let children = branch_node.children(state_mask, hash_mask);
+        let branch_node = BranchNodeRef::new(&self.stack, &state_mask);
+        let children = branch_node.children(hash_mask);
 
         self.rlp_buf.clear();
-        let rlp = branch_node.rlp(state_mask, &mut self.rlp_buf);
+        let rlp = branch_node.rlp(&mut self.rlp_buf);
         self.retain_proof_from_buf(&current.slice(..len));
 
         // Clears the stack from the branch node elements
@@ -329,7 +329,7 @@ impl HashBuilder {
         self.stack.resize(first_child_idx, vec![]);
 
         trace!(target: "trie::hash_builder", "pushing branch node with {:?} mask from stack", state_mask);
-        trace!(target: "trie::hash_builder", rlp = alloy_primitives::hex::encode(&rlp), "branch node rlp");
+        trace!(target: "trie::hash_builder", rlp = hex::encode(&rlp), "branch node rlp");
         self.stack.push(rlp);
         children
     }

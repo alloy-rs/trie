@@ -1,5 +1,5 @@
 use super::{super::Nibbles, rlp_node, unpack_path_to_nibbles};
-use alloy_primitives::Bytes;
+use alloy_primitives::{hex, Bytes};
 use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable, Header};
 use core::fmt;
 
@@ -25,7 +25,7 @@ impl fmt::Debug for LeafNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LeafNode")
             .field("key", &self.key)
-            .field("value", &alloy_primitives::hex::encode(&self.value))
+            .field("value", &hex::encode(&self.value))
             .finish()
     }
 }
@@ -33,6 +33,10 @@ impl fmt::Debug for LeafNode {
 impl Encodable for LeafNode {
     fn encode(&self, out: &mut dyn BufMut) {
         self.as_ref().encode(out)
+    }
+
+    fn length(&self) -> usize {
+        self.as_ref().length()
     }
 }
 
@@ -82,7 +86,7 @@ impl fmt::Debug for LeafNodeRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("LeafNodeRef")
             .field("key", &self.key)
-            .field("value", &alloy_primitives::hex::encode(self.value))
+            .field("value", &hex::encode(self.value))
             .finish()
     }
 }
@@ -128,7 +132,6 @@ impl<'a> LeafNodeRef<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::hex;
 
     // From manual regression test
     #[test]
