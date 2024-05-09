@@ -1,7 +1,7 @@
 //! The implementation of the hash builder.
 
 use super::{
-    nodes::{word_rlp, BranchNode, ExtensionNode, LeafNode},
+    nodes::{word_rlp, BranchNode, ExtensionNode, LeafNodeRef},
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use crate::HashMap;
@@ -226,7 +226,7 @@ impl HashBuilder {
             if !build_extensions {
                 match &self.value {
                     HashBuilderValue::Bytes(leaf_value) => {
-                        let leaf_node = LeafNode::new(&short_node_key, leaf_value);
+                        let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
                         trace!(target: "trie::hash_builder", ?leaf_node, "pushing leaf node");
                         trace!(target: "trie::hash_builder", rlp = {
                             self.rlp_buf.clear();
@@ -407,6 +407,7 @@ impl HashBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nodes::LeafNode;
     use alloy_primitives::{b256, hex, U256};
     use alloy_rlp::Encodable;
 
@@ -584,20 +585,19 @@ mod tests {
             (hex!("646f").to_vec(), hex!("76657262").to_vec()),
             (hex!("676f6f64").to_vec(), hex!("7075707079").to_vec()),
         ];
-        let input =
-            raw_input.iter().map(|(key, value)| (Nibbles::unpack(key), value)).collect::<Vec<_>>();
+        let expected = triehash_trie_root(raw_input.clone());
 
         // We create the hash builder and add the leaves
         let mut hb = HashBuilder::default();
-        for (key, val) in input.iter() {
-            hb.add_leaf(key.clone(), val.as_slice());
+        for (key, val) in &raw_input {
+            hb.add_leaf(Nibbles::unpack(key), val.as_slice());
         }
 
         // Manually create the branch node that should be there after the first 2 leaves are added.
         // Skip the 0th element given in this example they have a common prefix and will
         // collapse to a Branch node.
-        let leaf1 = LeafNode::new(&Nibbles::unpack(&raw_input[0].0[1..]), input[0].1);
-        let leaf2 = LeafNode::new(&Nibbles::unpack(&raw_input[1].0[1..]), input[1].1);
+        let leaf1 = LeafNode::new(Nibbles::unpack(&raw_input[0].0[1..]), raw_input[0].1.clone());
+        let leaf2 = LeafNode::new(Nibbles::unpack(&raw_input[1].0[1..]), raw_input[1].1.clone());
         let mut branch: [&dyn Encodable; 17] = [b""; 17];
         // We set this to `4` and `7` because that mathces the 2nd element of the corresponding
         // leaves. We set this to `7` because the 2nd element of Leaf 1 is `7`.
@@ -611,7 +611,6 @@ mod tests {
         // Insert the branch with the `0x6` shared prefix.
         hb2.add_branch(Nibbles::from_nibbles_unchecked([0x6]), branch_node_hash, false);
 
-        let expected = triehash_trie_root(raw_input.clone());
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);
     }

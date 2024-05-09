@@ -1,7 +1,7 @@
 use super::{super::Nibbles, rlp_node};
-use alloy_rlp::{BufMut, Encodable};
+use alloy_primitives::Bytes;
+use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::fmt;
-use smallvec::SmallVec;
 
 #[allow(unused_imports)]
 use alloc::vec::Vec;
@@ -13,18 +13,113 @@ use alloc::vec::Vec;
 /// remaining portion of the key after following the path through the trie, and the value is the
 /// data associated with the full key. When searching the trie for a specific key, reaching a leaf
 /// node means that the search has successfully found the value associated with that key.
-#[derive(Default)]
-pub struct LeafNode<'a> {
-    /// The key path. See [`Nibbles::encode_path_leaf`] for more information.
-    pub key: SmallVec<[u8; 36]>,
+#[derive(PartialEq, Eq, Debug)]
+pub struct LeafNode {
+    /// The key for this leaf node.
+    pub key: Nibbles,
+    /// The node value.
+    pub value: Vec<u8>,
+}
+
+impl LeafNode {
+    /// Creates a new leaf node with the given key and value.
+    pub fn new(key: Nibbles, value: Vec<u8>) -> Self {
+        Self { key, value }
+    }
+
+    /// Return leaf node as [LeafNodeRef].
+    pub fn as_ref(&self) -> LeafNodeRef<'_> {
+        LeafNodeRef { key: &self.key, value: &self.value }
+    }
+}
+
+impl Encodable for LeafNode {
+    fn encode(&self, out: &mut dyn BufMut) {
+        self.as_ref().encode(out)
+    }
+}
+
+impl Decodable for LeafNode {
+    fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
+        let mut bytes = Header::decode_bytes(buf, true)?;
+
+        let encoded_key = Bytes::decode(&mut bytes)?;
+        if encoded_key.is_empty() {
+            return Err(alloy_rlp::Error::Custom("leaf node key empty"));
+        }
+
+        // Retrieve first byte. If it's [Some], then the nibbles are odd.
+        let first = match encoded_key[0] & 0xf0 {
+            0x30 => Some(encoded_key[0] & 0x0f),
+            0x20 => None,
+            _ => return Err(alloy_rlp::Error::Custom("node is not leaf")),
+        };
+        let is_odd = first.is_some();
+        let rest = encoded_key[1..].iter().flat_map(|b| [b >> 4, b & 0x0f]);
+
+        let len = (encoded_key.len() - 1) * 2 + is_odd as usize;
+        let mut nibbles = Vec::with_capacity(len);
+        unsafe {
+            let ptr: *mut u8 = nibbles.as_mut_ptr();
+            for (i, nibble) in first.into_iter().chain(rest).enumerate() {
+                ptr.add(i).write(nibble)
+            }
+            nibbles.set_len(len);
+        }
+
+        Ok(Self {
+            key: Nibbles::from_vec_unchecked(nibbles),
+            value: Bytes::decode(&mut bytes)?.to_vec(),
+        })
+    }
+}
+
+/// Reference to the leaf node. See [LeafNode] from more information.
+pub struct LeafNodeRef<'a> {
+    /// The key for this leaf node.
+    pub key: &'a Nibbles,
     /// The node value.
     pub value: &'a [u8],
 }
 
-impl<'a> LeafNode<'a> {
+impl fmt::Debug for LeafNodeRef<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("LeafNode")
+            .field("key", &self.key)
+            .field("value", &alloy_primitives::hex::encode(self.value))
+            .finish()
+    }
+}
+
+/// Manual implementation of encoding for the leaf node of Merkle Patricia Trie.
+impl Encodable for LeafNodeRef<'_> {
+    fn encode(&self, out: &mut dyn BufMut) {
+        Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
+        self.key.encode_path_leaf(true).as_slice().encode(out);
+        self.value.encode(out);
+    }
+
+    fn length(&self) -> usize {
+        let payload_length = self.rlp_payload_length();
+        payload_length + length_of_length(payload_length)
+    }
+}
+
+impl<'a> LeafNodeRef<'a> {
     /// Creates a new leaf node with the given key and value.
-    pub fn new(key: &Nibbles, value: &'a [u8]) -> Self {
-        Self { key: key.encode_path_leaf(true), value }
+    pub fn new(key: &'a Nibbles, value: &'a [u8]) -> Self {
+        Self { key, value }
+    }
+
+    /// Returns the length of RLP encoded fields of leaf node.
+    fn rlp_payload_length(&self) -> usize {
+        let mut encoded_key_len = self.key.len() / 2 + 1;
+        let odd_nibbles = self.key.len() % 2 != 0;
+        // For leaf nodes the first byte can be greater than 0x80 only if the key has odd length.
+        if encoded_key_len != 1 || (odd_nibbles && 0x30 | self.key[0] >= EMPTY_STRING_CODE) {
+            encoded_key_len += length_of_length(encoded_key_len);
+        }
+        encoded_key_len + Encodable::length(&self.value)
     }
 
     /// RLP encodes the node and returns either RLP(Node) or RLP(keccak(RLP(node)))
@@ -32,27 +127,6 @@ impl<'a> LeafNode<'a> {
     pub fn rlp(&self, out: &mut Vec<u8>) -> Vec<u8> {
         self.encode(out);
         rlp_node(out)
-    }
-}
-
-// Handroll because `key` must be encoded as a slice
-impl Encodable for LeafNode<'_> {
-    fn encode(&self, out: &mut dyn BufMut) {
-        #[derive(alloy_rlp::RlpEncodable)]
-        struct S<'a> {
-            encoded_path: &'a [u8],
-            value: &'a [u8],
-        }
-        S { encoded_path: &self.key, value: self.value }.encode(out);
-    }
-}
-
-impl fmt::Debug for LeafNode<'_> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("LeafNode")
-            .field("key", &alloy_primitives::hex::encode(&self.key))
-            .field("value", &alloy_primitives::hex::encode(self.value))
-            .finish()
     }
 }
 
@@ -73,8 +147,9 @@ mod tests {
     fn rlp_leaf_node_roundtrip() {
         let nibble = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
         let val = hex!("76657262");
-        let leaf = LeafNode::new(&nibble, &val);
-        let rlp = leaf.rlp(&mut vec![]);
+        let leaf = LeafNode::new(nibble, val.to_vec());
+        let rlp = leaf.as_ref().rlp(&mut vec![]);
         assert_eq!(rlp, hex!("c98320646f8476657262"));
+        assert_eq!(LeafNode::decode(&mut &rlp[..]).unwrap(), leaf);
     }
 }

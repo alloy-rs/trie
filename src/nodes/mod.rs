@@ -14,7 +14,7 @@ mod extension;
 pub use extension::ExtensionNode;
 
 mod leaf;
-pub use leaf::LeafNode;
+pub use leaf::{LeafNode, LeafNodeRef};
 
 /// The range of valid child indexes.
 pub const CHILD_INDEX_RANGE: Range<u8> = 0..16;
