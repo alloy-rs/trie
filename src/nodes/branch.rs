@@ -20,7 +20,7 @@ pub struct BranchNode {
 impl fmt::Debug for BranchNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BranchNode")
-            .field("stack", &self.stack.iter().map(|b| hex::encode(b)).collect::<Vec<_>>())
+            .field("stack", &self.stack.iter().map(hex::encode).collect::<Vec<_>>())
             .field("state_mask", &self.state_mask)
             .field("first_child_index", &self.as_ref().first_child_index())
             .finish()
@@ -44,7 +44,8 @@ impl Decodable for BranchNode {
         let mut stack = Vec::new();
         let mut state_mask = TrieMask::default();
         for index in CHILD_INDEX_RANGE {
-            if bytes.len() < 1 {
+            // The buffer must contain empty string code for value.
+            if bytes.len() <= 1 {
                 return Err(alloy_rlp::Error::InputTooShort);
             }
 
@@ -97,7 +98,7 @@ pub struct BranchNodeRef<'a> {
 impl fmt::Debug for BranchNodeRef<'_> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("BranchNodeRef")
-            .field("stack", &self.stack.iter().map(|b| hex::encode(b)).collect::<Vec<_>>())
+            .field("stack", &self.stack.iter().map(hex::encode).collect::<Vec<_>>())
             .field("state_mask", &self.state_mask)
             .field("first_child_index", &self.first_child_index())
             .finish()
@@ -134,7 +135,7 @@ impl Encodable for BranchNodeRef<'_> {
 
 impl<'a> BranchNodeRef<'a> {
     /// Create a new branch node from the stack of nodes.
-    pub fn new(stack: &'a [Vec<u8>], state_mask: &'a TrieMask) -> Self {
+    pub const fn new(stack: &'a [Vec<u8>], state_mask: &'a TrieMask) -> Self {
         Self { stack, state_mask }
     }
 
