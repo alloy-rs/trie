@@ -266,7 +266,7 @@ mod tests {
         assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), sparse_node);
 
         let full = BranchNode::new(
-            std::iter::repeat(vec![0x23; 32]).take(16).collect(),
+            core::iter::repeat(vec![0x23; 32]).take(16).collect(),
             TrieMask::new(u16::MAX),
         );
         let mut buf = vec![];
