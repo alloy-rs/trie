@@ -54,9 +54,9 @@ impl Decodable for LeafNode {
             0x20 => None,
             _ => return Err(alloy_rlp::Error::Custom("node is not leaf")),
         };
-        let is_odd = first.is_some();
         let rest = encoded_key[1..].iter().flat_map(|b| [b >> 4, b & 0x0f]);
 
+        let is_odd = first.is_some();
         let len = (encoded_key.len() - 1) * 2 + is_odd as usize;
         let mut nibbles = Vec::with_capacity(len);
         unsafe {
