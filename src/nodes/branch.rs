@@ -75,6 +75,7 @@ impl BranchNode {
     pub fn new(stack: Vec<Vec<u8>>, state_mask: TrieMask) -> Self {
         Self { stack, state_mask }
     }
+
     /// Return branch node as [BranchNodeRef].
     pub fn as_ref(&self) -> BranchNodeRef<'_> {
         BranchNodeRef::new(&self.stack, &self.state_mask)
