@@ -43,7 +43,6 @@ impl Encodable for ExtensionNode {
 impl Decodable for ExtensionNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let mut bytes = Header::decode_bytes(buf, true)?;
-
         let encoded_key = Bytes::decode(&mut bytes)?;
         if encoded_key.is_empty() {
             return Err(alloy_rlp::Error::Custom("extension node key empty"));
@@ -136,9 +135,11 @@ mod tests {
     fn rlp_extension_node_roundtrip() {
         let nibble = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
         let val = hex!("76657262");
-        let extension = ExtensionNode::new(nibble, val.to_vec());
+        let mut child = vec![];
+        val.to_vec().as_slice().encode(&mut child);
+        let extension = ExtensionNode::new(nibble, child);
         let rlp = extension.as_ref().rlp(&mut vec![]);
-        assert_eq!(rlp, hex!("c88300646f76657262"));
+        assert_eq!(rlp, hex!("c98300646f8476657262"));
         assert_eq!(ExtensionNode::decode(&mut &rlp[..]).unwrap(), extension);
     }
 }

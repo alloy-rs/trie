@@ -6,13 +6,19 @@ use alloc::{collections::BTreeMap, vec::Vec};
 
 /// Proof retainer is used to store proofs during merkle trie construction.
 /// It is intended to be used within the [`HashBuilder`](crate::HashBuilder).
-#[derive(Debug)]
+#[derive(Default, Debug)]
 pub struct ProofRetainer {
     /// The nibbles of the target trie keys to retain proofs for.
     targets: Vec<Nibbles>,
     /// The map of retained proofs (RLP serialized trie nodes)
     /// with their corresponding key in the trie.
     proofs: BTreeMap<Nibbles, Bytes>,
+}
+
+impl core::iter::FromIterator<Nibbles> for ProofRetainer {
+    fn from_iter<T: IntoIterator<Item = Nibbles>>(iter: T) -> Self {
+        Self::new(iter.into_iter().collect())
+    }
 }
 
 impl ProofRetainer {

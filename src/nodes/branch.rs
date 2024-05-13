@@ -54,17 +54,20 @@ impl Decodable for BranchNode {
                 continue;
             }
 
-            if bytes.len() < 32 {
-                return Err(alloy_rlp::Error::InputTooShort);
-            }
-
+            // Decode without advancing
+            let Header { payload_length, .. } = Header::decode(&mut &bytes[..])?;
+            let len = payload_length + length_of_length(payload_length);
+            stack.push(Vec::from(&bytes[..len]));
+            bytes.advance(len);
             state_mask.set_bit(index);
-            stack.push(Vec::from(&bytes[..32]));
-            bytes.advance(32);
         }
 
         // Consume empty string code for branch node value.
-        bytes.advance(1);
+        let bytes = Header::decode_bytes(&mut bytes, false)?;
+        if !bytes.is_empty() {
+            return Err(alloy_rlp::Error::Custom("branch values not supported"));
+        }
+        debug_assert!(bytes.is_empty());
 
         Ok(Self { stack, state_mask })
     }
@@ -121,7 +124,7 @@ impl Encodable for BranchNodeRef<'_> {
                 // Advance the pointer to the next child.
                 stack_ptr += 1;
             } else {
-                out.put_u8(EMPTY_STRING_CODE)
+                out.put_u8(EMPTY_STRING_CODE);
             }
         }
 
@@ -152,7 +155,7 @@ impl<'a> BranchNodeRef<'a> {
 
     /// Given the hash and state mask of children present, return an iterator over the stack items
     /// that match the mask.
-    pub fn children(&self, hash_mask: TrieMask) -> Vec<B256> {
+    pub fn child_hashes(&self, hash_mask: TrieMask) -> Vec<B256> {
         let mut stack_ptr = self.first_child_index();
         let mut children = Vec::with_capacity(hash_mask.count_ones() as usize);
         for index in CHILD_INDEX_RANGE {
@@ -253,24 +256,47 @@ impl BranchNodeCompact {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nodes::{word_rlp, ExtensionNode, LeafNode};
+    use nybbles::Nibbles;
 
     #[test]
     fn rlp_branch_node_roundtrip() {
-        let empty = BranchNode::default();
         let mut buf = vec![];
+
+        let empty = BranchNode::default();
+        buf.clear();
         empty.encode(&mut buf);
         assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), empty);
 
-        let sparse_node = BranchNode::new(vec![vec![1; 32], vec![2; 32]], TrieMask::new(0b1000100));
-        let mut buf = vec![];
+        let sparse_node = BranchNode::new(
+            vec![word_rlp(&B256::repeat_byte(1)), word_rlp(&B256::repeat_byte(2))],
+            TrieMask::new(0b1000100),
+        );
+        buf.clear();
         sparse_node.encode(&mut buf);
         assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), sparse_node);
 
+        let leaf_child = LeafNode::new(Nibbles::from_nibbles(hex!("0203")), hex!("1234").to_vec());
+        buf.clear();
+        let leaf_rlp = leaf_child.as_ref().rlp(&mut buf);
+        let branch_with_leaf = BranchNode::new(vec![leaf_rlp.clone()], TrieMask::new(0b0010));
+        buf.clear();
+        branch_with_leaf.encode(&mut buf);
+        assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), branch_with_leaf);
+
+        let extension_child = ExtensionNode::new(Nibbles::from_nibbles(hex!("0203")), leaf_rlp);
+        buf.clear();
+        let extension_rlp = extension_child.as_ref().rlp(&mut buf);
+        let branch_with_ext = BranchNode::new(vec![extension_rlp], TrieMask::new(0b00000100000));
+        buf.clear();
+        branch_with_ext.encode(&mut buf);
+        assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), branch_with_ext);
+
         let full = BranchNode::new(
-            core::iter::repeat(vec![0x23; 32]).take(16).collect(),
+            core::iter::repeat(word_rlp(&B256::repeat_byte(23))).take(16).collect(),
             TrieMask::new(u16::MAX),
         );
-        let mut buf = vec![];
+        buf.clear();
         full.encode(&mut buf);
         assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), full);
     }

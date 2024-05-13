@@ -43,7 +43,6 @@ impl Encodable for LeafNode {
 impl Decodable for LeafNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let mut bytes = Header::decode_bytes(buf, true)?;
-
         let encoded_key = Bytes::decode(&mut bytes)?;
         if encoded_key.is_empty() {
             return Err(alloy_rlp::Error::Custom("leaf node key empty"));
