@@ -62,16 +62,16 @@ where
             }
             TrieNode::Extension(extension) => {
                 walked_path.extend_from_slice(&extension.key);
-                Some(extension.child).filter(|_| target.starts_with(&walked_path))
+                Some(extension.child)
             }
             TrieNode::Leaf(leaf) => {
                 walked_path.extend_from_slice(&leaf.key);
-                Some(leaf.value.clone()).filter(|_| target.starts_with(&walked_path))
+                Some(leaf.value.clone())
             }
         };
     }
 
-    Ok(expected_value)
+    Ok(expected_value.filter(|_| walked_path == target))
 }
 
 #[cfg(test)]
