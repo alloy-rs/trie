@@ -37,10 +37,10 @@ where
     let mut walked_path = Nibbles::default();
     let mut expected_value = Some(word_rlp(&root));
     for node in proof {
-        if Some(rlp_node(&node)) != expected_value {
-            let got = Bytes::copy_from_slice(&node);
+        if Some(rlp_node(node)) != expected_value {
+            let got = Some(Bytes::copy_from_slice(node));
             let expected = expected_value.map(|b| Bytes::copy_from_slice(&b));
-            return Err(ProofVerificationError::value_mismatch(walked_path, got, expected));
+            return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
         }
 
         expected_value = match TrieNode::decode(&mut &node[..])? {
@@ -92,11 +92,11 @@ mod tests {
         BranchNode::default().encode(&mut dummy_proof);
         assert_eq!(
             verify_proof([&Bytes::from(dummy_proof.clone())], root, key),
-            Err(ProofVerificationError::value_mismatch(
-                Nibbles::default(),
-                Bytes::from(dummy_proof),
-                Some(Bytes::from(word_rlp(&EMPTY_ROOT_HASH)))
-            ))
+            Err(ProofVerificationError::ValueMismatch {
+                path: Nibbles::default(),
+                got: Some(Bytes::from(dummy_proof)),
+                expected: Some(Bytes::from(word_rlp(&EMPTY_ROOT_HASH)))
+            })
         );
     }
 

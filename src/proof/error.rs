@@ -1,4 +1,3 @@
-use alloc::boxed::Box;
 use alloy_primitives::{Bytes, B256};
 use core::fmt;
 use nybbles::Nibbles;
@@ -16,11 +15,11 @@ pub enum ProofVerificationError {
     /// The node value does not match at specified path.
     ValueMismatch {
         /// Path at which error occurred.
-        path: Box<Nibbles>,
+        path: Nibbles,
         /// Value in the proof.
-        got: Box<Bytes>,
+        got: Option<Bytes>,
         /// Expected value.
-        expected: Option<Box<Bytes>>,
+        expected: Option<Bytes>,
     },
     /// Error during RLP decoding of trie node.
     Rlp(alloy_rlp::Error),
@@ -48,7 +47,7 @@ impl fmt::Display for ProofVerificationError {
                 write!(f, "root mismatch. got: {got}. expected: {expected}")
             }
             ProofVerificationError::ValueMismatch { path, got, expected } => {
-                write!(f, "value mismatch at path {path:?}. got: {got}. expected: {expected:?}")
+                write!(f, "value mismatch at path {path:?}. got: {got:?}. expected: {expected:?}")
             }
             ProofVerificationError::Rlp(error) => fmt::Display::fmt(error, f),
         }
@@ -58,16 +57,5 @@ impl fmt::Display for ProofVerificationError {
 impl From<alloy_rlp::Error> for ProofVerificationError {
     fn from(source: alloy_rlp::Error) -> Self {
         ProofVerificationError::Rlp(source)
-    }
-}
-
-impl ProofVerificationError {
-    /// Create [ProofVerificationError::ValueMismatch] error variant.
-    pub fn value_mismatch(path: Nibbles, got: Bytes, expected: Option<Bytes>) -> Self {
-        Self::ValueMismatch {
-            path: Box::new(path),
-            got: Box::new(got),
-            expected: expected.map(Box::new),
-        }
     }
 }
