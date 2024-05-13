@@ -20,19 +20,7 @@ pub enum ProofVerificationError {
         /// Value in the proof.
         got: Box<Bytes>,
         /// Expected value.
-        expected: Box<Bytes>,
-    },
-    /// Unexpected key encountered in proof during verification.
-    UnexpectedKey {
-        /// Path at which unexpected key was encountered.
-        path: Box<Nibbles>,
-        /// Unexpected key. Empty means entry is missing from branch node at given path.
-        key: Box<Nibbles>,
-    },
-    /// Branch node child is missing at specified path.
-    MissingBranchChild {
-        /// Full path at which child is missing.
-        path: Box<Nibbles>,
+        expected: Option<Box<Bytes>>,
     },
     /// Error during RLP decoding of trie node.
     Rlp(alloy_rlp::Error),
@@ -60,13 +48,7 @@ impl fmt::Display for ProofVerificationError {
                 write!(f, "root mismatch. got: {got}. expected: {expected}")
             }
             ProofVerificationError::ValueMismatch { path, got, expected } => {
-                write!(f, "value mismatch at path {path:?}. got: {got}. expected: {expected}")
-            }
-            ProofVerificationError::UnexpectedKey { path, key } => {
-                write!(f, "unexpected node key {key:?} at path {path:?}")
-            }
-            ProofVerificationError::MissingBranchChild { path } => {
-                write!(f, "missing branch child at path {path:?}")
+                write!(f, "value mismatch at path {path:?}. got: {got}. expected: {expected:?}")
             }
             ProofVerificationError::Rlp(error) => fmt::Display::fmt(error, f),
         }
@@ -81,21 +63,11 @@ impl From<alloy_rlp::Error> for ProofVerificationError {
 
 impl ProofVerificationError {
     /// Create [ProofVerificationError::ValueMismatch] error variant.
-    pub fn value_mismatch(path: Nibbles, got: Bytes, expected: Bytes) -> Self {
+    pub fn value_mismatch(path: Nibbles, got: Bytes, expected: Option<Bytes>) -> Self {
         Self::ValueMismatch {
             path: Box::new(path),
             got: Box::new(got),
-            expected: Box::new(expected),
+            expected: expected.map(Box::new),
         }
-    }
-
-    /// Create [ProofVerificationError::UnexpectedKey] error variant.
-    pub fn unexpected_key(path: Nibbles, key: Nibbles) -> Self {
-        Self::UnexpectedKey { path: Box::new(path), key: Box::new(key) }
-    }
-
-    /// Create [ProofVerificationError::MissingBranchChild] error variant.
-    pub fn missing_branch_child(path: Nibbles) -> Self {
-        Self::MissingBranchChild { path: Box::new(path) }
     }
 }
