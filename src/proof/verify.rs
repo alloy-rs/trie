@@ -85,7 +85,7 @@ where
             }
         };
         target.truncate(target.len() - nibbles_verified);
-        expected_value = rlp_node(&node);
+        expected_value = rlp_node(node);
     }
 
     let computed_root = if expected_value.len() == B256::len_bytes() + 1 {
@@ -179,11 +179,11 @@ mod tests {
         let proof = hash_builder.take_proofs();
 
         let proof1 =
-            proof.iter().filter_map(|(k, v)| Nibbles::unpack(target1).starts_with(&k).then_some(v));
+            proof.iter().filter_map(|(k, v)| Nibbles::unpack(target1).starts_with(k).then_some(v));
         assert_eq!(verify_proof(proof1, root, target1, target1.to_vec()), Ok(()));
 
         let proof2 =
-            proof.iter().filter_map(|(k, v)| Nibbles::unpack(target2).starts_with(&k).then_some(v));
+            proof.iter().filter_map(|(k, v)| Nibbles::unpack(target2).starts_with(k).then_some(v));
         assert_eq!(verify_proof(proof2, root, target2, target2.to_vec()), Ok(()));
     }
 
