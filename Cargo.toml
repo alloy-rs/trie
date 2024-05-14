@@ -37,7 +37,6 @@ proptest = { version = "1.4", optional = true }
 proptest-derive = { version = "0.4", optional = true }
 
 [dev-dependencies]
-alloy-rlp = { version = "0.3", default-features = false, features = ["derive", "arrayvec"] }
 hash-db = "0.15"
 plain_hasher = "0.2"
 triehash = "0.8.4"
