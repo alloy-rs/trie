@@ -50,14 +50,14 @@ where
         }
 
         next_value = match TrieNode::decode(&mut &node[..])? {
-            TrieNode::Branch(branch) => 'val: {
+            TrieNode::Branch(mut branch) => 'val: {
                 if let Some(next) = key.get(walked_path.len()) {
                     let mut stack_ptr = branch.as_ref().first_child_index();
                     for index in CHILD_INDEX_RANGE {
                         if branch.state_mask.is_bit_set(index) {
                             if index == *next {
                                 walked_path.push(*next);
-                                break 'val Some(branch.stack[stack_ptr].clone());
+                                break 'val Some(branch.stack.remove(stack_ptr));
                             }
                             stack_ptr += 1;
                         }
@@ -72,7 +72,7 @@ where
             }
             TrieNode::Leaf(leaf) => {
                 walked_path.extend_from_slice(&leaf.key);
-                Some(leaf.value.clone())
+                Some(leaf.value)
             }
         };
     }
