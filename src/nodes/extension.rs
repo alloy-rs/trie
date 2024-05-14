@@ -43,7 +43,6 @@ impl Encodable for ExtensionNode {
 impl Decodable for ExtensionNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let mut bytes = Header::decode_bytes(buf, true)?;
-
         let encoded_key = Bytes::decode(&mut bytes)?;
         if encoded_key.is_empty() {
             return Err(alloy_rlp::Error::Custom("extension node key empty"));
@@ -51,8 +50,8 @@ impl Decodable for ExtensionNode {
 
         // Retrieve first byte. If it's [Some], then the nibbles are odd.
         let first = match encoded_key[0] & 0xf0 {
-            0x10 => Some(encoded_key[0] & 0x0f),
-            0x00 => None,
+            Self::ODD_FLAG => Some(encoded_key[0] & 0x0f),
+            Self::EVEN_FLAG => None,
             _ => return Err(alloy_rlp::Error::Custom("node is not extension")),
         };
 
@@ -63,6 +62,12 @@ impl Decodable for ExtensionNode {
 }
 
 impl ExtensionNode {
+    /// The flag representing the even number of nibbles in the extension key.
+    pub const EVEN_FLAG: u8 = 0x00;
+
+    /// The flag representing the odd number of nibbles in the extension key.
+    pub const ODD_FLAG: u8 = 0x10;
+
     /// Creates a new extension node with the given key and a pointer to the child.
     pub fn new(key: Nibbles, child: Vec<u8>) -> Self {
         Self { key, child }
@@ -136,9 +141,11 @@ mod tests {
     fn rlp_extension_node_roundtrip() {
         let nibble = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
         let val = hex!("76657262");
-        let extension = ExtensionNode::new(nibble, val.to_vec());
+        let mut child = vec![];
+        val.to_vec().as_slice().encode(&mut child);
+        let extension = ExtensionNode::new(nibble, child);
         let rlp = extension.as_ref().rlp(&mut vec![]);
-        assert_eq!(rlp, hex!("c88300646f76657262"));
+        assert_eq!(rlp, hex!("c98300646f8476657262"));
         assert_eq!(ExtensionNode::decode(&mut &rlp[..]).unwrap(), extension);
     }
 }

@@ -43,7 +43,6 @@ impl Encodable for LeafNode {
 impl Decodable for LeafNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let mut bytes = Header::decode_bytes(buf, true)?;
-
         let encoded_key = Bytes::decode(&mut bytes)?;
         if encoded_key.is_empty() {
             return Err(alloy_rlp::Error::Custom("leaf node key empty"));
@@ -51,8 +50,8 @@ impl Decodable for LeafNode {
 
         // Retrieve first byte. If it's [Some], then the nibbles are odd.
         let first = match encoded_key[0] & 0xf0 {
-            0x30 => Some(encoded_key[0] & 0x0f),
-            0x20 => None,
+            Self::ODD_FLAG => Some(encoded_key[0] & 0x0f),
+            Self::EVEN_FLAG => None,
             _ => return Err(alloy_rlp::Error::Custom("node is not leaf")),
         };
 
@@ -63,6 +62,12 @@ impl Decodable for LeafNode {
 }
 
 impl LeafNode {
+    /// The flag representing the even number of nibbles in the leaf key.
+    pub const EVEN_FLAG: u8 = 0x20;
+
+    /// The flag representing the odd number of nibbles in the leaf key.
+    pub const ODD_FLAG: u8 = 0x30;
+
     /// Creates a new leaf node with the given key and value.
     pub fn new(key: Nibbles, value: Vec<u8>) -> Self {
         Self { key, value }

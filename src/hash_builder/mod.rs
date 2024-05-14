@@ -2,6 +2,7 @@
 
 use super::{
     nodes::{word_rlp, BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
+    proof::ProofRetainer,
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use crate::HashMap;
@@ -14,9 +15,6 @@ use alloc::{collections::BTreeMap, vec::Vec};
 
 mod value;
 pub use value::HashBuilderValue;
-
-mod proof_retainer;
-pub use proof_retainer::ProofRetainer;
 
 /// A component used to construct the root hash of the trie. The primary purpose of a Hash Builder
 /// is to build the Merkle proof that is essential for verifying the integrity and authenticity of
@@ -69,9 +67,9 @@ impl HashBuilder {
         self
     }
 
-    /// Enable proof retainer for the specified target nibbles.
-    pub fn with_proof_retainer(mut self, targets: Vec<Nibbles>) -> Self {
-        self.proof_retainer = Some(ProofRetainer::new(targets));
+    /// Enable specified proof retainer.
+    pub fn with_proof_retainer(mut self, retainer: ProofRetainer) -> Self {
+        self.proof_retainer = Some(retainer);
         self
     }
 
@@ -263,6 +261,7 @@ impl HashBuilder {
                     self.rlp_buf.clear();
                     hex::encode(&extension_node.rlp(&mut self.rlp_buf))
                 }, "extension node rlp");
+
                 self.rlp_buf.clear();
                 self.stack.push(extension_node.rlp(&mut self.rlp_buf));
                 self.retain_proof_from_buf(&current.slice(..len_from));
@@ -312,7 +311,7 @@ impl HashBuilder {
         let state_mask = self.groups[len];
         let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(&self.stack, &state_mask);
-        let children = branch_node.children(hash_mask);
+        let children = branch_node.child_hashes(hash_mask);
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);
@@ -407,34 +406,9 @@ impl HashBuilder {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nodes::LeafNode;
+    use crate::{nodes::LeafNode, triehash_trie_root};
     use alloy_primitives::{b256, hex, U256};
     use alloy_rlp::Encodable;
-
-    fn triehash_trie_root<I, K, V>(iter: I) -> B256
-    where
-        I: IntoIterator<Item = (K, V)>,
-        K: AsRef<[u8]> + Ord,
-        V: AsRef<[u8]>,
-    {
-        struct Keccak256Hasher;
-        impl hash_db::Hasher for Keccak256Hasher {
-            type Out = B256;
-            type StdHasher = plain_hasher::PlainHasher;
-
-            const LENGTH: usize = 32;
-
-            fn hash(x: &[u8]) -> Self::Out {
-                keccak256(x)
-            }
-        }
-
-        // We use `trie_root` instead of `sec_trie_root` because we assume
-        // the incoming keys are already hashed, which makes sense given
-        // we're going to be using the Hashed tables & pre-hash the data
-        // on the way in.
-        triehash::trie_root::<Keccak256Hasher, _, _, _>(iter)
-    }
 
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.
     fn assert_hashed_trie_root<'a, I, K>(iter: I)
