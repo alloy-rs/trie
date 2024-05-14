@@ -1,6 +1,6 @@
 [package]
 name = "alloy-trie"
-version = "0.3.1"
+version = "0.4.0"
 authors = [
     "rkrasiuk <rokrassyuk@gmail.com>",
     "gakonst <me@gakonst.com>",
