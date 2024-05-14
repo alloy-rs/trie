@@ -50,8 +50,8 @@ impl Decodable for ExtensionNode {
 
         // Retrieve first byte. If it's [Some], then the nibbles are odd.
         let first = match encoded_key[0] & 0xf0 {
-            0x10 => Some(encoded_key[0] & 0x0f),
-            0x00 => None,
+            Self::ODD_FLAG => Some(encoded_key[0] & 0x0f),
+            Self::EVEN_FLAG => None,
             _ => return Err(alloy_rlp::Error::Custom("node is not extension")),
         };
 
@@ -62,6 +62,12 @@ impl Decodable for ExtensionNode {
 }
 
 impl ExtensionNode {
+    /// The flag representing the even number of nibbles in the extension key.
+    pub const EVEN_FLAG: u8 = 0x00;
+
+    /// The flag representing the odd number of nibbles in the extension key.
+    pub const ODD_FLAG: u8 = 0x10;
+
     /// Creates a new extension node with the given key and a pointer to the child.
     pub fn new(key: Nibbles, child: Vec<u8>) -> Self {
         Self { key, child }

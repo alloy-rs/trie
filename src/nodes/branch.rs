@@ -261,43 +261,36 @@ mod tests {
 
     #[test]
     fn rlp_branch_node_roundtrip() {
-        let mut buf = vec![];
-
         let empty = BranchNode::default();
-        buf.clear();
-        empty.encode(&mut buf);
-        assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), empty);
+        let encoded = alloy_rlp::encode(&empty);
+        assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), empty);
 
         let sparse_node = BranchNode::new(
             vec![word_rlp(&B256::repeat_byte(1)), word_rlp(&B256::repeat_byte(2))],
             TrieMask::new(0b1000100),
         );
-        buf.clear();
-        sparse_node.encode(&mut buf);
-        assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), sparse_node);
+        let encoded = alloy_rlp::encode(&sparse_node);
+        assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), sparse_node);
 
         let leaf_child = LeafNode::new(Nibbles::from_nibbles(hex!("0203")), hex!("1234").to_vec());
-        buf.clear();
+        let mut buf = vec![];
         let leaf_rlp = leaf_child.as_ref().rlp(&mut buf);
         let branch_with_leaf = BranchNode::new(vec![leaf_rlp.clone()], TrieMask::new(0b0010));
-        buf.clear();
-        branch_with_leaf.encode(&mut buf);
-        assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), branch_with_leaf);
+        let encoded = alloy_rlp::encode(&branch_with_leaf);
+        assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), branch_with_leaf);
 
         let extension_child = ExtensionNode::new(Nibbles::from_nibbles(hex!("0203")), leaf_rlp);
-        buf.clear();
+        let mut buf = vec![];
         let extension_rlp = extension_child.as_ref().rlp(&mut buf);
         let branch_with_ext = BranchNode::new(vec![extension_rlp], TrieMask::new(0b00000100000));
-        buf.clear();
-        branch_with_ext.encode(&mut buf);
-        assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), branch_with_ext);
+        let encoded = alloy_rlp::encode(&branch_with_ext);
+        assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), branch_with_ext);
 
         let full = BranchNode::new(
             core::iter::repeat(word_rlp(&B256::repeat_byte(23))).take(16).collect(),
             TrieMask::new(u16::MAX),
         );
-        buf.clear();
-        full.encode(&mut buf);
-        assert_eq!(BranchNode::decode(&mut &buf[..]).unwrap(), full);
+        let encoded = alloy_rlp::encode(&full);
+        assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), full);
     }
 }

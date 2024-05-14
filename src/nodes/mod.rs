@@ -20,7 +20,7 @@ pub use leaf::{LeafNode, LeafNodeRef};
 /// The range of valid child indexes.
 pub const CHILD_INDEX_RANGE: Range<u8> = 0..16;
 
-/// Enum representing an MPR trie node.
+/// Enum representing an MPT trie node.
 #[derive(PartialEq, Eq, Debug)]
 pub enum TrieNode {
     /// Variant representing a [BranchNode].
@@ -57,8 +57,11 @@ impl Decodable for TrieNode {
         while !bytes.is_empty() {
             // Decode header without advancing.
             let Header { payload_length, .. } = Header::decode(&mut &bytes[..])?;
+            // This is a workaround for a footgun in header representation. If the payload
+            // length is 1, then `length_of_length` would also be 1 leading to total
+            // length of 2 which is incorrect for RLP value of 1 byte.
             let len = if payload_length == 1 {
-                1 // If payload length is 1 byte, than there is no header
+                1 // If payload length is 1 byte, then there is no header
             } else {
                 payload_length + length_of_length(payload_length)
             };
@@ -66,6 +69,8 @@ impl Decodable for TrieNode {
             bytes.advance(len);
         }
 
+        // A valid number of trie node items is either 17 (branch node)
+        // or 2 (extension or leaf node).
         if items.len() == 17 {
             let mut branch = BranchNode::default();
             for (idx, item) in items.into_iter().enumerate() {
@@ -91,18 +96,20 @@ impl Decodable for TrieNode {
                 return Err(alloy_rlp::Error::Custom("trie node key empty"));
             }
 
+            // extract the high order part of the nibble to then pick the odd nibble out
             let key_flag = encoded_key[0] & 0xf0;
             // Retrieve first byte. If it's [Some], then the nibbles are odd.
             let first = match key_flag {
-                0x10 | 0x30 => Some(encoded_key[0] & 0x0f),
-                0x00 | 0x20 => None,
+                ExtensionNode::ODD_FLAG | LeafNode::ODD_FLAG => Some(encoded_key[0] & 0x0f),
+                ExtensionNode::EVEN_FLAG | LeafNode::EVEN_FLAG => None,
                 _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf")),
             };
 
             let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
-            let node = if key_flag == 0x20 || key_flag == 0x30 {
+            let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
                 Self::Leaf(LeafNode::new(key, Bytes::decode(&mut &items.remove(0)[..])?.to_vec()))
             } else {
+                // We don't decode value because it is expected to be RLP encoded.
                 Self::Extension(ExtensionNode::new(key, items.remove(0)))
             };
             return Ok(node);
@@ -120,7 +127,7 @@ impl TrieNode {
     }
 }
 
-/// Given an RLP encoded node, returns either RLP(node) or RLP(keccak(RLP(node)))
+/// Given an RLP encoded node, returns either self as RLP(node) or RLP(keccak(RLP(node)))
 #[inline]
 pub(crate) fn rlp_node(rlp: &[u8]) -> Vec<u8> {
     if rlp.len() < B256::len_bytes() {
