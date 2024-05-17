@@ -302,6 +302,7 @@ mod tests {
     }
 
     #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
     mod arbitrary {
         use super::*;
         use proptest::{collection::vec, prelude::*};
