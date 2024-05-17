@@ -11,7 +11,7 @@ Fast Merkle-Patricia Trie (MPT) state root calculator
 and proof generator for prefix-sorted nibbles
 """
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.66"
 license = "MIT OR Apache-2.0"
 categories = ["data-structures", "no-std"]
 keywords = ["nibbles", "trie", "mpt", "merkle", "ethereum"]
@@ -25,6 +25,7 @@ alloy-rlp = { version = "0.3", default-features = false, features = ["derive"] }
 derive_more = "0.99"
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
 nybbles = { version = "0.2", default-features = false }
+smallvec = { version = "1.0", default-features = false, features = ["const_new"] }
 tracing = { version = "0.1", default-features = false }
 
 # serde
@@ -40,6 +41,7 @@ proptest-derive = { version = "0.4", optional = true }
 hash-db = "0.15"
 plain_hasher = "0.2"
 triehash = "0.8.4"
+criterion = "0.5"
 
 [features]
 default = ["std"]
@@ -52,4 +54,10 @@ arbitrary = [
     "dep:proptest",
     "dep:proptest-derive",
     "alloy-primitives/arbitrary",
+    "nybbles/arbitrary",
 ]
+
+[[bench]]
+name = "bench"
+harness = false
+required-features = ["arbitrary"]
