@@ -301,39 +301,35 @@ mod tests {
         assert_eq!(path[..], expected);
     }
 
+    #[test]
     #[cfg(feature = "arbitrary")]
     #[cfg_attr(miri, ignore = "no proptest")]
-    mod arbitrary {
-        use super::*;
+    fn encode_path_first_byte() {
         use proptest::{collection::vec, prelude::*};
 
-        proptest::proptest! {
-            #[test]
-            fn encode_path_first_byte(input in vec(any::<u8>(), 1..64)) {
-                prop_assume!(!input.is_empty());
-                let input = Nibbles::unpack(input);
-                prop_assert!(input.iter().all(|&nibble| nibble <= 0xf));
-                let input_is_odd = input.len() % 2 == 1;
+        proptest::proptest!(|(input in vec(any::<u8>(), 1..64))| {
+            prop_assume!(!input.is_empty());
+            let input = Nibbles::unpack(input);
+            prop_assert!(input.iter().all(|&nibble| nibble <= 0xf));
+            let input_is_odd = input.len() % 2 == 1;
 
-                let compact_leaf = input.encode_path_leaf(true);
-                let leaf_flag = compact_leaf[0];
-                // Check flag
-                assert_ne!(leaf_flag & LeafNode::EVEN_FLAG, 0);
-                assert_eq!(input_is_odd, (leaf_flag & ExtensionNode::ODD_FLAG) != 0);
-                if input_is_odd {
-                    assert_eq!(leaf_flag & 0x0f, input.first().unwrap());
-                }
-
-
-                let compact_extension = input.encode_path_leaf(false);
-                let extension_flag = compact_extension[0];
-                // Check first byte
-                assert_eq!(extension_flag & LeafNode::EVEN_FLAG, 0);
-                assert_eq!(input_is_odd, (extension_flag & ExtensionNode::ODD_FLAG) != 0);
-                if input_is_odd {
-                    assert_eq!(extension_flag & 0x0f, input.first().unwrap());
-                }
+            let compact_leaf = input.encode_path_leaf(true);
+            let leaf_flag = compact_leaf[0];
+            // Check flag
+            assert_ne!(leaf_flag & LeafNode::EVEN_FLAG, 0);
+            assert_eq!(input_is_odd, (leaf_flag & ExtensionNode::ODD_FLAG) != 0);
+            if input_is_odd {
+                assert_eq!(leaf_flag & 0x0f, input.first().unwrap());
             }
-        }
+
+            let compact_extension = input.encode_path_leaf(false);
+            let extension_flag = compact_extension[0];
+            // Check first byte
+            assert_eq!(extension_flag & LeafNode::EVEN_FLAG, 0);
+            assert_eq!(input_is_odd, (extension_flag & ExtensionNode::ODD_FLAG) != 0);
+            if input_is_odd {
+                assert_eq!(extension_flag & 0x0f, input.first().unwrap());
+            }
+        });
     }
 }
