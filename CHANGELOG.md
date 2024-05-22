@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1](https://github.com/alloy-rs/trie/releases/tag/v0.4.1) - 2024-05-22
+
+### Bug Fixes
+
+- Proofs for divergent leaf nodes ([#16](https://github.com/alloy-rs/trie/issues/16))
+
+### Dependencies
+
+- Move path encoding from `nybbles` ([#14](https://github.com/alloy-rs/trie/issues/14))
+
 ## [0.4.0](https://github.com/alloy-rs/trie/releases/tag/v0.4.0) - 2024-05-14
 
 ### Features
@@ -13,6 +23,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Branch node decoding ([#12](https://github.com/alloy-rs/trie/issues/12))
 - Extension node decoding ([#11](https://github.com/alloy-rs/trie/issues/11))
 - Leaf node decoding ([#10](https://github.com/alloy-rs/trie/issues/10))
+
+### Miscellaneous Tasks
+
+- Release 0.4.0
 
 ## [0.3.1](https://github.com/alloy-rs/trie/releases/tag/v0.3.1) - 2024-04-03
 
