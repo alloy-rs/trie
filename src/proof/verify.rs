@@ -93,7 +93,10 @@ where
 mod tests {
     use super::*;
     use crate::{nodes::BranchNode, proof::ProofRetainer, triehash_trie_root, HashBuilder};
+    use alloc::collections::BTreeMap;
+    use alloy_primitives::hex;
     use alloy_rlp::Encodable;
+    use core::str::FromStr;
 
     #[test]
     fn empty_trie() {
@@ -150,6 +153,68 @@ mod tests {
 
         let proof = hash_builder.take_proofs();
         assert_eq!(verify_proof(root, target, None, proof.values()), Ok(()));
+    }
+
+    #[test]
+    fn proof_verification_with_divergent_node() {
+        let existing_keys = [
+            hex!("0000000000000000000000000000000000000000000000000000000000000000"),
+            hex!("3a00000000000000000000000000000000000000000000000000000000000000"),
+            hex!("3c15000000000000000000000000000000000000000000000000000000000000"),
+        ];
+        let target = Nibbles::unpack(
+            B256::from_str("0x3c19000000000000000000000000000000000000000000000000000000000000")
+                .unwrap(),
+        );
+        let value = B256::with_last_byte(1);
+
+        // Build trie without a target and retain proof first.
+        let retainer = ProofRetainer::from_iter([target.clone()]);
+        let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
+        for key in &existing_keys {
+            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
+        }
+        let root = hash_builder.root();
+        assert_eq!(
+            root,
+            triehash_trie_root(existing_keys.map(|key| (B256::from_slice(&key), value)))
+        );
+        let proof = hash_builder.take_proofs();
+        assert_eq!(proof, BTreeMap::from([
+            (Nibbles::default(), Bytes::from_str("f851a0c530c099d779362b6bd0be05039b51ccd0a8ed39e0b2abacab8fe0e3441251878080a07d4ee4f073ae7ce32a6cbcdb015eb73dd2616f33ed2e9fb6ba51c1f9ad5b697b80808080808080808080808080").unwrap()),
+            (Nibbles::from_vec(vec![0x3]), Bytes::from_str("f85180808080808080808080a057fcbd3f97b1093cd39d0f58dafd5058e2d9f79a419e88c2498ff3952cb11a8480a07520d69a83a2bdad373a68b2c9c8c0e1e1c99b6ec80b4b933084da76d644081980808080").unwrap()),
+            (Nibbles::from_vec(vec![0x3, 0xc]), Bytes::from_str("f842a02015000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000001").unwrap())
+        ]));
+        assert_eq!(verify_proof(root, target.clone(), None, proof.values()), Ok(()));
+
+        let retainer = ProofRetainer::from_iter([target.clone()]);
+        let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
+        for key in &existing_keys {
+            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
+        }
+        hash_builder.add_leaf(target.clone(), &value[..]);
+        let root = hash_builder.root();
+        assert_eq!(
+            root,
+            triehash_trie_root(
+                existing_keys
+                    .into_iter()
+                    .map(|key| (B256::from_slice(&key), value))
+                    .chain([(B256::from_slice(&target.pack()), value)])
+            )
+        );
+        let proof = hash_builder.take_proofs();
+        assert_eq!(proof, BTreeMap::from([
+            (Nibbles::default(), Bytes::from_str("f851a0c530c099d779362b6bd0be05039b51ccd0a8ed39e0b2abacab8fe0e3441251878080a0abd80d939392f6d222f8becc15f8c6f0dbbc6833dd7e54bfbbee0c589b7fd40380808080808080808080808080").unwrap()),
+            (Nibbles::from_vec(vec![0x3]), Bytes::from_str("f85180808080808080808080a057fcbd3f97b1093cd39d0f58dafd5058e2d9f79a419e88c2498ff3952cb11a8480a09e7b3788773773f15e26ad07b72a2c25a6374bce256d9aab6cea48fbc77d698180808080").unwrap()),
+            (Nibbles::from_vec(vec![0x3, 0xc]), Bytes::from_str("e211a0338ac0a453edb0e40a23a70aee59e02a6c11597c34d79a5ba94da8eb20dd4d52").unwrap()),
+            (Nibbles::from_vec(vec![0x3, 0xc, 0x1]), Bytes::from_str("f8518080808080a020dc5b33292bfad9013bf123f7faf1efcc5c8e00c894177fc0bfb447daef522f808080a020dc5b33292bfad9013bf123f7faf1efcc5c8e00c894177fc0bfb447daef522f80808080808080").unwrap()),
+            (Nibbles::from_vec(vec![0x3, 0xc, 0x1, 0x9]), Bytes::from_str("f8419f20000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000001").unwrap()),
+        ]));
+        assert_eq!(
+            verify_proof(root, target.clone(), Some(value.to_vec()), proof.values()),
+            Ok(())
+        );
     }
 
     #[test]
