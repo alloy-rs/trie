@@ -91,13 +91,12 @@ where
 
 #[cfg(test)]
 mod tests {
-    use core::str::FromStr;
-
     use super::*;
     use crate::{nodes::BranchNode, proof::ProofRetainer, triehash_trie_root, HashBuilder};
     use alloc::collections::BTreeMap;
     use alloy_primitives::hex;
     use alloy_rlp::Encodable;
+    use core::str::FromStr;
 
     #[test]
     fn empty_trie() {
