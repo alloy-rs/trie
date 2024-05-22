@@ -233,7 +233,7 @@ impl HashBuilder {
 
                         self.rlp_buf.clear();
                         self.stack.push(leaf_node.rlp(&mut self.rlp_buf));
-                        self.retain_proof_from_buf(&current);
+                        self.retain_proof_from_buf(&current.slice(..len_from));
                     }
                     HashBuilderValue::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
