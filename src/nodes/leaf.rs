@@ -69,7 +69,7 @@ impl LeafNode {
     pub const ODD_FLAG: u8 = 0x30;
 
     /// Creates a new leaf node with the given key and value.
-    pub fn new(key: Nibbles, value: Vec<u8>) -> Self {
+    pub const fn new(key: Nibbles, value: Vec<u8>) -> Self {
         Self { key, value }
     }
 

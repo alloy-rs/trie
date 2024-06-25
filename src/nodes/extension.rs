@@ -69,7 +69,7 @@ impl ExtensionNode {
     pub const ODD_FLAG: u8 = 0x10;
 
     /// Creates a new extension node with the given key and a pointer to the child.
-    pub fn new(key: Nibbles, child: Vec<u8>) -> Self {
+    pub const fn new(key: Nibbles, child: Vec<u8>) -> Self {
         Self { key, child }
     }
 
