@@ -228,7 +228,7 @@ impl HashBuilder {
                         trace!(target: "trie::hash_builder", ?leaf_node, "pushing leaf node");
                         trace!(target: "trie::hash_builder", rlp = {
                             self.rlp_buf.clear();
-                            hex::encode(&leaf_node.rlp(&mut self.rlp_buf))
+                            hex::encode(leaf_node.rlp(&mut self.rlp_buf))
                         }, "leaf node rlp");
 
                         self.rlp_buf.clear();
@@ -259,7 +259,7 @@ impl HashBuilder {
                 trace!(target: "trie::hash_builder", ?extension_node, "pushing extension node");
                 trace!(target: "trie::hash_builder", rlp = {
                     self.rlp_buf.clear();
-                    hex::encode(&extension_node.rlp(&mut self.rlp_buf))
+                    hex::encode(extension_node.rlp(&mut self.rlp_buf))
                 }, "extension node rlp");
 
                 self.rlp_buf.clear();

@@ -75,7 +75,7 @@ impl Decodable for BranchNode {
 
 impl BranchNode {
     /// Creates a new branch node with the given stack and state mask.
-    pub fn new(stack: Vec<Vec<u8>>, state_mask: TrieMask) -> Self {
+    pub const fn new(stack: Vec<Vec<u8>>, state_mask: TrieMask) -> Self {
         Self { stack, state_mask }
     }
 
