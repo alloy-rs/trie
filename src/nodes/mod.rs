@@ -1,7 +1,7 @@
 //! Various branch nodes produced by the hash builder.
 
 use alloy_primitives::{keccak256, Bytes, B256};
-use alloy_rlp::{length_of_length, Buf, Decodable, Encodable, Header, EMPTY_STRING_CODE};
+use alloy_rlp::{Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::ops::Range;
 use nybbles::Nibbles;
 use smallvec::SmallVec;
@@ -52,71 +52,57 @@ impl Encodable for TrieNode {
 
 impl Decodable for TrieNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let mut bytes = Header::decode_bytes(buf, true)?;
-
-        let mut items = vec![];
-        while !bytes.is_empty() {
-            // Decode header without advancing.
-            let Header { payload_length, .. } = Header::decode(&mut &bytes[..])?;
-            // This is a workaround for a footgun in header representation. If the payload
-            // length is 1, then `length_of_length` would also be 1 leading to total
-            // length of 2 which is incorrect for RLP value of 1 byte.
-            let len = if payload_length == 1 {
-                1 // If payload length is 1 byte, then there is no header
-            } else {
-                payload_length + length_of_length(payload_length)
-            };
-            items.push(bytes[..len].to_vec());
-            bytes.advance(len);
-        }
+        let alloy_rlp::PayloadView::List(mut items) = Header::decode_raw(buf)? else {
+            return Err(alloy_rlp::Error::UnexpectedString);
+        };
 
         // A valid number of trie node items is either 17 (branch node)
         // or 2 (extension or leaf node).
-        if items.len() == 17 {
-            let mut branch = BranchNode::default();
-            for (idx, item) in items.into_iter().enumerate() {
-                if idx == 16 {
-                    if item != [EMPTY_STRING_CODE] {
-                        return Err(alloy_rlp::Error::Custom(
-                            "branch node values are not supported",
-                        ));
+        match items.len() {
+            17 => {
+                let mut branch = BranchNode::default();
+                for (idx, item) in items.into_iter().enumerate() {
+                    if idx == 16 {
+                        if item != [EMPTY_STRING_CODE] {
+                            return Err(alloy_rlp::Error::Custom(
+                                "branch node values are not supported",
+                            ));
+                        }
+                    } else if item != [EMPTY_STRING_CODE] {
+                        branch.stack.push(item.to_vec());
+                        branch.state_mask.set_bit(idx as u8);
                     }
-                } else if item != [EMPTY_STRING_CODE] {
-                    branch.stack.push(item);
-                    branch.state_mask.set_bit(idx as u8);
                 }
+                Ok(Self::Branch(branch))
             }
-            return Ok(Self::Branch(branch));
-        }
+            2 => {
+                let mut key = items.remove(0);
 
-        if items.len() == 2 {
-            let key = items.remove(0);
+                let encoded_key = Header::decode_bytes(&mut key, false)?;
+                if encoded_key.is_empty() {
+                    return Err(alloy_rlp::Error::Custom("trie node key empty"));
+                }
 
-            let encoded_key = Bytes::decode(&mut &key[..])?;
-            if encoded_key.is_empty() {
-                return Err(alloy_rlp::Error::Custom("trie node key empty"));
+                // extract the high order part of the nibble to then pick the odd nibble out
+                let key_flag = encoded_key[0] & 0xf0;
+                // Retrieve first byte. If it's [Some], then the nibbles are odd.
+                let first = match key_flag {
+                    ExtensionNode::ODD_FLAG | LeafNode::ODD_FLAG => Some(encoded_key[0] & 0x0f),
+                    ExtensionNode::EVEN_FLAG | LeafNode::EVEN_FLAG => None,
+                    _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf")),
+                };
+
+                let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
+                let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
+                    Self::Leaf(LeafNode::new(key, Bytes::decode(&mut items.remove(0))?.to_vec()))
+                } else {
+                    // We don't decode value because it is expected to be RLP encoded.
+                    Self::Extension(ExtensionNode::new(key, items.remove(0).to_vec()))
+                };
+                Ok(node)
             }
-
-            // extract the high order part of the nibble to then pick the odd nibble out
-            let key_flag = encoded_key[0] & 0xf0;
-            // Retrieve first byte. If it's [Some], then the nibbles are odd.
-            let first = match key_flag {
-                ExtensionNode::ODD_FLAG | LeafNode::ODD_FLAG => Some(encoded_key[0] & 0x0f),
-                ExtensionNode::EVEN_FLAG | LeafNode::EVEN_FLAG => None,
-                _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf")),
-            };
-
-            let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
-            let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
-                Self::Leaf(LeafNode::new(key, Bytes::decode(&mut &items.remove(0)[..])?.to_vec()))
-            } else {
-                // We don't decode value because it is expected to be RLP encoded.
-                Self::Extension(ExtensionNode::new(key, items.remove(0)))
-            };
-            return Ok(node);
+            _ => Err(alloy_rlp::Error::Custom("invalid number of items in the list")),
         }
-
-        Err(alloy_rlp::Error::Custom("invalid number of items in the list"))
     }
 }
 
