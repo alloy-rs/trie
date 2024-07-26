@@ -203,7 +203,7 @@ impl<'a> BranchNodeRef<'a> {
 
 /// Iterator over branch node children.
 #[derive(Debug)]
-pub struct BranchChildrenIter<'a> {
+struct BranchChildrenIter<'a> {
     range: Range<u8>,
     state_mask: &'a TrieMask,
     stack_iter: Iter<'a, Vec<u8>>,
@@ -211,7 +211,7 @@ pub struct BranchChildrenIter<'a> {
 
 impl<'a> BranchChildrenIter<'a> {
     /// Create new iterator over branch node children.
-    pub fn new(node: &BranchNodeRef<'a>) -> Self {
+    fn new(node: &BranchNodeRef<'a>) -> Self {
         Self {
             range: CHILD_INDEX_RANGE,
             state_mask: node.state_mask,
