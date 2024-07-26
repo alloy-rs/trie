@@ -1,7 +1,7 @@
 use super::{super::TrieMask, rlp_node, CHILD_INDEX_RANGE};
 use alloy_primitives::{hex, B256};
 use alloy_rlp::{length_of_length, Buf, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
-use core::{fmt, ops::Range};
+use core::{fmt, ops::Range, slice::Iter};
 use nybbles::Nibbles;
 
 #[allow(unused_imports)]
@@ -205,9 +205,8 @@ impl<'a> BranchNodeRef<'a> {
 #[derive(Debug)]
 pub struct BranchChildrenIter<'a> {
     range: Range<u8>,
-    stack_ptr: usize,
     state_mask: &'a TrieMask,
-    stack: &'a [Vec<u8>],
+    stack_iter: Iter<'a, Vec<u8>>,
 }
 
 impl<'a> BranchChildrenIter<'a> {
@@ -216,8 +215,7 @@ impl<'a> BranchChildrenIter<'a> {
         Self {
             range: CHILD_INDEX_RANGE,
             state_mask: node.state_mask,
-            stack: node.stack,
-            stack_ptr: node.first_child_index(),
+            stack_iter: node.stack[node.first_child_index()..].iter(),
         }
     }
 }
@@ -227,11 +225,9 @@ impl<'a> Iterator for BranchChildrenIter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            let curr = self.range.next()?;
-            if self.state_mask.is_bit_set(curr) {
-                let child = &self.stack[self.stack_ptr];
-                self.stack_ptr += 1;
-                return Some((curr, child));
+            let current = self.range.next()?;
+            if self.state_mask.is_bit_set(current) {
+                return Some((current, self.stack_iter.next()?));
             }
         }
     }
