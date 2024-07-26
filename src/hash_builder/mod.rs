@@ -311,7 +311,7 @@ impl HashBuilder {
         let state_mask = self.groups[len];
         let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(&self.stack, &state_mask);
-        let children = branch_node.child_hashes(hash_mask);
+        let children = branch_node.child_hashes(hash_mask).collect();
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);

@@ -2,6 +2,7 @@ use super::{super::TrieMask, rlp_node, CHILD_INDEX_RANGE};
 use alloy_primitives::{hex, B256};
 use alloy_rlp::{length_of_length, Buf, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::fmt;
+use nybbles::Nibbles;
 
 #[allow(unused_imports)]
 use alloc::vec::Vec;
@@ -153,20 +154,27 @@ impl<'a> BranchNodeRef<'a> {
         self.stack.len().checked_sub(self.state_mask.count_ones() as usize).unwrap()
     }
 
-    /// Given the hash and state mask of children present, return an iterator over the stack items
+    /// Given the hash mask of children, return an iterator over stack items
     /// that match the mask.
-    pub fn child_hashes(&self, hash_mask: TrieMask) -> Vec<B256> {
-        let mut stack_ptr = self.first_child_index();
-        let mut children = Vec::with_capacity(hash_mask.count_ones() as usize);
-        for index in CHILD_INDEX_RANGE {
-            if self.state_mask.is_bit_set(index) {
-                if hash_mask.is_bit_set(index) {
-                    children.push(B256::from_slice(&self.stack[stack_ptr][1..]));
-                }
-                stack_ptr += 1;
-            }
-        }
-        children
+    pub fn child_hashes(&self, hash_mask: TrieMask) -> impl Iterator<Item = B256> + '_ {
+        BranchChildrenIter::new(self)
+            .filter(move |(index, _)| hash_mask.is_bit_set(*index))
+            .map(|(_, child)| B256::from_slice(&child[1..]))
+    }
+
+    /// Return an iterator over stack items and corresponding indices that match the state mask.
+    pub fn indexed_children(&self) -> impl Iterator<Item = (u8, B256)> + '_ {
+        BranchChildrenIter::new(self).map(|(index, child)| (index, B256::from_slice(&child[1..])))
+    }
+
+    /// Given the prefix, return an iterator over stack items that match the
+    /// state mask and their corresponding full paths.
+    pub fn prefixed_children(&self, prefix: Nibbles) -> impl Iterator<Item = (Nibbles, B256)> + '_ {
+        self.indexed_children().map(move |(index, hash)| {
+            let mut path = prefix.clone();
+            path.push(index);
+            (path, hash)
+        })
     }
 
     /// Returns the RLP encoding of the branch node given the state mask of children present.
@@ -190,6 +198,50 @@ impl<'a> BranchNodeRef<'a> {
             }
         }
         payload_length
+    }
+}
+
+/// Iterator over branch node children.
+#[derive(Debug)]
+pub struct BranchChildrenIter<'a> {
+    pos: u8,
+    end: u8,
+    stack_ptr: usize,
+    state_mask: &'a TrieMask,
+    stack: &'a [Vec<u8>],
+}
+
+impl<'a> BranchChildrenIter<'a> {
+    /// Create new iterator over branch node children.
+    pub fn new(node: &BranchNodeRef<'a>) -> Self {
+        Self {
+            pos: CHILD_INDEX_RANGE.start,
+            end: CHILD_INDEX_RANGE.end,
+            stack_ptr: node.first_child_index(),
+            state_mask: &node.state_mask,
+            stack: &node.stack,
+        }
+    }
+}
+
+impl<'a> Iterator for BranchChildrenIter<'a> {
+    type Item = (u8, &'a [u8]);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            if self.pos >= self.end {
+                return None;
+            }
+
+            let curr = self.pos;
+            self.pos += 1;
+
+            if self.state_mask.is_bit_set(curr) {
+                let child = &self.stack[self.stack_ptr];
+                self.stack_ptr += 1;
+                return Some((curr, child));
+            }
+        }
     }
 }
 

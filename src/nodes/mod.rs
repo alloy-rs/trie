@@ -10,7 +10,7 @@ use smallvec::SmallVec;
 use alloc::vec::Vec;
 
 mod branch;
-pub use branch::{BranchNode, BranchNodeCompact, BranchNodeRef};
+pub use branch::{BranchChildrenIter, BranchNode, BranchNodeCompact, BranchNodeRef};
 
 mod extension;
 pub use extension::{ExtensionNode, ExtensionNodeRef};
