@@ -218,8 +218,8 @@ impl<'a> BranchChildrenIter<'a> {
             pos: CHILD_INDEX_RANGE.start,
             end: CHILD_INDEX_RANGE.end,
             stack_ptr: node.first_child_index(),
-            state_mask: &node.state_mask,
-            stack: &node.stack,
+            state_mask: node.state_mask,
+            stack: node.stack,
         }
     }
 }
