@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 /// A branch node in an Merkle Patricia Trie is a 17-element array consisting of 16 slots that
 /// correspond to each hexadecimal character and an additional slot for a value. We do exclude
 /// the node value since all paths have a fixed size.
-#[derive(PartialEq, Eq, Default)]
+#[derive(PartialEq, Eq, Clone, Default)]
 pub struct BranchNode {
     /// The collection of RLP encoded children.
     pub stack: Vec<Vec<u8>>,
