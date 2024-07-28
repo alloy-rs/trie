@@ -22,7 +22,7 @@ pub use leaf::{LeafNode, LeafNodeRef};
 pub const CHILD_INDEX_RANGE: Range<u8> = 0..16;
 
 /// Enum representing an MPT trie node.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(PartialEq, Eq, Clone, Debug)]
 pub enum TrieNode {
     /// Variant representing a [BranchNode].
     Branch(BranchNode),
