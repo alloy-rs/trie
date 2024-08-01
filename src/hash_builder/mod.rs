@@ -343,8 +343,9 @@ impl HashBuilder {
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
-        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
-        if store_in_db_trie {
+        let store_in_db_trie =
+            !self.tree_masks[len].is_empty() || !self.hash_masks[len.saturating_sub(1)].is_empty();
+        if store_in_db_trie || len == 0 {
             if len > 0 {
                 let parent_index = len - 1;
                 self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
@@ -518,7 +519,7 @@ mod tests {
 
         let update = updates.get(&Nibbles::from_nibbles_unchecked(hex!("01"))).unwrap();
         assert_eq!(update.state_mask, TrieMask::new(0b1111)); // 1st nibble: 0, 1, 2, 3
-        assert_eq!(update.tree_mask, TrieMask::new(0));
+        assert_eq!(update.tree_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches. value:0000000000000110
         assert_eq!(update.hash_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches with `hashes`
         assert_eq!(update.hashes.len(), 2); // calculated while the builder is running
 
@@ -587,5 +588,39 @@ mod tests {
 
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);
+    }
+
+    #[test]
+    fn test_updates_root() {
+        // let subscriber = tracing_subscriber::FmtSubscriber::builder()
+        //     .with_max_level(tracing::Level::TRACE)
+        //     .finish();
+        // tracing::subscriber::set_global_default(subscriber).unwrap();
+        let mut hb = HashBuilder::default().with_updates(true);
+        let account = Vec::new();
+
+        let mut key = Nibbles::unpack(hex!(
+            "a711355ec1c8f7e26bb3ccbcb0b75d870d15846c0b98e5cc452db46c37faea40"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        key = Nibbles::unpack(hex!(
+            "a77d337781e762f3577784bab7491fcc43e291ce5a356b9bc517ac52eed3a37a"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        key = Nibbles::unpack(hex!(
+            "a77d397a32b8ab5eb4b043c65b1f00c93f517bc8883c5cd31baf8e8a279475e3"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        key = Nibbles::unpack(hex!(
+            "a7f936599f93b769acf90c7178fd2ddcac1b5b4bc9949ee5a04b7e0823c2446e"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+        assert!(!updates.is_empty());
     }
 }
