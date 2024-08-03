@@ -343,8 +343,9 @@ impl HashBuilder {
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
-        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
-        if store_in_db_trie {
+        let store_in_db_trie =
+            !self.tree_masks[len].is_empty() || !self.hash_masks[len.saturating_sub(1)].is_empty();
+        if store_in_db_trie || len == 0 {
             if len > 0 {
                 let parent_index = len - 1;
                 self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
@@ -518,7 +519,7 @@ mod tests {
 
         let update = updates.get(&Nibbles::from_nibbles_unchecked(hex!("01"))).unwrap();
         assert_eq!(update.state_mask, TrieMask::new(0b1111)); // 1st nibble: 0, 1, 2, 3
-        assert_eq!(update.tree_mask, TrieMask::new(0));
+        assert_eq!(update.tree_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches. value:0000000000000110
         assert_eq!(update.hash_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches with `hashes`
         assert_eq!(update.hashes.len(), 2); // calculated while the builder is running
 
@@ -620,6 +621,6 @@ mod tests {
 
         let _root = hb.root();
         let (_, updates) = hb.split();
-        assert!(updates.len() > 0);
+        assert!(!updates.is_empty());
     }
 }
