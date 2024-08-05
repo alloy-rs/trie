@@ -410,7 +410,6 @@ mod tests {
     use crate::{nodes::LeafNode, triehash_trie_root};
     use alloy_primitives::{b256, hex, U256};
     use alloy_rlp::Encodable;
-    use tracing::subscriber::DefaultGuard;
 
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.
     fn assert_hashed_trie_root<'a, I, K>(iter: I)
@@ -451,13 +450,6 @@ mod tests {
             hb.add_leaf(nibbles, val.as_ref());
         });
         hb
-    }
-
-    /// hold the returned guard to make this enable call work.
-    fn enable_trace(level: tracing::Level) -> DefaultGuard {
-        let subscriber =
-            tracing_subscriber::FmtSubscriber::builder().with_max_level(level).finish();
-        tracing::subscriber::set_default(subscriber)
     }
 
     #[test]
@@ -602,7 +594,6 @@ mod tests {
 
     #[test]
     fn test_updates_root() {
-        let _guard = enable_trace(tracing::Level::INFO);
         let mut hb = HashBuilder::default().with_updates(true);
         let account = Vec::new();
 
@@ -634,7 +625,6 @@ mod tests {
     /// Test the tree handling top branch edge case.
     #[test]
     fn test_top_branch_logic() {
-        let _guard = enable_trace(tracing::Level::INFO);
         let default_leaf = "hello".as_bytes();
         // mpt tree like(B = branch node, E = ext node, L = leaf node):
         // 0[B] -> 0[E] -> 0[B] -> 0[L]

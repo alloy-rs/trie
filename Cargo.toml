@@ -42,7 +42,6 @@ hash-db = "0.15"
 plain_hasher = "0.2"
 triehash = "0.8.4"
 criterion = "0.5"
-tracing-subscriber = "0.3"
 
 [features]
 default = ["std"]
