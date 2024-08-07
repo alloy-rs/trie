@@ -343,7 +343,8 @@ impl HashBuilder {
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
-        let store_in_db_trie = len == 0 || !self.tree_masks[len.saturating_sub(1)].is_empty()
+        let store_in_db_trie = len == 0
+            || !self.tree_masks[len.saturating_sub(1)].is_empty()
             || !self.hash_masks[len.saturating_sub(1)].is_empty();
 
         if store_in_db_trie {
@@ -651,7 +652,6 @@ mod tests {
         hb.root();
         let (_, updates) = hb.split();
         // according to the data graph, there's should be 6 branch nodes to be updated.
-        println!("updates: {:#?}", updates);
         assert_eq!(updates.len(), 6);
     }
 }
