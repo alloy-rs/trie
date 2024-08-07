@@ -111,7 +111,7 @@ impl HashBuilder {
 
     /// Adds a new leaf element and its value to the trie hash builder.
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
-        assert!(key > self.key);
+        assert!(key > self.key, "key: {:?}, self.key: {:?}", key, self.key);
         if !self.key.is_empty() {
             self.update(&key);
         }
@@ -343,25 +343,22 @@ impl HashBuilder {
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
-        let store_in_db_trie = !self.tree_masks[len.saturating_sub(1)].is_empty()
+        let store_in_db_trie = len == 0 || !self.tree_masks[len.saturating_sub(1)].is_empty()
             || !self.hash_masks[len.saturating_sub(1)].is_empty();
-        if store_in_db_trie || len == 0 {
+
+        if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
                 self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
             }
 
-            let mut n = BranchNodeCompact::new(
+            let n = BranchNodeCompact::new(
                 self.groups[len],
                 self.tree_masks[len],
                 self.hash_masks[len],
                 children,
-                None,
+                Some(self.current_root()),
             );
-
-            if len == 0 {
-                n.root_hash = Some(self.current_root());
-            }
 
             // Send it over to the provided channel which will handle it on the
             // other side of the HashBuilder
@@ -654,6 +651,7 @@ mod tests {
         hb.root();
         let (_, updates) = hb.split();
         // according to the data graph, there's should be 6 branch nodes to be updated.
+        println!("updates: {:#?}", updates);
         assert_eq!(updates.len(), 6);
     }
 }
