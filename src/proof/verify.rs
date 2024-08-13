@@ -1,7 +1,7 @@
 //! Proof verification logic.
 
 use crate::{
-    nodes::{rlp_node, word_rlp, TrieNode, CHILD_INDEX_RANGE},
+    nodes::{rlp_node, word_rlp, BranchNode, TrieNode, CHILD_INDEX_RANGE},
     proof::ProofVerificationError,
     EMPTY_ROOT_HASH,
 };
@@ -50,22 +50,7 @@ where
         }
 
         next_value = match TrieNode::decode(&mut &node[..])? {
-            TrieNode::Branch(mut branch) => 'val: {
-                if let Some(next) = key.get(walked_path.len()) {
-                    let mut stack_ptr = branch.as_ref().first_child_index();
-                    for index in CHILD_INDEX_RANGE {
-                        if branch.state_mask.is_bit_set(index) {
-                            if index == *next {
-                                walked_path.push(*next);
-                                break 'val Some(branch.stack.remove(stack_ptr));
-                            }
-                            stack_ptr += 1;
-                        }
-                    }
-                }
-
-                None
-            }
+            TrieNode::Branch(branch) => process_branch(branch, &mut walked_path, &key)?,
             TrieNode::Extension(extension) => {
                 walked_path.extend_from_slice(&extension.key);
                 Some(extension.child)
@@ -89,10 +74,78 @@ where
     }
 }
 
+#[inline]
+fn process_branch(
+    mut branch: BranchNode,
+    walked_path: &mut Nibbles,
+    key: &Nibbles,
+) -> Result<Option<Vec<u8>>, ProofVerificationError> {
+    if let Some(next) = key.get(walked_path.len()) {
+        let mut stack_ptr = branch.as_ref().first_child_index();
+        for index in CHILD_INDEX_RANGE {
+            if branch.state_mask.is_bit_set(index) {
+                if index == *next {
+                    walked_path.push(*next);
+
+                    let child = branch.stack.remove(stack_ptr);
+                    if child.len() == B256::len_bytes() + 1 {
+                        return Ok(Some(child));
+                    } else {
+                        // This node is encoded in-place.
+                        match TrieNode::decode(&mut &child[..])? {
+                            TrieNode::Branch(child_branch) => {
+                                // An in-place branch node can only have direct, also in-place
+                                // encoded, leaf children, as anything else overflows this branch
+                                // node, making it impossible to be encoded in-place in the first
+                                // place.
+                                return process_branch(child_branch, walked_path, key);
+                            }
+                            TrieNode::Extension(child_extension) => {
+                                walked_path.extend_from_slice(&child_extension.key);
+
+                                // If the extension node's child is a hash, the encoded extension
+                                // node itself wouldn't fit for encoding in- place. So this
+                                // extension node must have a child that is also encoded in-place.
+                                //
+                                // Since the child cannot be a leaf node (otherwise this node itself
+                                // is a leaf node to begin with, the child must also be a branch
+                                // encoded in-place.
+                                match TrieNode::decode(&mut &child_extension.child[..])? {
+                                    TrieNode::Branch(extension_child_branch) => {
+                                        return process_branch(
+                                            extension_child_branch,
+                                            walked_path,
+                                            key,
+                                        );
+                                    }
+                                    TrieNode::Extension(_) | TrieNode::Leaf(_) => {
+                                        unreachable!("impossible in-place extension node")
+                                    }
+                                }
+                            }
+                            TrieNode::Leaf(child_leaf) => {
+                                walked_path.extend_from_slice(&child_leaf.key);
+                                return Ok(Some(child_leaf.value));
+                            }
+                        }
+                    };
+                }
+                stack_ptr += 1;
+            }
+        }
+    }
+
+    Ok(None)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{nodes::BranchNode, proof::ProofRetainer, triehash_trie_root, HashBuilder};
+    use crate::{
+        nodes::{BranchNode, ExtensionNode, LeafNode},
+        proof::ProofRetainer,
+        triehash_trie_root, HashBuilder, TrieMask,
+    };
     use alloc::collections::BTreeMap;
     use alloy_primitives::hex;
     use alloy_rlp::Encodable;
@@ -272,6 +325,191 @@ mod tests {
             verify_proof(root, target2.clone(), Some(target2_value.to_vec()), proof2),
             Ok(())
         );
+    }
+
+    #[test]
+    fn proof_verification_with_node_encoded_in_place() {
+        // Building a trie with a leaf, branch, and extension encoded in place:
+        //
+        // - node `2a`: 0x64
+        // - node `32a`: 0x64
+        // - node `33b`: 0x64
+        // - node `412a`: 0x64
+        // - node `413b`: 0x64
+        //
+        // This trie looks like:
+        //
+        // f83f => list len = 63
+        //    80
+        //    80
+        //    c2 => list len = 2 (leaf encoded in-place)
+        //       3a => odd leaf
+        //       64 => leaf node value
+        //    d5 => list len = 21 (branch encoded in-place)
+        //       80
+        //       80
+        //       c2 => list len = 2 (leaf node encoded in-place)
+        //          3a => odd leaf
+        //          64 leaf node value
+        //       c2 => list len = 2 (leaf node encoded in-place)
+        //          3b => odd leaf
+        //          64 leaf node value
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //       80
+        //    d7 => list len = 23 (extension encoded in-place)
+        //       11 => odd extension
+        //       d5 => list len = 21 (branch encoded in-place)
+        //          80
+        //          80
+        //          c2 => list len = 2 (leaf node encoded in-place)
+        //             3a => odd leaf
+        //             64 leaf node value
+        //          c2 => list len = 2 (leaf node encoded in-place)
+        //             3b => odd leaf
+        //             64 leaf node value
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //          80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //    80
+        //
+        // Flattened:
+        // f83f8080c23a64d58080c23a64c23b6480808080808080808080808080d711d58080c23a64c23b6480808080808080808080808080808080808080808080808080
+        //
+        // Root hash:
+        // 67dbae3a9cc1f4292b0739fa1bcb7f9e6603a6a138444656ec674e273417c918
+
+        let mut buffer = vec![];
+
+        let child_leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), vec![0x64]));
+
+        let child_branch = TrieNode::Branch(BranchNode::new(
+            vec![
+                {
+                    buffer.clear();
+                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), vec![0x64]))
+                        .rlp(&mut buffer)
+                },
+                {
+                    buffer.clear();
+                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xb]), vec![0x64]))
+                        .rlp(&mut buffer)
+                },
+            ],
+            TrieMask::new(0b0000000000001100_u16),
+        ));
+
+        let child_extension =
+            TrieNode::Extension(ExtensionNode::new(Nibbles::from_nibbles([0x1]), {
+                buffer.clear();
+                child_branch.rlp(&mut buffer)
+            }));
+
+        let root_branch = TrieNode::Branch(BranchNode::new(
+            vec![
+                {
+                    buffer.clear();
+                    child_leaf.rlp(&mut buffer)
+                },
+                {
+                    buffer.clear();
+                    child_branch.rlp(&mut buffer)
+                },
+                {
+                    buffer.clear();
+                    child_extension.rlp(&mut buffer)
+                },
+            ],
+            TrieMask::new(0b0000000000011100_u16),
+        ));
+
+        let mut root_encoded = vec![];
+        root_branch.encode(&mut root_encoded);
+
+        // Just to make sure our manual encoding above is correct
+        assert_eq!(
+            root_encoded,
+            hex!(
+                "f83f8080c23a64d58080c23a64c23b6480808080808080808080808080d711d58080c23a64c23b6480808080808080808080808080808080808080808080808080"
+            )
+        );
+
+        let root_hash = B256::from_slice(&hex!(
+            "67dbae3a9cc1f4292b0739fa1bcb7f9e6603a6a138444656ec674e273417c918"
+        ));
+        let root_encoded = Bytes::from(root_encoded);
+        let proof = vec![&root_encoded];
+
+        // Node `2a`: 0x64
+        verify_proof(root_hash, Nibbles::from_nibbles([0x2, 0xa]), Some(vec![0x64]), proof.clone())
+            .unwrap();
+
+        // Node `32a`: 0x64
+        verify_proof(
+            root_hash,
+            Nibbles::from_nibbles([0x3, 0x2, 0xa]),
+            Some(vec![0x64]),
+            proof.clone(),
+        )
+        .unwrap();
+
+        // Node `33b`: 0x64
+        verify_proof(
+            root_hash,
+            Nibbles::from_nibbles([0x3, 0x3, 0xb]),
+            Some(vec![0x64]),
+            proof.clone(),
+        )
+        .unwrap();
+
+        // Node `412a`: 0x64
+        verify_proof(
+            root_hash,
+            Nibbles::from_nibbles([0x4, 0x1, 0x2, 0xa]),
+            Some(vec![0x64]),
+            proof.clone(),
+        )
+        .unwrap();
+
+        // Node `413b`: 0x64
+        verify_proof(
+            root_hash,
+            Nibbles::from_nibbles([0x4, 0x1, 0x3, 0xb]),
+            Some(vec![0x64]),
+            proof.clone(),
+        )
+        .unwrap();
     }
 
     #[test]
