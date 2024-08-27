@@ -174,9 +174,10 @@ pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles 
     Nibbles::from_vec_unchecked(nibbles)
 }
 
-/// Encodes a given path leaf as a compact array of bytes, where each byte represents two
-/// "nibbles" (half-bytes or 4 bits) of the original hex data, along with additional information
-/// about the leaf itself.
+/// Encodes a given path leaf as a compact array of bytes.
+///
+/// In resulted array, each byte represents two "nibbles" (half-bytes or 4 bits) of the original hex
+/// data, along with additional information about the leaf itself.
 ///
 /// The method takes the following input:
 /// `is_leaf`: A boolean value indicating whether the current node is a leaf node or not.
