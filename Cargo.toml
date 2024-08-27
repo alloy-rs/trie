@@ -20,7 +20,7 @@ repository = "https://github.com/alloy-rs/trie"
 exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
 [dependencies]
-alloy-primitives = { version = "0.7", default-features = false, features = ["rlp"] }
+alloy-primitives = { version = "0.8", default-features = false, features = ["rlp"] }
 alloy-rlp = { version = "0.3", default-features = false, features = ["derive"] }
 derive_more = "0.99"
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
