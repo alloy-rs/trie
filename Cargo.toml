@@ -11,7 +11,7 @@ Fast Merkle-Patricia Trie (MPT) state root calculator
 and proof generator for prefix-sorted nibbles
 """
 edition = "2021"
-rust-version = "1.66"
+rust-version = "1.75"
 license = "MIT OR Apache-2.0"
 categories = ["data-structures", "no-std"]
 keywords = ["nibbles", "trie", "mpt", "merkle", "ethereum"]
