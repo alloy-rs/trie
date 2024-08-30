@@ -22,7 +22,7 @@ exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 [dependencies]
 alloy-primitives = { version = "0.8", default-features = false, features = ["rlp"] }
 alloy-rlp = { version = "0.3", default-features = false, features = ["derive"] }
-derive_more = { version = "1", features = ["add", "add_assign", "deref", "from", "not"] }
+derive_more = { version = "1", default-features = false, features = ["add", "add_assign", "deref", "from", "not"] }
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
 nybbles = { version = "0.2", default-features = false }
 smallvec = { version = "1.0", default-features = false, features = ["const_new"] }
@@ -45,7 +45,7 @@ criterion = "0.5"
 
 [features]
 default = ["std"]
-std = ["alloy-primitives/std", "alloy-rlp/std", "nybbles/std", "tracing/std", "serde?/std"]
+std = ["alloy-primitives/std", "alloy-rlp/std", "derive_more/std", "nybbles/std", "tracing/std", "serde?/std"]
 serde = ["dep:serde", "alloy-primitives/serde", "hashbrown/serde", "nybbles/serde"]
 arbitrary = [
     "std",
