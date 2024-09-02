@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1](https://github.com/alloy-rs/trie/releases/tag/v0.5.1) - 2024-09-02
+
+### Bug Fixes
+
+- No-std compat ([#31](https://github.com/alloy-rs/trie/issues/31))
+
+### Features
+
+- Workflow to validate no_std compatibility ([#32](https://github.com/alloy-rs/trie/issues/32))
+
 ## [0.5.0](https://github.com/alloy-rs/trie/releases/tag/v0.5.0) - 2024-08-28
 
 ### Bug Fixes
@@ -27,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.5.0
 - Make clippy happy ([#29](https://github.com/alloy-rs/trie/issues/29))
 - Make `TrieNode` cloneable ([#22](https://github.com/alloy-rs/trie/issues/22))
 - Make clippy happy ([#17](https://github.com/alloy-rs/trie/issues/17))
