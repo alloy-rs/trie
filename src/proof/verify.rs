@@ -25,7 +25,7 @@ where
 {
     let mut proof = proof.into_iter().peekable();
 
-    if proof.peek().map_or(true, |node| node.as_ref() == &[EMPTY_STRING_CODE]) {
+    if proof.peek().map_or(true, |node| node.as_ref() == [EMPTY_STRING_CODE]) {
         return if root == EMPTY_ROOT_HASH {
             if value.is_none() {
                 Ok(())
