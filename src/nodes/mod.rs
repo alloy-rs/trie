@@ -24,6 +24,8 @@ pub const CHILD_INDEX_RANGE: Range<u8> = 0..16;
 /// Enum representing an MPT trie node.
 #[derive(PartialEq, Eq, Clone, Debug)]
 pub enum TrieNode {
+    /// Variant representing empty root node.
+    EmptyRoot,
     /// Variant representing a [BranchNode].
     Branch(BranchNode),
     /// Variant representing a [ExtensionNode].
@@ -35,6 +37,9 @@ pub enum TrieNode {
 impl Encodable for TrieNode {
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         match self {
+            Self::EmptyRoot => {
+                out.put_u8(EMPTY_STRING_CODE);
+            }
             Self::Branch(branch) => branch.encode(out),
             Self::Extension(extension) => extension.encode(out),
             Self::Leaf(leaf) => leaf.encode(out),
@@ -43,6 +48,7 @@ impl Encodable for TrieNode {
 
     fn length(&self) -> usize {
         match self {
+            Self::EmptyRoot => 1,
             Self::Branch(branch) => branch.length(),
             Self::Extension(extension) => extension.length(),
             Self::Leaf(leaf) => leaf.length(),
@@ -52,8 +58,15 @@ impl Encodable for TrieNode {
 
 impl Decodable for TrieNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let alloy_rlp::PayloadView::List(mut items) = Header::decode_raw(buf)? else {
-            return Err(alloy_rlp::Error::UnexpectedString);
+        let mut items = match Header::decode_raw(buf)? {
+            alloy_rlp::PayloadView::List(list) => list,
+            alloy_rlp::PayloadView::String(val) => {
+                return if val.is_empty() {
+                    Ok(Self::EmptyRoot)
+                } else {
+                    Err(alloy_rlp::Error::UnexpectedString)
+                }
+            }
         };
 
         // A valid number of trie node items is either 17 (branch node)
@@ -242,6 +255,14 @@ mod tests {
     use super::*;
     use crate::TrieMask;
     use alloy_primitives::hex;
+
+    #[test]
+    fn rlp_empty_root_node() {
+        let empty_root = TrieNode::EmptyRoot;
+        let rlp = empty_root.rlp(&mut vec![]);
+        assert_eq!(rlp, hex!("80"));
+        assert_eq!(TrieNode::decode(&mut &rlp[..]).unwrap(), empty_root);
+    }
 
     #[test]
     fn rlp_zero_value_leaf_roundtrip() {

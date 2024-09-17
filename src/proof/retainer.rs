@@ -39,7 +39,7 @@ impl ProofRetainer {
 
     /// Retain the proof if the key matches any of the targets.
     pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8]) {
-        if self.matches(prefix) {
+        if prefix.is_empty() || self.matches(prefix) {
             self.proofs.insert(prefix.clone(), Bytes::from(proof.to_vec()));
         }
     }

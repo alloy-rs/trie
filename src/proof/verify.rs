@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::vec::Vec;
 use alloy_primitives::{Bytes, B256};
-use alloy_rlp::Decodable;
+use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
 use nybbles::Nibbles;
 
 /// Verify the proof for given key value pair against the provided state root.
@@ -25,7 +25,7 @@ where
 {
     let mut proof = proof.into_iter().peekable();
 
-    if proof.peek().is_none() {
+    if proof.peek().map_or(true, |node| node == &&Bytes::from([EMPTY_STRING_CODE])) {
         return if root == EMPTY_ROOT_HASH {
             if value.is_none() {
                 Ok(())
@@ -60,6 +60,7 @@ where
                 walked_path.extend_from_slice(&leaf.key);
                 Some(leaf.value)
             }
+            TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
         };
     }
 
@@ -119,14 +120,19 @@ fn process_branch(
                                             key,
                                         );
                                     }
-                                    TrieNode::Extension(_) | TrieNode::Leaf(_) => {
-                                        unreachable!("impossible in-place extension node")
+                                    node @ (TrieNode::EmptyRoot
+                                    | TrieNode::Extension(_)
+                                    | TrieNode::Leaf(_)) => {
+                                        unreachable!("unexpected extension node child: {node:?}")
                                     }
                                 }
                             }
                             TrieNode::Leaf(child_leaf) => {
                                 walked_path.extend_from_slice(&child_leaf.key);
                                 return Ok(Some(child_leaf.value));
+                            }
+                            TrieNode::EmptyRoot => {
+                                todo!()
                             }
                         }
                     };
@@ -149,7 +155,7 @@ mod tests {
     };
     use alloc::collections::BTreeMap;
     use alloy_primitives::hex;
-    use alloy_rlp::Encodable;
+    use alloy_rlp::{Encodable, EMPTY_STRING_CODE};
     use core::str::FromStr;
 
     #[test]
@@ -158,6 +164,7 @@ mod tests {
         let mut hash_builder = HashBuilder::default().with_proof_retainer(ProofRetainer::default());
         let root = hash_builder.root();
         let proof = hash_builder.take_proofs();
+        assert_eq!(proof, BTreeMap::from([(Nibbles::default(), Bytes::from([EMPTY_STRING_CODE]))]));
         assert_eq!(verify_proof(root, key.clone(), None, proof.values()), Ok(()));
 
         let mut dummy_proof = vec![];
