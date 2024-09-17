@@ -2,7 +2,6 @@ use super::{super::TrieMask, rlp_node, CHILD_INDEX_RANGE};
 use alloy_primitives::{hex, B256};
 use alloy_rlp::{length_of_length, Buf, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::{fmt, ops::Range, slice::Iter};
-use nybbles::Nibbles;
 
 #[allow(unused_imports)]
 use alloc::vec::Vec;
@@ -162,21 +161,6 @@ impl<'a> BranchNodeRef<'a> {
         BranchChildrenIter::new(self)
             .filter(move |(index, _)| hash_mask.is_bit_set(*index))
             .map(|(_, child)| B256::from_slice(&child[1..]))
-    }
-
-    /// Return an iterator over stack items and corresponding indices that match the state mask.
-    pub fn indexed_children(&self) -> impl Iterator<Item = (u8, B256)> + '_ {
-        BranchChildrenIter::new(self).map(|(index, child)| (index, B256::from_slice(&child[1..])))
-    }
-
-    /// Given the prefix, return an iterator over stack items that match the
-    /// state mask and their corresponding full paths.
-    pub fn prefixed_children(&self, prefix: Nibbles) -> impl Iterator<Item = (Nibbles, B256)> + '_ {
-        self.indexed_children().map(move |(index, hash)| {
-            let mut path = prefix.clone();
-            path.push(index);
-            (path, hash)
-        })
     }
 
     /// Returns the RLP encoding of the branch node given the state mask of children present.
