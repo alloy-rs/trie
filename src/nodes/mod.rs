@@ -129,7 +129,7 @@ impl TrieNode {
 
 /// Given an RLP encoded node, returns either self as RLP(node) or RLP(keccak(RLP(node)))
 #[inline]
-pub(crate) fn rlp_node(rlp: &[u8]) -> Vec<u8> {
+pub fn rlp_node(rlp: &[u8]) -> Vec<u8> {
     if rlp.len() < B256::len_bytes() {
         rlp.to_vec()
     } else {
