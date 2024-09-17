@@ -1,6 +1,6 @@
 [package]
 name = "alloy-trie"
-version = "0.4.1"
+version = "0.5.1"
 authors = [
     "rkrasiuk <rokrassyuk@gmail.com>",
     "gakonst <me@gakonst.com>",
@@ -11,7 +11,7 @@ Fast Merkle-Patricia Trie (MPT) state root calculator
 and proof generator for prefix-sorted nibbles
 """
 edition = "2021"
-rust-version = "1.66"
+rust-version = "1.75"
 license = "MIT OR Apache-2.0"
 categories = ["data-structures", "no-std"]
 keywords = ["nibbles", "trie", "mpt", "merkle", "ethereum"]
@@ -20,9 +20,9 @@ repository = "https://github.com/alloy-rs/trie"
 exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
 [dependencies]
-alloy-primitives = { version = "0.7", default-features = false, features = ["rlp"] }
-alloy-rlp = { version = "0.3.7", default-features = false, features = ["derive"] }
-derive_more = "0.99"
+alloy-primitives = { version = "0.8", default-features = false, features = ["rlp"] }
+alloy-rlp = { version = "0.3.8", default-features = false, features = ["derive"] }
+derive_more = { version = "1", default-features = false, features = ["add", "add_assign", "deref", "from", "not"] }
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
 nybbles = { version = "0.2", default-features = false }
 smallvec = { version = "1.0", default-features = false, features = ["const_new"] }
@@ -45,7 +45,7 @@ criterion = "0.5"
 
 [features]
 default = ["std"]
-std = ["alloy-primitives/std", "alloy-rlp/std", "nybbles/std", "tracing/std", "serde?/std"]
+std = ["alloy-primitives/std", "alloy-rlp/std", "derive_more/std", "nybbles/std", "tracing/std", "serde?/std"]
 serde = ["dep:serde", "alloy-primitives/serde", "hashbrown/serde", "nybbles/serde"]
 arbitrary = [
     "std",

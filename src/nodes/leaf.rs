@@ -13,7 +13,7 @@ use alloc::vec::Vec;
 /// remaining portion of the key after following the path through the trie, and the value is the
 /// data associated with the full key. When searching the trie for a specific key, reaching a leaf
 /// node means that the search has successfully found the value associated with that key.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct LeafNode {
     /// The key for this leaf node.
     pub key: Nibbles,

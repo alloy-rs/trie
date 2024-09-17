@@ -16,11 +16,12 @@ use alloc::{collections::BTreeMap, vec::Vec};
 mod value;
 pub use value::HashBuilderValue;
 
-/// A component used to construct the root hash of the trie. The primary purpose of a Hash Builder
-/// is to build the Merkle proof that is essential for verifying the integrity and authenticity of
-/// the trie's contents. It achieves this by constructing the root hash from the hashes of child
-/// nodes according to specific rules, depending on the type of the node (branch, extension, or
-/// leaf).
+/// A component used to construct the root hash of the trie.
+///
+/// The primary purpose of a Hash Builder is to build the Merkle proof that is essential for
+/// verifying the integrity and authenticity of the trie's contents. It achieves this by
+/// constructing the root hash from the hashes of child nodes according to specific rules, depending
+/// on the type of the node (branch, extension, or leaf).
 ///
 /// Here's an overview of how the Hash Builder works for each type of node:
 ///  * Branch Node: The Hash Builder combines the hashes of all the child nodes of the branch node,
@@ -311,7 +312,7 @@ impl HashBuilder {
         let state_mask = self.groups[len];
         let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(&self.stack, &state_mask);
-        let children = branch_node.child_hashes(hash_mask);
+        let children = branch_node.child_hashes(hash_mask).collect();
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);

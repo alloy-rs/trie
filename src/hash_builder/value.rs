@@ -9,9 +9,9 @@ use alloc::vec::Vec;
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
 pub enum HashBuilderValue {
-    /// Value of the leaf node.
-    Hash(B256),
     /// Hash of adjacent nodes.
+    Hash(B256),
+    /// Value of the leaf node.
     Bytes(Vec<u8>),
 }
 

@@ -6,6 +6,8 @@ use core::fmt;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
 
+/// An extension node in an Ethereum Merkle Patricia Trie.
+///
 /// An intermediate node that exists solely to compress the trie's paths. It contains a path segment
 /// (a shared prefix of keys) and a single child pointer. Essentially, an extension node can be
 /// thought of as a shortcut within the trie to reduce its overall depth.
@@ -13,7 +15,7 @@ use alloc::vec::Vec;
 /// The purpose of an extension node is to optimize the trie structure by collapsing multiple nodes
 /// with a single child into one node. This simplification reduces the space and computational
 /// complexity when performing operations on the trie.
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct ExtensionNode {
     /// The key for this extension node.
     pub key: Nibbles,
