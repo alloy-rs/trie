@@ -21,6 +21,8 @@ pub enum ProofVerificationError {
         /// Expected value.
         expected: Option<Bytes>,
     },
+    /// Encountered unexpected empty root node.
+    UnexpectedEmptyRoot,
     /// Error during RLP decoding of trie node.
     Rlp(alloy_rlp::Error),
 }
@@ -48,6 +50,9 @@ impl fmt::Display for ProofVerificationError {
             }
             ProofVerificationError::ValueMismatch { path, got, expected } => {
                 write!(f, "value mismatch at path {path:?}. got: {got:?}. expected: {expected:?}")
+            }
+            ProofVerificationError::UnexpectedEmptyRoot => {
+                write!(f, "unexpected empty root node")
             }
             ProofVerificationError::Rlp(error) => fmt::Display::fmt(error, f),
         }

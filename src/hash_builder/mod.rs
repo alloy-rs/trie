@@ -7,6 +7,7 @@ use super::{
 };
 use crate::HashMap;
 use alloy_primitives::{hex, keccak256, Bytes, B256};
+use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
 
@@ -139,7 +140,13 @@ impl HashBuilder {
             self.key.clear();
             self.value = HashBuilderValue::Bytes(vec![]);
         }
-        self.current_root()
+        let root = self.current_root();
+        if root == EMPTY_ROOT_HASH {
+            if let Some(proof_retainer) = self.proof_retainer.as_mut() {
+                proof_retainer.retain(&Nibbles::default(), &[EMPTY_STRING_CODE])
+            }
+        }
+        root
     }
 
     fn set_key_value<T: Into<HashBuilderValue>>(&mut self, key: Nibbles, value: T) {
