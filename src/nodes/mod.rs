@@ -244,6 +244,17 @@ mod tests {
     use alloy_primitives::hex;
 
     #[test]
+    fn rlp_zero_value_leaf_roundtrip() {
+        let leaf = TrieNode::Leaf(LeafNode::new(
+            Nibbles::from_nibbles_unchecked(hex!("0604060f")),
+            alloy_rlp::encode(alloy_primitives::U256::ZERO),
+        ));
+        let rlp = leaf.rlp(&mut vec![]);
+        assert_eq!(rlp, hex!("c68320646f8180"));
+        assert_eq!(TrieNode::decode(&mut &rlp[..]).unwrap(), leaf);
+    }
+
+    #[test]
     fn rlp_trie_node_roundtrip() {
         // leaf
         let leaf = TrieNode::Leaf(LeafNode::new(
