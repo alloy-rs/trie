@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.2](https://github.com/alloy-rs/trie/releases/tag/v0.5.2) - 2024-09-17
+
+### Dependencies
+
+- Bump msrv to 1.79 ([#33](https://github.com/alloy-rs/trie/issues/33))
+
+### Miscellaneous Tasks
+
+- Use `decode_raw` from `alloy-rlp` ([#19](https://github.com/alloy-rs/trie/issues/19))
+
+### Testing
+
+- Zero value leaf ([#34](https://github.com/alloy-rs/trie/issues/34))
+
 ## [0.5.1](https://github.com/alloy-rs/trie/releases/tag/v0.5.1) - 2024-09-02
 
 ### Bug Fixes
@@ -14,6 +28,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - Workflow to validate no_std compatibility ([#32](https://github.com/alloy-rs/trie/issues/32))
+
+### Miscellaneous Tasks
+
+- Release 0.5.1
 
 ## [0.5.0](https://github.com/alloy-rs/trie/releases/tag/v0.5.0) - 2024-08-28
 
