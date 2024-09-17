@@ -16,7 +16,7 @@ jobs:
         strategy:
             fail-fast: false
             matrix:
-                rust: ["stable", "beta", "nightly", "1.75"] # MSRV
+                rust: ["stable", "beta", "nightly", "1.79"] # MSRV
                 flags: ["--no-default-features", "", "--all-features"]
         steps:
             - uses: actions/checkout@v3
@@ -29,7 +29,7 @@ jobs:
             - name: build
               run: cargo build --workspace ${{ matrix.flags }}
             - name: test
-              if: ${{ matrix.rust != '1.75' }} # MSRV
+              if: ${{ matrix.rust != '1.79' }} # MSRV
               run: cargo test --workspace ${{ matrix.flags }}
 
     miri:
