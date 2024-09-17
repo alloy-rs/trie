@@ -21,7 +21,7 @@ exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
 [dependencies]
 alloy-primitives = { version = "0.8", default-features = false, features = ["rlp"] }
-alloy-rlp = { version = "0.3", default-features = false, features = ["derive"] }
+alloy-rlp = { version = "0.3.8", default-features = false, features = ["derive"] }
 derive_more = { version = "1", default-features = false, features = ["add", "add_assign", "deref", "from", "not"] }
 hashbrown = { version = "0.14", features = ["ahash", "inline-more"] }
 nybbles = { version = "0.2", default-features = false }
