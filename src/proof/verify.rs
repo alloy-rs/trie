@@ -132,7 +132,7 @@ fn process_branch(
                                 return Ok(Some(child_leaf.value));
                             }
                             TrieNode::EmptyRoot => {
-                                todo!()
+                                return Err(ProofVerificationError::UnexpectedEmptyRoot)
                             }
                         }
                     };
