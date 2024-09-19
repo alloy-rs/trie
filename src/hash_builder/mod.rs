@@ -113,7 +113,7 @@ impl HashBuilder {
 
     /// Adds a new leaf element and its value to the trie hash builder.
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
-        assert!(key > self.key);
+        assert!(key > self.key, "key: {:?}, self.key: {:?}", key, self.key);
         if !self.key.is_empty() {
             self.update(&key);
         }
@@ -351,24 +351,23 @@ impl HashBuilder {
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
-        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
+        let store_in_db_trie = len == 0
+            || !self.tree_masks[len.saturating_sub(1)].is_empty()
+            || !self.hash_masks[len.saturating_sub(1)].is_empty();
+
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
                 self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
             }
 
-            let mut n = BranchNodeCompact::new(
+            let n = BranchNodeCompact::new(
                 self.groups[len],
                 self.tree_masks[len],
                 self.hash_masks[len],
                 children,
-                None,
+                Some(self.current_root()),
             );
-
-            if len == 0 {
-                n.root_hash = Some(self.current_root());
-            }
 
             // Send it over to the provided channel which will handle it on the
             // other side of the HashBuilder
@@ -421,40 +420,42 @@ mod tests {
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.
     fn assert_hashed_trie_root<'a, I, K>(iter: I)
     where
-        I: Iterator<Item = (K, &'a U256)>,
-        K: AsRef<[u8]> + Ord,
+        I: Iterator<Item = (K, &'a U256)> + Clone,
+        K: AsRef<[u8]> + Ord + Clone,
     {
-        let hashed = iter
-            .map(|(k, v)| (keccak256(k.as_ref()), alloy_rlp::encode(v).to_vec()))
-            // Collect into a btree map to sort the data
-            .collect::<BTreeMap<_, _>>();
-
-        let mut hb = HashBuilder::default();
-
-        hashed.iter().for_each(|(key, val)| {
-            let nibbles = Nibbles::unpack(key);
-            hb.add_leaf(nibbles, val);
-        });
-
-        assert_eq!(hb.root(), triehash_trie_root(&hashed));
+        let iter = iter.map(|(k, v)| (keccak256(k.as_ref()), alloy_rlp::encode(v).to_vec()));
+        let mut hb = build_hash_builder(iter.clone(), None);
+        assert_eq!(hb.root(), triehash_trie_root(iter));
     }
 
     // No hashing involved
     fn assert_trie_root<I, K, V>(iter: I)
     where
+        I: Iterator<Item = (K, V)> + Clone,
+        K: AsRef<[u8]> + Ord + Clone,
+        V: AsRef<[u8]> + Clone,
+    {
+        let mut hb = build_hash_builder(iter.clone(), None);
+        assert_eq!(hb.root(), triehash_trie_root(iter));
+    }
+
+    fn build_hash_builder<I, K, V>(iter: I, proof_retainer: Option<ProofRetainer>) -> HashBuilder
+    where
         I: Iterator<Item = (K, V)>,
         K: AsRef<[u8]> + Ord,
         V: AsRef<[u8]>,
     {
-        let mut hb = HashBuilder::default();
+        let mut hb = HashBuilder::default().with_updates(true);
+        if let Some(retainer) = proof_retainer {
+            hb = hb.with_proof_retainer(retainer)
+        }
 
         let data = iter.collect::<BTreeMap<_, _>>();
         data.iter().for_each(|(key, val)| {
             let nibbles = Nibbles::unpack(key);
             hb.add_leaf(nibbles, val.as_ref());
         });
-
-        assert_eq!(hb.root(), triehash_trie_root(data));
+        hb
     }
 
     #[test]
@@ -526,7 +527,7 @@ mod tests {
 
         let update = updates.get(&Nibbles::from_nibbles_unchecked(hex!("01"))).unwrap();
         assert_eq!(update.state_mask, TrieMask::new(0b1111)); // 1st nibble: 0, 1, 2, 3
-        assert_eq!(update.tree_mask, TrieMask::new(0));
+        assert_eq!(update.tree_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches. value:0000000000000110
         assert_eq!(update.hash_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches with `hashes`
         assert_eq!(update.hashes.len(), 2); // calculated while the builder is running
 
@@ -595,5 +596,70 @@ mod tests {
 
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);
+    }
+
+    #[test]
+    fn test_updates_root() {
+        let mut hb = HashBuilder::default().with_updates(true);
+        let account = Vec::new();
+
+        let mut key = Nibbles::unpack(hex!(
+            "a711355ec1c8f7e26bb3ccbcb0b75d870d15846c0b98e5cc452db46c37faea40"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        key = Nibbles::unpack(hex!(
+            "a77d337781e762f3577784bab7491fcc43e291ce5a356b9bc517ac52eed3a37a"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        key = Nibbles::unpack(hex!(
+            "a77d397a32b8ab5eb4b043c65b1f00c93f517bc8883c5cd31baf8e8a279475e3"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        key = Nibbles::unpack(hex!(
+            "a7f936599f93b769acf90c7178fd2ddcac1b5b4bc9949ee5a04b7e0823c2446e"
+        ));
+        hb.add_leaf(key, account.as_ref());
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+        assert!(!updates.is_empty());
+    }
+
+    /// Test the tree handling top branch edge case.
+    #[test]
+    fn test_top_branch_logic() {
+        let default_leaf = "hello".as_bytes();
+        // mpt tree like(B = branch node, E = ext node, L = leaf node):
+        // 0[B] -> 0[E] -> 0[B] -> 0[L]
+        //                 2[B] -> 0[L]
+        // 1[B] -> 000[L]
+        // 2[B] -> 0[B] -> 00[L]
+        //         1[B] -> 1[B] -> 1[L]
+        //                 2[B] -> 2[B] -> ()[L]
+        //                         3[B] -> ()[]
+        // 3[B] -> 00[E] -> 0[B] -> ()[L]
+        //               -> 1[B] -> ()[L]
+        let data = vec![
+            (hex!("0000").to_vec(), default_leaf.to_vec()),
+            (hex!("0020").to_vec(), default_leaf.to_vec()),
+            (hex!("1000").to_vec(), default_leaf.to_vec()),
+            (hex!("2000").to_vec(), default_leaf.to_vec()),
+            (hex!("2111").to_vec(), default_leaf.to_vec()),
+            (hex!("2122").to_vec(), default_leaf.to_vec()),
+            (hex!("2123").to_vec(), default_leaf.to_vec()),
+            (hex!("3000").to_vec(), default_leaf.to_vec()),
+            (hex!("3001").to_vec(), default_leaf.to_vec()),
+        ];
+
+        let mut hb = build_hash_builder(data.into_iter(), None);
+
+        // add empty succeeding as ending.
+        hb.root();
+        let (_, updates) = hb.split();
+        // according to the data graph, there's should be 6 branch nodes to be updated.
+        assert_eq!(updates.len(), 6);
     }
 }
