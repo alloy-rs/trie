@@ -6,6 +6,8 @@ use core::fmt;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
 
+/// LeafNode.
+///
 /// A leaf node represents the endpoint or terminal node in the trie. In other words, a leaf node is
 /// where actual values are stored.
 ///

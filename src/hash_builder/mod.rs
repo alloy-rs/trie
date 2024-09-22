@@ -8,7 +8,7 @@ use super::{
 use crate::HashMap;
 use alloy_primitives::{hex, keccak256, Bytes, B256};
 use core::cmp;
-use tracing::trace;
+use tracing::{error, trace};
 
 #[allow(unused_imports)]
 use alloc::{collections::BTreeMap, vec::Vec};
@@ -16,6 +16,8 @@ use alloc::{collections::BTreeMap, vec::Vec};
 mod value;
 pub use value::HashBuilderValue;
 
+/// HashBuilder
+///
 /// A component used to construct the root hash of the trie. The primary purpose of a Hash Builder
 /// is to build the Merkle proof that is essential for verifying the integrity and authenticity of
 /// the trie's contents. It achieves this by constructing the root hash from the hashes of child
@@ -111,7 +113,14 @@ impl HashBuilder {
 
     /// Adds a new leaf element and its value to the trie hash builder.
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
-        assert!(key > self.key, "key: {:?}, self.key: {:?}", key, self.key);
+        if key <= self.key {
+            error!(
+                "add_leaf invalid call, just ignore it. key = {:?}, self.key = {:?}",
+                key, self.key
+            );
+            return;
+        }
+        // assert!(key > self.key, "key: {:?}, self.key: {:?}", key, self.key);
         if !self.key.is_empty() {
             self.update(&key);
         }
@@ -120,7 +129,14 @@ impl HashBuilder {
 
     /// Adds a new branch element and its hash to the trie hash builder.
     pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
-        assert!(key > self.key || (self.key.is_empty() && key.is_empty()));
+        if !(key > self.key || (self.key.is_empty() && key.is_empty())) {
+            error!(
+                "add_branch invalid call, just ignore it. key = {:?}, self.key = {:?}",
+                key, self.key
+            );
+            return;
+        }
+        // assert!(key > self.key || (self.key.is_empty() && key.is_empty()));
         if !self.key.is_empty() {
             self.update(&key);
         } else if key.is_empty() {

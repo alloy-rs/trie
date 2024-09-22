@@ -10,6 +10,8 @@ use alloy_primitives::{Bytes, B256};
 use alloy_rlp::Decodable;
 use nybbles::Nibbles;
 
+/// verify_proof
+///
 /// Verify the proof for given key value pair against the provided state root.
 /// The expected node value can be either [Some] if it's expected to be present
 /// in the tree or [None] if this is an exclusion proof.
