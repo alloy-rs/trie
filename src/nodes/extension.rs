@@ -6,6 +6,8 @@ use core::fmt;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
 
+/// ExtensionNode.
+///
 /// An intermediate node that exists solely to compress the trie's paths. It contains a path segment
 /// (a shared prefix of keys) and a single child pointer. Essentially, an extension node can be
 /// thought of as a shortcut within the trie to reduce its overall depth.
