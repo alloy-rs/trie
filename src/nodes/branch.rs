@@ -69,7 +69,7 @@ impl Decodable for BranchNode {
         if !bytes.is_empty() {
             return Err(alloy_rlp::Error::Custom("branch values not supported"));
         }
-        debug_assert!(bytes.is_empty(), "bytes {}", alloy_primitives::hex::encode(&bytes));
+        debug_assert!(bytes.is_empty(), "bytes {}", alloy_primitives::hex::encode(bytes));
 
         Ok(Self { stack, state_mask })
     }
