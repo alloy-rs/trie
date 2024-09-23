@@ -69,7 +69,7 @@ impl Decodable for BranchNode {
         if !bytes.is_empty() {
             return Err(alloy_rlp::Error::Custom("branch values not supported"));
         }
-        debug_assert!(bytes.is_empty());
+        debug_assert!(bytes.is_empty(), "bytes {}", alloy_primitives::hex::encode(&bytes));
 
         Ok(Self { stack, state_mask })
     }
@@ -265,8 +265,14 @@ impl BranchNodeCompact {
     ) -> Self {
         let (state_mask, tree_mask, hash_mask) =
             (state_mask.into(), tree_mask.into(), hash_mask.into());
-        assert!(tree_mask.is_subset_of(state_mask));
-        assert!(hash_mask.is_subset_of(state_mask));
+        assert!(
+            tree_mask.is_subset_of(state_mask),
+            "state mask: {state_mask:?} tree mask: {tree_mask:?}"
+        );
+        assert!(
+            hash_mask.is_subset_of(state_mask),
+            "state_mask {state_mask:?} hash_mask: {hash_mask:?}"
+        );
         assert_eq!(hash_mask.count_ones() as usize, hashes.len());
         Self { state_mask, tree_mask, hash_mask, hashes, root_hash }
     }
