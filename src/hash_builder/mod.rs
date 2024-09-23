@@ -113,7 +113,7 @@ impl HashBuilder {
 
     /// Adds a new leaf element and its value to the trie hash builder.
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
-        assert!(key > self.key);
+        assert!(key > self.key, "add_leaf key {:?} self.key {:?}", key, self.key);
         if !self.key.is_empty() {
             self.update(&key);
         }
@@ -122,7 +122,12 @@ impl HashBuilder {
 
     /// Adds a new branch element and its hash to the trie hash builder.
     pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
-        assert!(key > self.key || (self.key.is_empty() && key.is_empty()));
+        assert!(
+            key > self.key || (self.key.is_empty() && key.is_empty()),
+            "add_branch key {:?} self.key {:?}",
+            key,
+            self.key
+        );
         if !self.key.is_empty() {
             self.update(&key);
         } else if key.is_empty() {
@@ -188,7 +193,7 @@ impl HashBuilder {
 
             let common_prefix_len = succeeding.common_prefix_length(current.as_slice());
             let len = cmp::max(preceding_len, common_prefix_len);
-            assert!(len < current.len());
+            assert!(len < current.len(), "len {} current.len {}", len, current.len());
 
             trace!(
                 target: "trie::hash_builder",
