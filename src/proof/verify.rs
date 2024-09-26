@@ -588,11 +588,10 @@ mod tests {
             let root = hash_builder.root();
             assert_eq!(root, triehash_trie_root(&hashed));
 
-            let proofs = hash_builder.take_proofs();
+            let proofs = hash_builder.take_proof_nodes();
             for (key, value) in hashed {
                 let nibbles = Nibbles::unpack(key);
-                let proof = proofs.iter().filter_map(|(k, v)| nibbles.starts_with(k).then_some(v));
-                assert_eq!(verify_proof(root, nibbles.clone(), Some(value), proof), Ok(()));
+                assert_eq!(verify_proof(root, nibbles.clone(), Some(value), proofs.matching_nodes_sorted(&nibbles).iter().map(|(_, node)| node)), Ok(()));
             }
         });
     }
