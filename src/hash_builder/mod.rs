@@ -80,7 +80,7 @@ impl HashBuilder {
     /// Call [HashBuilder::split] to get the updates to branch nodes.
     pub fn set_updates(&mut self, retain_updates: bool) {
         if retain_updates {
-            self.updated_branch_nodes = Some(HashMap::new());
+            self.updated_branch_nodes = Some(HashMap::default());
         }
     }
 
@@ -447,13 +447,13 @@ mod tests {
     // No hashing involved
     fn assert_trie_root<I, K, V>(iter: I)
     where
-        I: Iterator<Item = (K, V)>,
+        I: IntoIterator<Item = (K, V)>,
         K: AsRef<[u8]> + Ord,
         V: AsRef<[u8]>,
     {
         let mut hb = HashBuilder::default();
 
-        let data = iter.collect::<BTreeMap<_, _>>();
+        let data = iter.into_iter().collect::<BTreeMap<_, _>>();
         data.iter().for_each(|(key, val)| {
             let nibbles = Nibbles::unpack(key);
             hb.add_leaf(nibbles, val.as_ref());
@@ -540,13 +540,13 @@ mod tests {
 
     #[test]
     fn test_root_raw_data() {
-        let data = vec![
+        let data = [
             (hex!("646f").to_vec(), hex!("76657262").to_vec()),
             (hex!("676f6f64").to_vec(), hex!("7075707079").to_vec()),
             (hex!("676f6b32").to_vec(), hex!("7075707079").to_vec()),
             (hex!("676f6b34").to_vec(), hex!("7075707079").to_vec()),
         ];
-        assert_trie_root(data.into_iter());
+        assert_trie_root(data);
     }
 
     #[test]
