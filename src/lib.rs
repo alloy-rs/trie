@@ -30,13 +30,8 @@ pub mod proof;
 mod mask;
 pub use mask::TrieMask;
 
-#[cfg(feature = "std")]
-use hashbrown as _;
-#[cfg(feature = "std")]
-pub use std::collections::HashMap;
-
-#[cfg(not(feature = "std"))]
-pub use hashbrown::HashMap;
+#[doc(hidden)]
+pub use alloy_primitives::map::HashMap;
 
 #[doc(no_inline)]
 pub use nybbles::{self, Nibbles};

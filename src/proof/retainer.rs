@@ -15,9 +15,9 @@ pub struct ProofRetainer {
     proofs: BTreeMap<Nibbles, Bytes>,
 }
 
-impl core::iter::FromIterator<Nibbles> for ProofRetainer {
+impl FromIterator<Nibbles> for ProofRetainer {
     fn from_iter<T: IntoIterator<Item = Nibbles>>(iter: T) -> Self {
-        Self::new(iter.into_iter().collect())
+        Self::new(FromIterator::from_iter(iter))
     }
 }
 
