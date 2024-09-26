@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.6.0](https://github.com/alloy-rs/trie/releases/tag/v0.6.0) - 2024-09-26
+
+### Features
+
+- Replace std/hashbrown with alloy_primitives::map ([#42](https://github.com/alloy-rs/trie/issues/42))
+- Empty root node ([#36](https://github.com/alloy-rs/trie/issues/36))
+
+### Miscellaneous Tasks
+
+- Display more information on assertions ([#40](https://github.com/alloy-rs/trie/issues/40))
+- Expose `rlp_node` ([#38](https://github.com/alloy-rs/trie/issues/38))
+- Remove children hashes methods ([#35](https://github.com/alloy-rs/trie/issues/35))
+
+### Performance
+
+- Change proof internal repr to `HashMap` ([#43](https://github.com/alloy-rs/trie/issues/43))
+- [proof] Compare slices for first node ([#37](https://github.com/alloy-rs/trie/issues/37))
+
 ## [0.5.3](https://github.com/alloy-rs/trie/releases/tag/v0.5.3) - 2024-09-17
 
 ### Dependencies
@@ -13,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.5.3
 - Release 0.5.2
 - Use `decode_raw` from `alloy-rlp` ([#19](https://github.com/alloy-rs/trie/issues/19))
 
