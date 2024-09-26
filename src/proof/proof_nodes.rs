@@ -2,6 +2,9 @@ use crate::{HashMap, Nibbles};
 use alloy_primitives::Bytes;
 use core::ops::Deref;
 
+#[allow(unused_imports)]
+use alloc::vec::Vec;
+
 /// A wrapper struct for trie node key to RLP encoded trie node.
 #[derive(PartialEq, Eq, Clone, Default, Debug)]
 pub struct ProofNodes(HashMap<Nibbles, Bytes>);
