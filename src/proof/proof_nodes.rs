@@ -17,12 +17,13 @@ impl Deref for ProofNodes {
     }
 }
 
-impl ProofNodes {
-    /// Construct struct from iterator over keys and proof nodes.
-    pub fn from_iter(nodes: impl IntoIterator<Item = (Nibbles, Bytes)>) -> Self {
-        Self(HashMap::from_iter(nodes))
+impl FromIterator<(Nibbles, Bytes)> for ProofNodes {
+    fn from_iter<T: IntoIterator<Item = (Nibbles, Bytes)>>(iter: T) -> Self {
+        Self(HashMap::from_iter(iter))
     }
+}
 
+impl ProofNodes {
     /// Return iterator over proof nodes that match the target.
     pub fn matching_nodes_iter<'a>(
         &'a self,
