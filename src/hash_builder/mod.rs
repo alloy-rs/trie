@@ -90,8 +90,8 @@ impl HashBuilder {
         (self, updates.unwrap_or_default())
     }
 
-    /// Take and return the proofs retained.
-    pub fn take_proofs(&mut self) -> ProofNodes {
+    /// Take and return retained proof nodes.
+    pub fn take_proof_nodes(&mut self) -> ProofNodes {
         self.proof_retainer.take().map(ProofRetainer::into_proof_nodes).unwrap_or_default()
     }
 
