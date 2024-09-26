@@ -150,10 +150,9 @@ mod tests {
     use super::*;
     use crate::{
         nodes::{BranchNode, ExtensionNode, LeafNode},
-        proof::ProofRetainer,
+        proof::{ProofNodes, ProofRetainer},
         triehash_trie_root, HashBuilder, TrieMask,
     };
-    use alloc::collections::BTreeMap;
     use alloy_primitives::hex;
     use alloy_rlp::{Encodable, EMPTY_STRING_CODE};
     use core::str::FromStr;
@@ -163,9 +162,20 @@ mod tests {
         let key = Nibbles::unpack(B256::repeat_byte(42));
         let mut hash_builder = HashBuilder::default().with_proof_retainer(ProofRetainer::default());
         let root = hash_builder.root();
-        let proof = hash_builder.take_proofs();
-        assert_eq!(proof, BTreeMap::from([(Nibbles::default(), Bytes::from([EMPTY_STRING_CODE]))]));
-        assert_eq!(verify_proof(root, key.clone(), None, proof.values()), Ok(()));
+        let proof = hash_builder.take_proof_nodes();
+        assert_eq!(
+            proof,
+            ProofNodes::from_iter([(Nibbles::default(), Bytes::from([EMPTY_STRING_CODE]))])
+        );
+        assert_eq!(
+            verify_proof(
+                root,
+                key.clone(),
+                None,
+                proof.into_nodes_sorted().iter().map(|(_, node)| node)
+            ),
+            Ok(())
+        );
 
         let mut dummy_proof = vec![];
         BranchNode::default().encode(&mut dummy_proof);
@@ -191,8 +201,16 @@ mod tests {
         let root = hash_builder.root();
         assert_eq!(root, triehash_trie_root([(target.pack(), target.pack())]));
 
-        let proof = hash_builder.take_proofs();
-        assert_eq!(verify_proof(root, target, Some(target_value.to_vec()), proof.values()), Ok(()));
+        let proof = hash_builder.take_proof_nodes().into_nodes_sorted();
+        assert_eq!(
+            verify_proof(
+                root,
+                target,
+                Some(target_value.to_vec()),
+                proof.iter().map(|(_, node)| node)
+            ),
+            Ok(())
+        );
     }
 
     #[test]
@@ -212,8 +230,8 @@ mod tests {
             triehash_trie_root(range.map(|b| (B256::with_last_byte(b), B256::with_last_byte(b))))
         );
 
-        let proof = hash_builder.take_proofs();
-        assert_eq!(verify_proof(root, target, None, proof.values()), Ok(()));
+        let proof = hash_builder.take_proof_nodes().into_nodes_sorted();
+        assert_eq!(verify_proof(root, target, None, proof.iter().map(|(_, node)| node)), Ok(()));
     }
 
     #[test]
@@ -240,13 +258,21 @@ mod tests {
             root,
             triehash_trie_root(existing_keys.map(|key| (B256::from_slice(&key), value)))
         );
-        let proof = hash_builder.take_proofs();
-        assert_eq!(proof, BTreeMap::from([
+        let proof = hash_builder.take_proof_nodes();
+        assert_eq!(proof, ProofNodes::from_iter([
             (Nibbles::default(), Bytes::from_str("f851a0c530c099d779362b6bd0be05039b51ccd0a8ed39e0b2abacab8fe0e3441251878080a07d4ee4f073ae7ce32a6cbcdb015eb73dd2616f33ed2e9fb6ba51c1f9ad5b697b80808080808080808080808080").unwrap()),
             (Nibbles::from_vec(vec![0x3]), Bytes::from_str("f85180808080808080808080a057fcbd3f97b1093cd39d0f58dafd5058e2d9f79a419e88c2498ff3952cb11a8480a07520d69a83a2bdad373a68b2c9c8c0e1e1c99b6ec80b4b933084da76d644081980808080").unwrap()),
             (Nibbles::from_vec(vec![0x3, 0xc]), Bytes::from_str("f842a02015000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000001").unwrap())
         ]));
-        assert_eq!(verify_proof(root, target.clone(), None, proof.values()), Ok(()));
+        assert_eq!(
+            verify_proof(
+                root,
+                target.clone(),
+                None,
+                proof.into_nodes_sorted().iter().map(|(_, node)| node)
+            ),
+            Ok(())
+        );
 
         let retainer = ProofRetainer::from_iter([target.clone()]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
@@ -264,8 +290,8 @@ mod tests {
                     .chain([(B256::from_slice(&target.pack()), value)])
             )
         );
-        let proof = hash_builder.take_proofs();
-        assert_eq!(proof, BTreeMap::from([
+        let proof = hash_builder.take_proof_nodes();
+        assert_eq!(proof, ProofNodes::from_iter([
             (Nibbles::default(), Bytes::from_str("f851a0c530c099d779362b6bd0be05039b51ccd0a8ed39e0b2abacab8fe0e3441251878080a0abd80d939392f6d222f8becc15f8c6f0dbbc6833dd7e54bfbbee0c589b7fd40380808080808080808080808080").unwrap()),
             (Nibbles::from_vec(vec![0x3]), Bytes::from_str("f85180808080808080808080a057fcbd3f97b1093cd39d0f58dafd5058e2d9f79a419e88c2498ff3952cb11a8480a09e7b3788773773f15e26ad07b72a2c25a6374bce256d9aab6cea48fbc77d698180808080").unwrap()),
             (Nibbles::from_vec(vec![0x3, 0xc]), Bytes::from_str("e211a0338ac0a453edb0e40a23a70aee59e02a6c11597c34d79a5ba94da8eb20dd4d52").unwrap()),
@@ -273,7 +299,12 @@ mod tests {
             (Nibbles::from_vec(vec![0x3, 0xc, 0x1, 0x9]), Bytes::from_str("f8419f20000000000000000000000000000000000000000000000000000000000000a00000000000000000000000000000000000000000000000000000000000000001").unwrap()),
         ]));
         assert_eq!(
-            verify_proof(root, target.clone(), Some(value.to_vec()), proof.values()),
+            verify_proof(
+                root,
+                target.clone(),
+                Some(value.to_vec()),
+                proof.into_nodes_sorted().iter().map(|(_, node)| node)
+            ),
             Ok(())
         );
     }
@@ -296,8 +327,16 @@ mod tests {
             triehash_trie_root(range.map(|b| (B256::with_last_byte(b), B256::with_last_byte(b))))
         );
 
-        let proof = hash_builder.take_proofs();
-        assert_eq!(verify_proof(root, target, Some(target_value.to_vec()), proof.values()), Ok(()));
+        let proof = hash_builder.take_proof_nodes().into_nodes_sorted();
+        assert_eq!(
+            verify_proof(
+                root,
+                target,
+                Some(target_value.to_vec()),
+                proof.iter().map(|(_, node)| node)
+            ),
+            Ok(())
+        );
     }
 
     #[test]
@@ -320,17 +359,25 @@ mod tests {
             triehash_trie_root(range.map(|b| (B256::repeat_byte(b), B256::repeat_byte(b))))
         );
 
-        let proof = hash_builder.take_proofs();
+        let proof = hash_builder.take_proof_nodes();
 
-        let proof1 = proof.iter().filter_map(|(k, v)| target1.starts_with(k).then_some(v));
         assert_eq!(
-            verify_proof(root, target1.clone(), Some(target1_value.to_vec()), proof1),
+            verify_proof(
+                root,
+                target1.clone(),
+                Some(target1_value.to_vec()),
+                proof.matching_nodes_sorted(&target1).iter().map(|(_, node)| node)
+            ),
             Ok(())
         );
 
-        let proof2 = proof.iter().filter_map(|(k, v)| target2.starts_with(k).then_some(v));
         assert_eq!(
-            verify_proof(root, target2.clone(), Some(target2_value.to_vec()), proof2),
+            verify_proof(
+                root,
+                target2.clone(),
+                Some(target2_value.to_vec()),
+                proof.matching_nodes_sorted(&target2).iter().map(|(_, node)| node)
+            ),
             Ok(())
         );
     }
@@ -541,11 +588,10 @@ mod tests {
             let root = hash_builder.root();
             assert_eq!(root, triehash_trie_root(&hashed));
 
-            let proofs = hash_builder.take_proofs();
+            let proofs = hash_builder.take_proof_nodes();
             for (key, value) in hashed {
                 let nibbles = Nibbles::unpack(key);
-                let proof = proofs.iter().filter_map(|(k, v)| nibbles.starts_with(k).then_some(v));
-                assert_eq!(verify_proof(root, nibbles.clone(), Some(value), proof), Ok(()));
+                assert_eq!(verify_proof(root, nibbles.clone(), Some(value), proofs.matching_nodes_sorted(&nibbles).iter().map(|(_, node)| node)), Ok(()));
             }
         });
     }
