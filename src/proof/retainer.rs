@@ -1,8 +1,8 @@
-use crate::Nibbles;
+use crate::{proof::ProofNodes, Nibbles};
 use alloy_primitives::Bytes;
 
 #[allow(unused_imports)]
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 
 /// Proof retainer is used to store proofs during merkle trie construction.
 /// It is intended to be used within the [`HashBuilder`](crate::HashBuilder).
@@ -10,9 +10,8 @@ use alloc::{collections::BTreeMap, vec::Vec};
 pub struct ProofRetainer {
     /// The nibbles of the target trie keys to retain proofs for.
     targets: Vec<Nibbles>,
-    /// The map of retained proofs (RLP serialized trie nodes)
-    /// with their corresponding key in the trie.
-    proofs: BTreeMap<Nibbles, Bytes>,
+    /// The map retained trie node keys to RLP serialized trie nodes.
+    proof_nodes: ProofNodes,
 }
 
 impl core::iter::FromIterator<Nibbles> for ProofRetainer {
@@ -24,7 +23,7 @@ impl core::iter::FromIterator<Nibbles> for ProofRetainer {
 impl ProofRetainer {
     /// Create new retainer with target nibbles.
     pub fn new(targets: Vec<Nibbles>) -> Self {
-        Self { targets, proofs: Default::default() }
+        Self { targets, proof_nodes: Default::default() }
     }
 
     /// Returns `true` if the given prefix matches the retainer target.
@@ -33,14 +32,14 @@ impl ProofRetainer {
     }
 
     /// Returns all collected proofs.
-    pub fn into_proofs(self) -> BTreeMap<Nibbles, Bytes> {
-        self.proofs
+    pub fn into_proof_nodes(self) -> ProofNodes {
+        self.proof_nodes
     }
 
     /// Retain the proof if the key matches any of the targets.
     pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8]) {
         if prefix.is_empty() || self.matches(prefix) {
-            self.proofs.insert(prefix.clone(), Bytes::from(proof.to_vec()));
+            self.proof_nodes.insert(prefix.clone(), Bytes::from(proof.to_vec()));
         }
     }
 }

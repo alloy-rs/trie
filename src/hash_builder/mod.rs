@@ -5,14 +5,14 @@ use super::{
     proof::ProofRetainer,
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
-use crate::HashMap;
-use alloy_primitives::{hex, keccak256, Bytes, B256};
+use crate::{proof::ProofNodes, HashMap};
+use alloy_primitives::{hex, keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
 
 #[allow(unused_imports)]
-use alloc::{collections::BTreeMap, vec::Vec};
+use alloc::vec::Vec;
 
 mod value;
 pub use value::HashBuilderValue;
@@ -91,8 +91,8 @@ impl HashBuilder {
     }
 
     /// Take and return the proofs retained.
-    pub fn take_proofs(&mut self) -> BTreeMap<Nibbles, Bytes> {
-        self.proof_retainer.take().map(ProofRetainer::into_proofs).unwrap_or_default()
+    pub fn take_proofs(&mut self) -> ProofNodes {
+        self.proof_retainer.take().map(ProofRetainer::into_proof_nodes).unwrap_or_default()
     }
 
     /// The number of total updates accrued.
@@ -420,6 +420,7 @@ impl HashBuilder {
 mod tests {
     use super::*;
     use crate::{nodes::LeafNode, triehash_trie_root};
+    use alloc::collections::BTreeMap;
     use alloy_primitives::{b256, hex, U256};
     use alloy_rlp::Encodable;
 
