@@ -290,8 +290,7 @@ impl HashBuilder {
             if !succeeding.is_empty() || preceding_exists {
                 // Pushes the corresponding branch node to the stack
                 let children = self.push_branch_node(&current, len);
-                // Need to store the branch node in an efficient format
-                // outside of the hash builder
+                // Need to store the branch node in an efficient format outside of the hash builder
                 self.store_branch_node(&current, len, children);
             }
 
@@ -320,11 +319,19 @@ impl HashBuilder {
     /// Given the size of the longest common prefix, it proceeds to create a branch node
     /// from the state mask and existing stack state, and store its RLP to the top of the stack,
     /// after popping all the relevant elements from the stack.
+    ///
+    /// Returns the hashes of the children of the branch node, only if `updated_branch_nodes` is
+    /// enabled.
     fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
         let state_mask = self.groups[len];
         let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(&self.stack, &state_mask);
-        let children = branch_node.child_hashes(hash_mask).collect();
+        // Avoid calculating this value if it's not needed.
+        let children = if self.updated_branch_nodes.is_some() {
+            branch_node.child_hashes(hash_mask).collect()
+        } else {
+            vec![]
+        };
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);
@@ -363,24 +370,17 @@ impl HashBuilder {
                 self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
             }
 
-            let mut n = BranchNodeCompact::new(
-                self.groups[len],
-                self.tree_masks[len],
-                self.hash_masks[len],
-                children,
-                None,
-            );
-
-            if len == 0 {
-                n.root_hash = Some(self.current_root());
-            }
-
-            // Send it over to the provided channel which will handle it on the
-            // other side of the HashBuilder
-            trace!(target: "trie::hash_builder", node = ?n, "intermediate node");
-            let common_prefix = current.slice(..len);
-            if let Some(nodes) = self.updated_branch_nodes.as_mut() {
-                nodes.insert(common_prefix, n);
+            if self.updated_branch_nodes.is_some() {
+                let common_prefix = current.slice(..len);
+                let node = BranchNodeCompact::new(
+                    self.groups[len],
+                    self.tree_masks[len],
+                    self.hash_masks[len],
+                    children,
+                    (len == 0).then(|| self.current_root()),
+                );
+                trace!(target: "trie::hash_builder", ?node, "intermediate node");
+                self.updated_branch_nodes.as_mut().unwrap().insert(common_prefix, node);
             }
         }
     }
