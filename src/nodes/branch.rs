@@ -30,10 +30,12 @@ impl fmt::Debug for BranchNode {
 }
 
 impl Encodable for BranchNode {
+    #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         self.as_ref().encode(out)
     }
 
+    #[inline]
     fn length(&self) -> usize {
         self.as_ref().length()
     }
@@ -115,6 +117,7 @@ impl fmt::Debug for BranchNodeRef<'_> {
 /// Encode it as a 17-element list consisting of 16 slots that correspond to
 /// each child of the node (0-f) and an additional slot for a value.
 impl Encodable for BranchNodeRef<'_> {
+    #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
 
@@ -133,6 +136,7 @@ impl Encodable for BranchNodeRef<'_> {
         out.put_u8(EMPTY_STRING_CODE);
     }
 
+    #[inline]
     fn length(&self) -> usize {
         let payload_length = self.rlp_payload_length();
         payload_length + length_of_length(payload_length)

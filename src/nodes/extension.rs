@@ -33,10 +33,12 @@ impl fmt::Debug for ExtensionNode {
 }
 
 impl Encodable for ExtensionNode {
+    #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         self.as_ref().encode(out)
     }
 
+    #[inline]
     fn length(&self) -> usize {
         self.as_ref().length()
     }
@@ -99,6 +101,7 @@ impl fmt::Debug for ExtensionNodeRef<'_> {
 }
 
 impl Encodable for ExtensionNodeRef<'_> {
+    #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
         self.key.encode_path_leaf(false).as_slice().encode(out);
@@ -106,6 +109,7 @@ impl Encodable for ExtensionNodeRef<'_> {
         out.put_slice(self.child);
     }
 
+    #[inline]
     fn length(&self) -> usize {
         let payload_length = self.rlp_payload_length();
         payload_length + length_of_length(payload_length)
