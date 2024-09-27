@@ -35,6 +35,7 @@ pub enum TrieNode {
 }
 
 impl Encodable for TrieNode {
+    #[inline]
     fn encode(&self, out: &mut dyn alloy_rlp::BufMut) {
         match self {
             Self::EmptyRoot => {
@@ -46,6 +47,7 @@ impl Encodable for TrieNode {
         }
     }
 
+    #[inline]
     fn length(&self) -> usize {
         match self {
             Self::EmptyRoot => 1,

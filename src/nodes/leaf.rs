@@ -31,10 +31,12 @@ impl fmt::Debug for LeafNode {
 }
 
 impl Encodable for LeafNode {
+    #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         self.as_ref().encode(out)
     }
 
+    #[inline]
     fn length(&self) -> usize {
         self.as_ref().length()
     }
@@ -98,12 +100,14 @@ impl fmt::Debug for LeafNodeRef<'_> {
 
 /// Manual implementation of encoding for the leaf node of Merkle Patricia Trie.
 impl Encodable for LeafNodeRef<'_> {
+    #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
         self.key.encode_path_leaf(true).as_slice().encode(out);
         self.value.encode(out);
     }
 
+    #[inline]
     fn length(&self) -> usize {
         let payload_length = self.rlp_payload_length();
         payload_length + length_of_length(payload_length)
