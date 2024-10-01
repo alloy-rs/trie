@@ -248,9 +248,10 @@ impl HashBuilder {
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
                         self.rlp_buf.clear();
                         let rlp = leaf_node.rlp(&mut self.rlp_buf);
-                        trace!(target: "trie::hash_builder",
+                        trace!(
+                            target: "trie::hash_builder",
                             ?leaf_node,
-                            rlp = hex::encode(&rlp),
+                            ?rlp,
                             "pushing leaf node",
                         );
                         self.stack.push(rlp);
@@ -279,7 +280,8 @@ impl HashBuilder {
 
                 self.rlp_buf.clear();
                 let rlp = extension_node.rlp(&mut self.rlp_buf);
-                trace!(target: "trie::hash_builder",
+                trace!(
+                    target: "trie::hash_builder",
                     ?extension_node,
                     ?rlp,
                     "pushing extension node",
