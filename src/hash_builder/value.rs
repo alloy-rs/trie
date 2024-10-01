@@ -51,7 +51,7 @@ impl HashBuilderValue {
     }
 
     /// Returns the kind of the value.
-    pub fn kind(&self) -> HashBuilderValueKind {
+    pub const fn kind(&self) -> HashBuilderValueKind {
         self.kind
     }
 

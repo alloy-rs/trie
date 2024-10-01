@@ -1,4 +1,4 @@
-use super::{super::TrieMask, rlp_node, CHILD_INDEX_RANGE};
+use super::{super::TrieMask, RlpNode, CHILD_INDEX_RANGE};
 use alloy_primitives::{hex, B256};
 use alloy_rlp::{length_of_length, Buf, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::{fmt, ops::Range, slice::Iter};
@@ -14,7 +14,7 @@ use alloc::vec::Vec;
 #[derive(PartialEq, Eq, Clone, Default)]
 pub struct BranchNode {
     /// The collection of RLP encoded children.
-    pub stack: Vec<Vec<u8>>,
+    pub stack: Vec<RlpNode>,
     /// The bitmask indicating the presence of children at the respective nibble positions
     pub state_mask: TrieMask,
 }
@@ -61,7 +61,7 @@ impl Decodable for BranchNode {
             // Decode without advancing
             let Header { payload_length, .. } = Header::decode(&mut &bytes[..])?;
             let len = payload_length + length_of_length(payload_length);
-            stack.push(Vec::from(&bytes[..len]));
+            stack.push(RlpNode::from_raw_rlp(&bytes[..len])?);
             bytes.advance(len);
             state_mask.set_bit(index);
         }
@@ -79,13 +79,13 @@ impl Decodable for BranchNode {
 
 impl BranchNode {
     /// Creates a new branch node with the given stack and state mask.
-    pub const fn new(stack: Vec<Vec<u8>>, state_mask: TrieMask) -> Self {
+    pub const fn new(stack: Vec<RlpNode>, state_mask: TrieMask) -> Self {
         Self { stack, state_mask }
     }
 
     /// Return branch node as [BranchNodeRef].
     pub fn as_ref(&self) -> BranchNodeRef<'_> {
-        BranchNodeRef::new(&self.stack, &self.state_mask)
+        BranchNodeRef::new(&self.stack, self.state_mask)
     }
 }
 
@@ -97,10 +97,10 @@ pub struct BranchNodeRef<'a> {
     /// NOTE: The referenced stack might have more items than the number of children
     /// for this node. We should only ever access items starting from
     /// [BranchNodeRef::first_child_index].
-    pub stack: &'a [Vec<u8>],
+    pub stack: &'a [RlpNode],
     /// Reference to bitmask indicating the presence of children at
     /// the respective nibble positions.
-    pub state_mask: &'a TrieMask,
+    pub state_mask: TrieMask,
 }
 
 impl fmt::Debug for BranchNodeRef<'_> {
@@ -122,12 +122,9 @@ impl Encodable for BranchNodeRef<'_> {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
 
         // Extend the RLP buffer with the present children
-        let mut stack_ptr = self.first_child_index();
-        for index in CHILD_INDEX_RANGE {
-            if self.state_mask.is_bit_set(index) {
-                out.put_slice(&self.stack[stack_ptr]);
-                // Advance the pointer to the next child.
-                stack_ptr += 1;
+        for (_, child) in self.children() {
+            if let Some(child) = child {
+                out.put_slice(child);
             } else {
                 out.put_u8(EMPTY_STRING_CODE);
             }
@@ -145,7 +142,8 @@ impl Encodable for BranchNodeRef<'_> {
 
 impl<'a> BranchNodeRef<'a> {
     /// Create a new branch node from the stack of nodes.
-    pub const fn new(stack: &'a [Vec<u8>], state_mask: &'a TrieMask) -> Self {
+    #[inline]
+    pub const fn new(stack: &'a [RlpNode], state_mask: TrieMask) -> Self {
         Self { stack, state_mask }
     }
 
@@ -155,34 +153,40 @@ impl<'a> BranchNodeRef<'a> {
     ///
     /// If the stack length is less than number of children specified in state mask.
     /// Means that the node is in inconsistent state.
+    #[inline]
     pub fn first_child_index(&self) -> usize {
         self.stack.len().checked_sub(self.state_mask.count_ones() as usize).unwrap()
     }
 
+    #[inline]
+    fn children(&self) -> impl Iterator<Item = (u8, Option<&RlpNode>)> + '_ {
+        BranchChildrenIter::new(self)
+    }
+
     /// Given the hash mask of children, return an iterator over stack items
     /// that match the mask.
+    #[inline]
     pub fn child_hashes(&self, hash_mask: TrieMask) -> impl Iterator<Item = B256> + '_ {
-        BranchChildrenIter::new(self)
+        self.children()
+            .filter_map(|(i, c)| c.map(|c| (i, c)))
             .filter(move |(index, _)| hash_mask.is_bit_set(*index))
             .map(|(_, child)| B256::from_slice(&child[1..]))
     }
 
-    /// Returns the RLP encoding of the branch node given the state mask of children present.
-    pub fn rlp(&self, out: &mut Vec<u8>) -> Vec<u8> {
-        self.encode(out);
-        rlp_node(out)
+    /// RLP-encodes the node and returns either `rlp(node)` or `rlp(keccak(rlp(node)))`.
+    #[inline]
+    pub fn rlp(&self, rlp: &mut Vec<u8>) -> RlpNode {
+        self.encode(rlp);
+        RlpNode::from_rlp(rlp)
     }
 
     /// Returns the length of RLP encoded fields of branch node.
+    #[inline]
     fn rlp_payload_length(&self) -> usize {
         let mut payload_length = 1;
-
-        let mut stack_ptr = self.first_child_index();
-        for digit in CHILD_INDEX_RANGE {
-            if self.state_mask.is_bit_set(digit) {
-                payload_length += self.stack[stack_ptr].len();
-                // Advance the pointer to the next child.
-                stack_ptr += 1;
+        for (_, child) in self.children() {
+            if let Some(child) = child {
+                payload_length += child.len();
             } else {
                 payload_length += 1;
             }
@@ -195,8 +199,8 @@ impl<'a> BranchNodeRef<'a> {
 #[derive(Debug)]
 struct BranchChildrenIter<'a> {
     range: Range<u8>,
-    state_mask: &'a TrieMask,
-    stack_iter: Iter<'a, Vec<u8>>,
+    state_mask: TrieMask,
+    stack_iter: Iter<'a, RlpNode>,
 }
 
 impl<'a> BranchChildrenIter<'a> {
@@ -211,15 +215,34 @@ impl<'a> BranchChildrenIter<'a> {
 }
 
 impl<'a> Iterator for BranchChildrenIter<'a> {
-    type Item = (u8, &'a [u8]);
+    type Item = (u8, Option<&'a RlpNode>);
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let current = self.range.next()?;
-            if self.state_mask.is_bit_set(current) {
-                return Some((current, self.stack_iter.next()?));
-            }
-        }
+        let i = self.range.next()?;
+        let value = if self.state_mask.is_bit_set(i) {
+            // SAFETY: `first_child_index` guarantees that `stack` is exactly
+            // `state_mask.count_ones()` long.
+            Some(unsafe { self.stack_iter.next().unwrap_unchecked() })
+        } else {
+            None
+        };
+        Some((i, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+impl core::iter::FusedIterator for BranchChildrenIter<'_> {}
+
+impl ExactSizeIterator for BranchChildrenIter<'_> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.range.len()
     }
 }
 
@@ -292,7 +315,7 @@ impl BranchNodeCompact {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nodes::{word_rlp, ExtensionNode, LeafNode};
+    use crate::nodes::{ExtensionNode, LeafNode};
     use nybbles::Nibbles;
 
     #[test]
@@ -302,13 +325,19 @@ mod tests {
         assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), empty);
 
         let sparse_node = BranchNode::new(
-            vec![word_rlp(&B256::repeat_byte(1)), word_rlp(&B256::repeat_byte(2))],
+            vec![
+                RlpNode::word_rlp(&B256::repeat_byte(1)),
+                RlpNode::word_rlp(&B256::repeat_byte(2)),
+            ],
             TrieMask::new(0b1000100),
         );
         let encoded = alloy_rlp::encode(&sparse_node);
         assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), sparse_node);
 
-        let leaf_child = LeafNode::new(Nibbles::from_nibbles(hex!("0203")), hex!("1234").to_vec());
+        let leaf_child = LeafNode::new(
+            Nibbles::from_nibbles(hex!("0203")),
+            RlpNode::from_raw(&hex!("1234")).unwrap(),
+        );
         let mut buf = vec![];
         let leaf_rlp = leaf_child.as_ref().rlp(&mut buf);
         let branch_with_leaf = BranchNode::new(vec![leaf_rlp.clone()], TrieMask::new(0b0010));
@@ -323,7 +352,7 @@ mod tests {
         assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), branch_with_ext);
 
         let full = BranchNode::new(
-            core::iter::repeat(word_rlp(&B256::repeat_byte(23))).take(16).collect(),
+            core::iter::repeat(RlpNode::word_rlp(&B256::repeat_byte(23))).take(16).collect(),
             TrieMask::new(u16::MAX),
         );
         let encoded = alloy_rlp::encode(&full);
