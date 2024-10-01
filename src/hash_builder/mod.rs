@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{nodes::RlpNode, proof::ProofNodes, HashMap};
 use alloc::vec::Vec;
-use alloy_primitives::{hex, keccak256, B256};
+use alloy_primitives::{keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
@@ -104,7 +104,7 @@ impl HashBuilder {
     pub fn print_stack(&self) {
         println!("============ STACK ===============");
         for item in &self.stack {
-            println!("{}", hex::encode(item));
+            println!("{}", alloy_primitives::hex::encode(item));
         }
         println!("============ END STACK ===============");
     }
