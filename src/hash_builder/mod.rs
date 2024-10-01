@@ -1,11 +1,11 @@
 //! The implementation of the hash builder.
 
 use super::{
-    nodes::{word_rlp, BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
+    nodes::{BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
     proof::ProofRetainer,
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
-use crate::{proof::ProofNodes, HashMap};
+use crate::{nodes::RlpNode, proof::ProofNodes, HashMap};
 use alloy_primitives::{hex, keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
@@ -45,7 +45,7 @@ pub use value::HashBuilderValue;
 #[allow(missing_docs)]
 pub struct HashBuilder {
     pub key: Nibbles,
-    pub stack: Vec<Vec<u8>>,
+    pub stack: Vec<RlpNode>,
     pub value: HashBuilderValue,
 
     pub groups: Vec<TrieMask>,
@@ -131,7 +131,7 @@ impl HashBuilder {
         if !self.key.is_empty() {
             self.update(&key);
         } else if key.is_empty() {
-            self.stack.push(word_rlp(&value));
+            self.stack.push(RlpNode::word_rlp(&value));
         }
         self.set_key_value(key, value);
         self.stored_in_database = stored_in_database;
@@ -250,7 +250,7 @@ impl HashBuilder {
                     }
                     HashBuilderValue::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
-                        self.stack.push(word_rlp(hash));
+                        self.stack.push(RlpNode::word_rlp(hash));
 
                         if self.stored_in_database {
                             self.tree_masks[current.len() - 1] |=
@@ -266,17 +266,17 @@ impl HashBuilder {
 
             if build_extensions && !short_node_key.is_empty() {
                 self.update_masks(&current, len_from);
-                let stack_last =
-                    self.stack.pop().expect("there should be at least one stack item; qed");
+                let stack_last = self.stack.pop().expect("there should be at least one stack item");
                 let extension_node = ExtensionNodeRef::new(&short_node_key, &stack_last);
-                trace!(target: "trie::hash_builder", ?extension_node, "pushing extension node");
-                trace!(target: "trie::hash_builder", rlp = {
-                    self.rlp_buf.clear();
-                    hex::encode(extension_node.rlp(&mut self.rlp_buf))
-                }, "extension node rlp");
 
                 self.rlp_buf.clear();
-                self.stack.push(extension_node.rlp(&mut self.rlp_buf));
+                let rlp = extension_node.rlp(&mut self.rlp_buf);
+                trace!(target: "trie::hash_builder",
+                    ?extension_node,
+                    ?rlp,
+                    "pushing extension node",
+                );
+                self.stack.push(rlp);
                 self.retain_proof_from_buf(&current.slice(..len_from));
                 self.resize_masks(len_from);
             }
@@ -325,7 +325,7 @@ impl HashBuilder {
     fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
         let state_mask = self.groups[len];
         let hash_mask = self.hash_masks[len];
-        let branch_node = BranchNodeRef::new(&self.stack, &state_mask);
+        let branch_node = BranchNodeRef::new(&self.stack, state_mask);
         // Avoid calculating this value if it's not needed.
         let children = if self.updated_branch_nodes.is_some() {
             branch_node.child_hashes(hash_mask).collect()
@@ -345,10 +345,9 @@ impl HashBuilder {
             old_len = self.stack.len(),
             "resizing stack to prepare branch node"
         );
-        self.stack.resize(first_child_idx, vec![]);
+        self.stack.resize_with(first_child_idx, Default::default);
 
-        trace!(target: "trie::hash_builder", "pushing branch node with {:?} mask from stack", state_mask);
-        trace!(target: "trie::hash_builder", rlp = hex::encode(&rlp), "branch node rlp");
+        trace!(target: "trie::hash_builder", ?rlp, "pushing branch node with {state_mask:?} mask from stack");
         self.stack.push(rlp);
         children
     }
@@ -570,8 +569,8 @@ mod tests {
     #[test]
     fn manual_branch_node_ok() {
         let raw_input = vec![
-            (hex!("646f").to_vec(), hex!("76657262").to_vec()),
-            (hex!("676f6f64").to_vec(), hex!("7075707079").to_vec()),
+            (hex!("646f").to_vec(), RlpNode::from_raw(&hex!("76657262")).unwrap()),
+            (hex!("676f6f64").to_vec(), RlpNode::from_raw(&hex!("7075707079")).unwrap()),
         ];
         let expected = triehash_trie_root(raw_input.clone());
 
