@@ -325,7 +325,7 @@ impl HashBuilder {
     fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
         let state_mask = self.groups[len];
         let hash_mask = self.hash_masks[len];
-        let branch_node = BranchNodeRef::new(&self.stack, &state_mask);
+        let branch_node = BranchNodeRef::new(&self.stack, state_mask);
         // Avoid calculating this value if it's not needed.
         let children = if self.updated_branch_nodes.is_some() {
             branch_node.child_hashes(hash_mask).collect()

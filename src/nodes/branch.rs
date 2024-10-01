@@ -85,7 +85,7 @@ impl BranchNode {
 
     /// Return branch node as [BranchNodeRef].
     pub fn as_ref(&self) -> BranchNodeRef<'_> {
-        BranchNodeRef::new(&self.stack, &self.state_mask)
+        BranchNodeRef::new(&self.stack, self.state_mask)
     }
 }
 
@@ -100,7 +100,7 @@ pub struct BranchNodeRef<'a> {
     pub stack: &'a [RlpNode],
     /// Reference to bitmask indicating the presence of children at
     /// the respective nibble positions.
-    pub state_mask: &'a TrieMask,
+    pub state_mask: TrieMask,
 }
 
 impl fmt::Debug for BranchNodeRef<'_> {
@@ -122,12 +122,9 @@ impl Encodable for BranchNodeRef<'_> {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
 
         // Extend the RLP buffer with the present children
-        let mut stack_ptr = self.first_child_index();
-        for index in CHILD_INDEX_RANGE {
-            if self.state_mask.is_bit_set(index) {
-                out.put_slice(&self.stack[stack_ptr]);
-                // Advance the pointer to the next child.
-                stack_ptr += 1;
+        for (_, child) in self.children() {
+            if let Some(child) = child {
+                out.put_slice(child);
             } else {
                 out.put_u8(EMPTY_STRING_CODE);
             }
@@ -146,7 +143,7 @@ impl Encodable for BranchNodeRef<'_> {
 impl<'a> BranchNodeRef<'a> {
     /// Create a new branch node from the stack of nodes.
     #[inline]
-    pub const fn new(stack: &'a [RlpNode], state_mask: &'a TrieMask) -> Self {
+    pub const fn new(stack: &'a [RlpNode], state_mask: TrieMask) -> Self {
         Self { stack, state_mask }
     }
 
@@ -157,16 +154,21 @@ impl<'a> BranchNodeRef<'a> {
     /// If the stack length is less than number of children specified in state mask.
     /// Means that the node is in inconsistent state.
     #[inline]
-    #[cfg_attr(debug_assertions, track_caller)]
     pub fn first_child_index(&self) -> usize {
         self.stack.len().checked_sub(self.state_mask.count_ones() as usize).unwrap()
+    }
+
+    #[inline]
+    fn children(&self) -> impl Iterator<Item = (u8, Option<&RlpNode>)> + '_ {
+        BranchChildrenIter::new(self)
     }
 
     /// Given the hash mask of children, return an iterator over stack items
     /// that match the mask.
     #[inline]
     pub fn child_hashes(&self, hash_mask: TrieMask) -> impl Iterator<Item = B256> + '_ {
-        BranchChildrenIter::new(self)
+        self.children()
+            .filter_map(|(i, c)| c.map(|c| (i, c)))
             .filter(move |(index, _)| hash_mask.is_bit_set(*index))
             .map(|(_, child)| B256::from_slice(&child[1..]))
     }
@@ -182,13 +184,9 @@ impl<'a> BranchNodeRef<'a> {
     #[inline]
     fn rlp_payload_length(&self) -> usize {
         let mut payload_length = 1;
-        let mut stack = self.stack[self.first_child_index()..].iter();
-        for digit in CHILD_INDEX_RANGE {
-            if self.state_mask.is_bit_set(digit) {
-                // SAFETY: `first_child_index` guarantees that `stack` is exactly
-                // `state_mask.count_ones()` long.
-                let stack_item = unsafe { stack.next().unwrap_unchecked() };
-                payload_length += stack_item.len();
+        for (_, child) in self.children() {
+            if let Some(child) = child {
+                payload_length += child.len();
             } else {
                 payload_length += 1;
             }
@@ -201,7 +199,7 @@ impl<'a> BranchNodeRef<'a> {
 #[derive(Debug)]
 struct BranchChildrenIter<'a> {
     range: Range<u8>,
-    state_mask: &'a TrieMask,
+    state_mask: TrieMask,
     stack_iter: Iter<'a, RlpNode>,
 }
 
@@ -217,15 +215,34 @@ impl<'a> BranchChildrenIter<'a> {
 }
 
 impl<'a> Iterator for BranchChildrenIter<'a> {
-    type Item = (u8, &'a [u8]);
+    type Item = (u8, Option<&'a RlpNode>);
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let current = self.range.next()?;
-            if self.state_mask.is_bit_set(current) {
-                return Some((current, self.stack_iter.next()?));
-            }
-        }
+        let i = self.range.next()?;
+        let value = if self.state_mask.is_bit_set(i) {
+            // SAFETY: `first_child_index` guarantees that `stack` is exactly
+            // `state_mask.count_ones()` long.
+            Some(unsafe { self.stack_iter.next().unwrap_unchecked() })
+        } else {
+            None
+        };
+        Some((i, value))
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let len = self.len();
+        (len, Some(len))
+    }
+}
+
+impl core::iter::FusedIterator for BranchChildrenIter<'_> {}
+
+impl ExactSizeIterator for BranchChildrenIter<'_> {
+    #[inline]
+    fn len(&self) -> usize {
+        self.range.len()
     }
 }
 

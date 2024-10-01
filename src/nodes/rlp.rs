@@ -3,15 +3,17 @@ use alloy_rlp::EMPTY_STRING_CODE;
 use arrayvec::ArrayVec;
 use core::fmt;
 
+const MAX: usize = 33;
+
 /// An RLP-encoded node.
 #[derive(Clone, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct RlpNode(ArrayVec<u8, 33>);
+pub struct RlpNode(ArrayVec<u8, MAX>);
 
 impl alloy_rlp::Decodable for RlpNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let bytes = alloy_rlp::Header::decode_bytes(buf, false)?;
-        Self::from_raw(bytes).ok_or_else(|| alloy_rlp::Error::Custom("RLP node too large"))
+        Self::from_raw_rlp(bytes)
     }
 }
 
@@ -58,7 +60,7 @@ impl RlpNode {
     /// Creates a new RLP-encoded node from the given data.
     #[inline]
     pub fn from_raw_rlp(data: &[u8]) -> alloy_rlp::Result<Self> {
-        Self::from_raw(data).ok_or_else(|| alloy_rlp::Error::Custom("RLP node too large"))
+        Self::from_raw(data).ok_or(alloy_rlp::Error::Custom("RLP node too large"))
     }
 
     /// Given an RLP-encoded node, returns it either as `rlp(node)` or `rlp(keccak(rlp(node)))`.
@@ -86,5 +88,28 @@ impl RlpNode {
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
         &self.0
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'u> arbitrary::Arbitrary<'u> for RlpNode {
+    fn arbitrary(g: &mut arbitrary::Unstructured<'u>) -> arbitrary::Result<Self> {
+        let len = g.int_in_range(0..=MAX)?;
+        let mut arr = ArrayVec::new();
+        arr.try_extend_from_slice(g.bytes(len)?).unwrap();
+        Ok(Self(arr))
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl proptest::arbitrary::Arbitrary for RlpNode {
+    type Parameters = ();
+    type Strategy = proptest::strategy::BoxedStrategy<Self>;
+
+    fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+        use proptest::prelude::*;
+        proptest::collection::vec(proptest::prelude::any::<u8>(), 0..=MAX)
+            .prop_map(|vec| Self::from_raw(&vec).unwrap())
+            .boxed()
     }
 }
