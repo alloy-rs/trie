@@ -17,6 +17,7 @@
 #![cfg_attr(not(feature = "std"), no_std)]
 
 #[macro_use]
+#[allow(unused_imports)]
 extern crate alloc;
 
 pub mod nodes;

@@ -5,7 +5,9 @@ use core::fmt;
 /// The input of the hash builder.
 ///
 /// Stores [`HashBuilderInputRef`] efficiently by reusing resources.
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
 pub struct HashBuilderInput {
     /// Stores the bytes of either the leaf node value or the hash of adjacent nodes.
     buf: Vec<u8>,
@@ -55,8 +57,12 @@ impl HashBuilderInput {
 }
 
 /// The kind of the current hash builder input.
-#[derive(Clone, Copy, Debug, Default)]
-enum HashBuilderInputKind {
+#[doc(hidden)] // Not public API.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
+#[allow(unreachable_pub)]
+pub enum HashBuilderInputKind {
     /// Value of the leaf node.
     #[default]
     Bytes,
