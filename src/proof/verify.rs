@@ -1,7 +1,7 @@
 //! Proof verification logic.
 
 use crate::{
-    nodes::{rlp_node, word_rlp, BranchNode, TrieNode, CHILD_INDEX_RANGE},
+    nodes::{BranchNode, RlpNode, TrieNode, CHILD_INDEX_RANGE},
     proof::ProofVerificationError,
     EMPTY_ROOT_HASH,
 };
@@ -42,9 +42,9 @@ where
     }
 
     let mut walked_path = Nibbles::default();
-    let mut next_value = Some(word_rlp(&root));
+    let mut next_value = Some(RlpNode::word_rlp(&root));
     for node in proof {
-        if Some(rlp_node(node)) != next_value {
+        if Some(RlpNode::from_rlp(node)) != next_value {
             let got = Some(Bytes::copy_from_slice(node));
             let expected = next_value.map(|b| Bytes::copy_from_slice(&b));
             return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
@@ -65,12 +65,12 @@ where
     }
 
     next_value = next_value.filter(|_| walked_path == key);
-    if next_value == value {
+    if next_value.as_deref() == value.as_deref() {
         Ok(())
     } else {
         Err(ProofVerificationError::ValueMismatch {
             path: key,
-            got: next_value.map(Bytes::from),
+            got: next_value.as_deref().map(Vec::from).map(Bytes::from),
             expected: value.map(Bytes::from),
         })
     }
@@ -81,7 +81,7 @@ fn process_branch(
     mut branch: BranchNode,
     walked_path: &mut Nibbles,
     key: &Nibbles,
-) -> Result<Option<Vec<u8>>, ProofVerificationError> {
+) -> Result<Option<RlpNode>, ProofVerificationError> {
     if let Some(next) = key.get(walked_path.len()) {
         let mut stack_ptr = branch.as_ref().first_child_index();
         for index in CHILD_INDEX_RANGE {
@@ -184,7 +184,7 @@ mod tests {
             Err(ProofVerificationError::ValueMismatch {
                 path: Nibbles::default(),
                 got: Some(Bytes::from(dummy_proof)),
-                expected: Some(Bytes::from(word_rlp(&EMPTY_ROOT_HASH)))
+                expected: Some(Bytes::from(RlpNode::word_rlp(&EMPTY_ROOT_HASH)[..].to_vec()))
             })
         );
     }
@@ -467,18 +467,19 @@ mod tests {
 
         let mut buffer = vec![];
 
-        let child_leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), vec![0x64]));
+        let value = RlpNode::from_raw(&[0x64]).unwrap();
+        let child_leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone()));
 
         let child_branch = TrieNode::Branch(BranchNode::new(
             vec![
                 {
                     buffer.clear();
-                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), vec![0x64]))
+                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone()))
                         .rlp(&mut buffer)
                 },
                 {
                     buffer.clear();
-                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xb]), vec![0x64]))
+                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xb]), value.clone()))
                         .rlp(&mut buffer)
                 },
             ],
