@@ -6,7 +6,7 @@ use core::fmt;
 ///
 /// Stores [`HashBuilderInputRef`] efficiently by reusing resources.
 #[derive(Clone)]
-pub(crate) struct HashBuilderInput {
+pub struct HashBuilderInput {
     /// Stores the bytes of either the leaf node value or the hash of adjacent nodes.
     buf: Vec<u8>,
     /// The kind of the current hash builder input.
@@ -26,8 +26,9 @@ impl fmt::Debug for HashBuilderInput {
 }
 
 impl HashBuilderInput {
+    /// Returns the input as a reference.
     #[inline]
-    pub(crate) fn as_ref(&self) -> HashBuilderInputRef<'_> {
+    pub fn as_ref(&self) -> HashBuilderInputRef<'_> {
         match self.kind {
             HashBuilderInputKind::Bytes => HashBuilderInputRef::Bytes(&self.buf),
             HashBuilderInputKind::Hash => {
@@ -37,15 +38,17 @@ impl HashBuilderInput {
         }
     }
 
+    /// Sets the input from the given bytes.
     #[inline]
-    pub(crate) fn set_from_ref(&mut self, input: HashBuilderInputRef<'_>) {
+    pub fn set_from_ref(&mut self, input: HashBuilderInputRef<'_>) {
         self.buf.clear();
         self.buf.extend_from_slice(input.as_slice());
         self.kind = input.kind();
     }
 
+    /// Clears the input.
     #[inline]
-    pub(crate) fn clear(&mut self) {
+    pub fn clear(&mut self) {
         self.buf.clear();
         self.kind = HashBuilderInputKind::default();
     }
@@ -62,7 +65,7 @@ enum HashBuilderInputKind {
 }
 
 /// The input of the hash builder.
-pub(crate) enum HashBuilderInputRef<'a> {
+pub enum HashBuilderInputRef<'a> {
     /// Value of the leaf node.
     Bytes(&'a [u8]),
     /// Hash of adjacent nodes.
@@ -70,7 +73,8 @@ pub(crate) enum HashBuilderInputRef<'a> {
 }
 
 impl<'a> HashBuilderInputRef<'a> {
-    pub(crate) const fn as_slice(&self) -> &'a [u8] {
+    /// Returns the input as a slice.
+    pub const fn as_slice(&self) -> &'a [u8] {
         match *self {
             HashBuilderInputRef::Bytes(bytes) => bytes,
             HashBuilderInputRef::Hash(hash) => hash.as_slice(),

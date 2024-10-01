@@ -15,7 +15,7 @@ use tracing::trace;
 use alloc::vec::Vec;
 
 mod input;
-use input::{HashBuilderInput, HashBuilderInputRef};
+pub use input::{HashBuilderInput, HashBuilderInputRef};
 
 /// A component used to construct the root hash of the trie.
 ///
@@ -44,9 +44,8 @@ use input::{HashBuilderInput, HashBuilderInputRef};
 #[derive(Debug, Default)]
 #[allow(missing_docs)]
 pub struct HashBuilder {
-    input: HashBuilderInput,
-
     pub key: Nibbles,
+    pub input: HashBuilderInput,
     pub stack: Vec<Vec<u8>>,
 
     pub groups: Vec<TrieMask>,
