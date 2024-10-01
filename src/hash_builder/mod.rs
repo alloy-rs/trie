@@ -6,16 +6,14 @@ use super::{
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use crate::{proof::ProofNodes, HashMap};
+use alloc::vec::Vec;
 use alloy_primitives::{hex, keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
 
-#[allow(unused_imports)]
-use alloc::vec::Vec;
-
-mod input;
-pub use input::{HashBuilderInput, HashBuilderInputRef};
+mod value;
+pub use value::{HashBuilderValue, HashBuilderValueKind, HashBuilderValueRef};
 
 /// A component used to construct the root hash of the trie.
 ///
@@ -45,7 +43,7 @@ pub use input::{HashBuilderInput, HashBuilderInputRef};
 #[allow(missing_docs)]
 pub struct HashBuilder {
     pub key: Nibbles,
-    pub input: HashBuilderInput,
+    pub value: HashBuilderValue,
     pub stack: Vec<Vec<u8>>,
 
     pub groups: Vec<TrieMask>,
@@ -117,7 +115,7 @@ impl HashBuilder {
         if !self.key.is_empty() {
             self.update(&key);
         }
-        self.set_input(key, HashBuilderInputRef::Bytes(value));
+        self.set_key_value(key, HashBuilderValueRef::Bytes(value));
     }
 
     /// Adds a new branch element and its hash to the trie hash builder.
@@ -133,7 +131,7 @@ impl HashBuilder {
         } else if key.is_empty() {
             self.stack.push(word_rlp(&value));
         }
-        self.set_input(key, HashBuilderInputRef::Hash(&value));
+        self.set_key_value(key, HashBuilderValueRef::Hash(&value));
         self.stored_in_database = stored_in_database;
     }
 
@@ -143,7 +141,7 @@ impl HashBuilder {
         if !self.key.is_empty() {
             self.update(&Nibbles::default());
             self.key.clear();
-            self.input.clear();
+            self.value.clear();
         }
         let root = self.current_root();
         if root == EMPTY_ROOT_HASH {
@@ -155,17 +153,17 @@ impl HashBuilder {
     }
 
     #[inline]
-    fn set_input(&mut self, key: Nibbles, input: HashBuilderInputRef<'_>) {
-        self.log_input("old input");
+    fn set_key_value(&mut self, key: Nibbles, value: HashBuilderValueRef<'_>) {
+        self.log_key_value("old value");
         self.key = key;
-        self.input.set_from_ref(input);
-        self.log_input("new input");
+        self.value.set_from_ref(value);
+        self.log_key_value("new value");
     }
 
-    fn log_input(&self, msg: &str) {
+    fn log_key_value(&self, msg: &str) {
         trace!(target: "trie::hash_builder",
             key = ?self.key,
-            input = ?self.input,
+            value = ?self.value,
             "{msg}",
         );
     }
@@ -245,8 +243,8 @@ impl HashBuilder {
 
             // Concatenate the 2 nodes together
             if !build_extensions {
-                match self.input.as_ref() {
-                    HashBuilderInputRef::Bytes(leaf_value) => {
+                match self.value.as_ref() {
+                    HashBuilderValueRef::Bytes(leaf_value) => {
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
                         self.rlp_buf.clear();
                         let rlp = leaf_node.rlp(&mut self.rlp_buf);
@@ -258,7 +256,7 @@ impl HashBuilder {
                         self.stack.push(rlp);
                         self.retain_proof_from_buf(&current.slice(..len_from));
                     }
-                    HashBuilderInputRef::Hash(hash) => {
+                    HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
                         self.stack.push(word_rlp(hash));
 
