@@ -13,7 +13,7 @@ use core::cmp;
 use tracing::trace;
 
 mod value;
-pub use value::{HashBuilderValue, HashBuilderValueKind, HashBuilderValueRef};
+pub use value::{HashBuilderValue, HashBuilderValueRef};
 
 /// A component used to construct the root hash of the trie.
 ///
