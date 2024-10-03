@@ -6,16 +6,14 @@ use super::{
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
 use crate::{nodes::RlpNode, proof::ProofNodes, HashMap};
-use alloy_primitives::{hex, keccak256, B256};
+use alloc::vec::Vec;
+use alloy_primitives::{keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
 
-#[allow(unused_imports)]
-use alloc::vec::Vec;
-
 mod value;
-pub use value::HashBuilderValue;
+pub use value::{HashBuilderValue, HashBuilderValueKind, HashBuilderValueRef};
 
 /// A component used to construct the root hash of the trie.
 ///
@@ -45,8 +43,8 @@ pub use value::HashBuilderValue;
 #[allow(missing_docs)]
 pub struct HashBuilder {
     pub key: Nibbles,
-    pub stack: Vec<RlpNode>,
     pub value: HashBuilderValue,
+    pub stack: Vec<RlpNode>,
 
     pub groups: Vec<TrieMask>,
     pub tree_masks: Vec<TrieMask>,
@@ -106,7 +104,7 @@ impl HashBuilder {
     pub fn print_stack(&self) {
         println!("============ STACK ===============");
         for item in &self.stack {
-            println!("{}", hex::encode(item));
+            println!("{}", alloy_primitives::hex::encode(item));
         }
         println!("============ END STACK ===============");
     }
@@ -117,7 +115,7 @@ impl HashBuilder {
         if !self.key.is_empty() {
             self.update(&key);
         }
-        self.set_key_value(key, value);
+        self.set_key_value(key, HashBuilderValueRef::Bytes(value));
     }
 
     /// Adds a new branch element and its hash to the trie hash builder.
@@ -133,7 +131,7 @@ impl HashBuilder {
         } else if key.is_empty() {
             self.stack.push(RlpNode::word_rlp(&value));
         }
-        self.set_key_value(key, value);
+        self.set_key_value(key, HashBuilderValueRef::Hash(&value));
         self.stored_in_database = stored_in_database;
     }
 
@@ -143,7 +141,7 @@ impl HashBuilder {
         if !self.key.is_empty() {
             self.update(&Nibbles::default());
             self.key.clear();
-            self.value = HashBuilderValue::Bytes(vec![]);
+            self.value.clear();
         }
         let root = self.current_root();
         if root == EMPTY_ROOT_HASH {
@@ -154,11 +152,20 @@ impl HashBuilder {
         root
     }
 
-    fn set_key_value<T: Into<HashBuilderValue>>(&mut self, key: Nibbles, value: T) {
-        trace!(target: "trie::hash_builder", key = ?self.key, value = ?self.value, "old key/value");
+    #[inline]
+    fn set_key_value(&mut self, key: Nibbles, value: HashBuilderValueRef<'_>) {
+        self.log_key_value("old value");
         self.key = key;
-        self.value = value.into();
-        trace!(target: "trie::hash_builder", key = ?self.key, value = ?self.value, "new key/value");
+        self.value.set_from_ref(value);
+        self.log_key_value("new value");
+    }
+
+    fn log_key_value(&self, msg: &str) {
+        trace!(target: "trie::hash_builder",
+            key = ?self.key,
+            value = ?self.value,
+            "{msg}",
+        );
     }
 
     fn current_root(&self) -> B256 {
@@ -181,6 +188,7 @@ impl HashBuilder {
         let mut build_extensions = false;
         // current / self.key is always the latest added element in the trie
         let mut current = self.key.clone();
+        debug_assert!(!current.is_empty());
 
         trace!(target: "trie::hash_builder", ?current, ?succeeding, "updating merkle tree");
 
@@ -235,20 +243,21 @@ impl HashBuilder {
 
             // Concatenate the 2 nodes together
             if !build_extensions {
-                match &self.value {
-                    HashBuilderValue::Bytes(leaf_value) => {
+                match self.value.as_ref() {
+                    HashBuilderValueRef::Bytes(leaf_value) => {
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
-                        trace!(target: "trie::hash_builder", ?leaf_node, "pushing leaf node");
-                        trace!(target: "trie::hash_builder", rlp = {
-                            self.rlp_buf.clear();
-                            hex::encode(leaf_node.rlp(&mut self.rlp_buf))
-                        }, "leaf node rlp");
-
                         self.rlp_buf.clear();
-                        self.stack.push(leaf_node.rlp(&mut self.rlp_buf));
+                        let rlp = leaf_node.rlp(&mut self.rlp_buf);
+                        trace!(
+                            target: "trie::hash_builder",
+                            ?leaf_node,
+                            ?rlp,
+                            "pushing leaf node",
+                        );
+                        self.stack.push(rlp);
                         self.retain_proof_from_buf(&current.slice(..len_from));
                     }
-                    HashBuilderValue::Hash(hash) => {
+                    HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
                         self.stack.push(RlpNode::word_rlp(hash));
 
@@ -271,7 +280,8 @@ impl HashBuilder {
 
                 self.rlp_buf.clear();
                 let rlp = extension_node.rlp(&mut self.rlp_buf);
-                trace!(target: "trie::hash_builder",
+                trace!(
+                    target: "trie::hash_builder",
                     ?extension_node,
                     ?rlp,
                     "pushing extension node",
