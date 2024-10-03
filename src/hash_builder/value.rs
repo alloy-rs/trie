@@ -7,9 +7,9 @@ use core::fmt;
 /// Stores [`HashBuilderValueRef`] efficiently by reusing resources.
 #[derive(Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
 pub struct HashBuilderValue {
     /// Stores the bytes of either the leaf node value or the hash of adjacent nodes.
+    #[cfg_attr(feature = "serde", serde(with = "hex"))]
     buf: Vec<u8>,
     /// The kind of value that is stored in `buf`.
     kind: HashBuilderValueKind,
@@ -24,6 +24,39 @@ impl Default for HashBuilderValue {
 impl fmt::Debug for HashBuilderValue {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         self.as_ref().fmt(f)
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl<'u> arbitrary::Arbitrary<'u> for HashBuilderValue {
+    fn arbitrary(g: &mut arbitrary::Unstructured<'u>) -> arbitrary::Result<Self> {
+        let kind = HashBuilderValueKind::arbitrary(g)?;
+        let buf = match kind {
+            HashBuilderValueKind::Bytes => Vec::arbitrary(g)?,
+            HashBuilderValueKind::Hash => B256::arbitrary(g)?.to_vec(),
+        };
+        Ok(Self { buf, kind })
+    }
+}
+
+#[cfg(feature = "arbitrary")]
+impl proptest::arbitrary::Arbitrary for HashBuilderValue {
+    type Parameters = ();
+    type Strategy = proptest::strategy::BoxedStrategy<Self>;
+
+    fn arbitrary_with((): Self::Parameters) -> Self::Strategy {
+        use proptest::prelude::*;
+
+        proptest::arbitrary::any::<HashBuilderValueKind>()
+            .prop_flat_map(|kind| {
+                let range = match kind {
+                    HashBuilderValueKind::Bytes => 0..=128,
+                    HashBuilderValueKind::Hash => 32..=32,
+                };
+                proptest::collection::vec(any::<u8>(), range)
+                    .prop_map(move |buf| Self { buf, kind })
+            })
+            .boxed()
     }
 }
 
@@ -48,11 +81,6 @@ impl HashBuilderValue {
     /// Returns the value as a slice.
     pub fn as_slice(&self) -> &[u8] {
         &self.buf
-    }
-
-    /// Returns the kind of the value.
-    pub const fn kind(&self) -> HashBuilderValueKind {
-        self.kind
     }
 
     /// Like `set_from_ref`, but takes ownership of the bytes.
@@ -81,7 +109,7 @@ impl HashBuilderValue {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
-pub enum HashBuilderValueKind {
+enum HashBuilderValueKind {
     /// Value of the leaf node.
     #[default]
     Bytes,
@@ -107,7 +135,7 @@ impl<'a> HashBuilderValueRef<'a> {
     }
 
     /// Returns the kind of the value.
-    pub const fn kind(&self) -> HashBuilderValueKind {
+    const fn kind(&self) -> HashBuilderValueKind {
         match *self {
             HashBuilderValueRef::Bytes(_) => HashBuilderValueKind::Bytes,
             HashBuilderValueRef::Hash(_) => HashBuilderValueKind::Hash,
