@@ -26,10 +26,30 @@ pub use nodes::BranchNodeCompact;
 pub mod hash_builder;
 pub use hash_builder::HashBuilder;
 
+// imported from `reth-trie-common`
 pub mod proof;
 
 mod mask;
 pub use mask::TrieMask;
+
+mod account;
+pub use account::TrieAccount;
+
+mod nibbles;
+pub use nibbles::{StoredNibbles, StoredNibblesSubKey};
+
+mod storage;
+pub use storage::StorageTrieEntry;
+
+mod subnode;
+pub use subnode::StoredSubNode;
+
+mod proofs;
+#[cfg(any(test, feature = "test-utils"))]
+pub use proofs::triehash;
+pub use proofs::*;
+
+pub mod root;
 
 #[doc(hidden)]
 pub use alloy_primitives::map::HashMap;
@@ -48,6 +68,8 @@ where
     K: AsRef<[u8]> + Ord,
     V: AsRef<[u8]>,
 {
+    use ::triehash::trie_root;
+
     struct Keccak256Hasher;
     impl hash_db::Hasher for Keccak256Hasher {
         type Out = alloy_primitives::B256;
@@ -64,5 +86,5 @@ where
     // the incoming keys are already hashed, which makes sense given
     // we're going to be using the Hashed tables & pre-hash the data
     // on the way in.
-    triehash::trie_root::<Keccak256Hasher, _, _, _>(iter)
+    trie_root::<Keccak256Hasher, _, _, _>(iter)
 }
