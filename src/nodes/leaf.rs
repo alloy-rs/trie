@@ -18,7 +18,7 @@ pub struct LeafNode {
     /// The key for this leaf node.
     pub key: Nibbles,
     /// The node value.
-    pub value: RlpNode,
+    pub value: Vec<u8>,
 }
 
 impl fmt::Debug for LeafNode {
@@ -58,7 +58,7 @@ impl Decodable for LeafNode {
         };
 
         let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
-        let value = RlpNode::decode(&mut bytes)?;
+        let value = Bytes::decode(&mut bytes)?.to_vec();
         Ok(Self { key, value })
     }
 }
@@ -71,7 +71,7 @@ impl LeafNode {
     pub const ODD_FLAG: u8 = 0x30;
 
     /// Creates a new leaf node with the given key and value.
-    pub const fn new(key: Nibbles, value: RlpNode) -> Self {
+    pub const fn new(key: Nibbles, value: Vec<u8>) -> Self {
         Self { key, value }
     }
 
@@ -155,7 +155,7 @@ mod tests {
     fn rlp_leaf_node_roundtrip() {
         let nibble = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
         let val = hex!("76657262");
-        let leaf = LeafNode::new(nibble, RlpNode::from_raw(&val).unwrap());
+        let leaf = LeafNode::new(nibble, val.to_vec());
         let rlp = leaf.as_ref().rlp(&mut vec![]);
         assert_eq!(rlp.as_ref(), hex!("c98320646f8476657262"));
         assert_eq!(LeafNode::decode(&mut &rlp[..]).unwrap(), leaf);

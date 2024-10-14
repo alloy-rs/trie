@@ -1,6 +1,6 @@
 //! Various branch nodes produced by the hash builder.
 
-use alloy_primitives::B256;
+use alloy_primitives::{Bytes, B256};
 use alloy_rlp::{Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::ops::Range;
 use nybbles::Nibbles;
@@ -112,7 +112,8 @@ impl Decodable for TrieNode {
 
                 let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
                 let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
-                    Self::Leaf(LeafNode::new(key, RlpNode::decode(&mut items.remove(0))?))
+                    let value = Bytes::decode(&mut items.remove(0))?.to_vec();
+                    Self::Leaf(LeafNode::new(key, value))
                 } else {
                     // We don't decode value because it is expected to be RLP encoded.
                     Self::Extension(ExtensionNode::new(
@@ -270,7 +271,7 @@ mod tests {
     fn rlp_zero_value_leaf_roundtrip() {
         let leaf = TrieNode::Leaf(LeafNode::new(
             Nibbles::from_nibbles_unchecked(hex!("0604060f")),
-            RlpNode::from_raw(&alloy_rlp::encode(alloy_primitives::U256::ZERO)).unwrap(),
+            alloy_rlp::encode(alloy_primitives::U256::ZERO),
         ));
         let rlp = leaf.rlp(&mut vec![]);
         assert_eq!(rlp[..], hex!("c68320646f8180"));
@@ -282,7 +283,7 @@ mod tests {
         // leaf
         let leaf = TrieNode::Leaf(LeafNode::new(
             Nibbles::from_nibbles_unchecked(hex!("0604060f")),
-            RlpNode::from_raw(&hex!("76657262")).unwrap(),
+            hex!("76657262").to_vec(),
         ));
         let rlp = leaf.rlp(&mut vec![]);
         assert_eq!(rlp[..], hex!("c98320646f8476657262"));

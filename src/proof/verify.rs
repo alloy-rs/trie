@@ -1,5 +1,7 @@
 //! Proof verification logic.
 
+use core::ops::Deref;
+
 use crate::{
     nodes::{BranchNode, RlpNode, TrieNode, CHILD_INDEX_RANGE},
     proof::ProofVerificationError,
@@ -41,38 +43,55 @@ where
         };
     }
 
-    let mut walked_path = Nibbles::default();
-    let mut next_value = Some(RlpNode::word_rlp(&root));
+    let mut walked_path = Nibbles::with_capacity(key.len());
+    let mut next_node = Some(WalkResult::Node(RlpNode::word_rlp(&root)));
     for node in proof {
-        if Some(RlpNode::from_rlp(node)) != next_value {
+        if Some(RlpNode::from_rlp(node).as_slice()) != next_node.as_deref() {
             let got = Some(Bytes::copy_from_slice(node));
-            let expected = next_value.map(|b| Bytes::copy_from_slice(&b));
+            let expected = next_node.as_deref().map(Bytes::copy_from_slice);
             return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
         }
 
-        next_value = match TrieNode::decode(&mut &node[..])? {
+        next_node = match TrieNode::decode(&mut &node[..])? {
             TrieNode::Branch(branch) => process_branch(branch, &mut walked_path, &key)?,
             TrieNode::Extension(extension) => {
                 walked_path.extend_from_slice(&extension.key);
-                Some(extension.child)
+                Some(WalkResult::Node(extension.child))
             }
             TrieNode::Leaf(leaf) => {
                 walked_path.extend_from_slice(&leaf.key);
-                Some(leaf.value)
+                Some(WalkResult::Value(leaf.value))
             }
             TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
         };
     }
 
-    next_value = next_value.filter(|_| walked_path == key);
-    if next_value.as_deref() == value.as_deref() {
+    next_node = next_node.filter(|_| walked_path == key);
+    if next_node.as_deref() == value.as_deref() {
         Ok(())
     } else {
         Err(ProofVerificationError::ValueMismatch {
             path: key,
-            got: next_value.as_deref().map(Vec::from).map(Bytes::from),
+            got: next_node.as_deref().map(Bytes::copy_from_slice),
             expected: value.map(Bytes::from),
         })
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum WalkResult {
+    Node(RlpNode),
+    Value(Vec<u8>),
+}
+
+impl Deref for WalkResult {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            WalkResult::Node(node) => node.as_slice(),
+            WalkResult::Value(value) => value,
+        }
     }
 }
 
@@ -81,7 +100,7 @@ fn process_branch(
     mut branch: BranchNode,
     walked_path: &mut Nibbles,
     key: &Nibbles,
-) -> Result<Option<RlpNode>, ProofVerificationError> {
+) -> Result<Option<WalkResult>, ProofVerificationError> {
     if let Some(next) = key.get(walked_path.len()) {
         let mut stack_ptr = branch.as_ref().first_child_index();
         for index in CHILD_INDEX_RANGE {
@@ -91,7 +110,7 @@ fn process_branch(
 
                     let child = branch.stack.remove(stack_ptr);
                     if child.len() == B256::len_bytes() + 1 {
-                        return Ok(Some(child));
+                        return Ok(Some(WalkResult::Node(child)));
                     } else {
                         // This node is encoded in-place.
                         match TrieNode::decode(&mut &child[..])? {
@@ -129,7 +148,7 @@ fn process_branch(
                             }
                             TrieNode::Leaf(child_leaf) => {
                                 walked_path.extend_from_slice(&child_leaf.key);
-                                return Ok(Some(child_leaf.value));
+                                return Ok(Some(WalkResult::Value(child_leaf.value)));
                             }
                             TrieNode::EmptyRoot => {
                                 return Err(ProofVerificationError::UnexpectedEmptyRoot)
@@ -467,7 +486,7 @@ mod tests {
 
         let mut buffer = vec![];
 
-        let value = RlpNode::from_raw(&[0x64]).unwrap();
+        let value = vec![0x64];
         let child_leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone()));
 
         let child_branch = TrieNode::Branch(BranchNode::new(
