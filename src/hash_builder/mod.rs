@@ -579,8 +579,8 @@ mod tests {
     #[test]
     fn manual_branch_node_ok() {
         let raw_input = vec![
-            (hex!("646f").to_vec(), RlpNode::from_raw(&hex!("76657262")).unwrap()),
-            (hex!("676f6f64").to_vec(), RlpNode::from_raw(&hex!("7075707079")).unwrap()),
+            (hex!("646f").to_vec(), hex!("76657262").to_vec()),
+            (hex!("676f6f64").to_vec(), hex!("7075707079").to_vec()),
         ];
         let expected = triehash_trie_root(raw_input.clone());
 

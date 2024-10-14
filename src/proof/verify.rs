@@ -1,5 +1,7 @@
 //! Proof verification logic.
 
+use core::ops::Deref;
+
 use crate::{
     nodes::{BranchNode, RlpNode, TrieNode, CHILD_INDEX_RANGE},
     proof::ProofVerificationError,
@@ -17,7 +19,7 @@ use nybbles::Nibbles;
 pub fn verify_proof<'a, I>(
     root: B256,
     key: Nibbles,
-    value: Option<Vec<u8>>,
+    expected_value: Option<Vec<u8>>,
     proof: I,
 ) -> Result<(), ProofVerificationError>
 where
@@ -25,15 +27,16 @@ where
 {
     let mut proof = proof.into_iter().peekable();
 
+    // If the proof is empty or contains only an empty node, the expected value must be None.
     if proof.peek().map_or(true, |node| node.as_ref() == [EMPTY_STRING_CODE]) {
         return if root == EMPTY_ROOT_HASH {
-            if value.is_none() {
+            if expected_value.is_none() {
                 Ok(())
             } else {
                 Err(ProofVerificationError::ValueMismatch {
                     path: key,
                     got: None,
-                    expected: value.map(Bytes::from),
+                    expected: expected_value.map(Bytes::from),
                 })
             }
         } else {
@@ -41,38 +44,66 @@ where
         };
     }
 
-    let mut walked_path = Nibbles::default();
-    let mut next_value = Some(RlpNode::word_rlp(&root));
+    let mut walked_path = Nibbles::with_capacity(key.len());
+    let mut last_decoded_node = Some(NodeDecodingResult::Node(RlpNode::word_rlp(&root)));
     for node in proof {
-        if Some(RlpNode::from_rlp(node)) != next_value {
+        // Check if the node that we just decoded (or root node, if we just started) matches
+        // the expected node from the proof.
+        if Some(RlpNode::from_rlp(node).as_slice()) != last_decoded_node.as_deref() {
             let got = Some(Bytes::copy_from_slice(node));
-            let expected = next_value.map(|b| Bytes::copy_from_slice(&b));
+            let expected = last_decoded_node.as_deref().map(Bytes::copy_from_slice);
             return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
         }
 
-        next_value = match TrieNode::decode(&mut &node[..])? {
+        // Decode the next node from the proof.
+        last_decoded_node = match TrieNode::decode(&mut &node[..])? {
             TrieNode::Branch(branch) => process_branch(branch, &mut walked_path, &key)?,
             TrieNode::Extension(extension) => {
                 walked_path.extend_from_slice(&extension.key);
-                Some(extension.child)
+                Some(NodeDecodingResult::Node(extension.child))
             }
             TrieNode::Leaf(leaf) => {
                 walked_path.extend_from_slice(&leaf.key);
-                Some(leaf.value)
+                Some(NodeDecodingResult::Value(leaf.value))
             }
             TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
         };
     }
 
-    next_value = next_value.filter(|_| walked_path == key);
-    if next_value.as_deref() == value.as_deref() {
+    // Last decoded node should have the key that we are looking for.
+    last_decoded_node = last_decoded_node.filter(|_| walked_path == key);
+    if last_decoded_node.as_deref() == expected_value.as_deref() {
         Ok(())
     } else {
         Err(ProofVerificationError::ValueMismatch {
             path: key,
-            got: next_value.as_deref().map(Vec::from).map(Bytes::from),
-            expected: value.map(Bytes::from),
+            got: last_decoded_node.as_deref().map(Bytes::copy_from_slice),
+            expected: expected_value.map(Bytes::from),
         })
+    }
+}
+
+/// The result of decoding a node from the proof.
+///
+/// - [`TrieNode::Branch`] is decoded into a [`NodeDecodingResult::Value`] if the node at the
+///   specified nibble was decoded into an in-place encoded [`TrieNode::Leaf`], or into a
+///   [`NodeDecodingResult::Node`] otherwise.
+/// - [`TrieNode::Extension`] is always decoded into a [`NodeDecodingResult::Node`].
+/// - [`TrieNode::Leaf`] is always decoded into a [`NodeDecodingResult::Value`].
+#[derive(Debug, PartialEq, Eq)]
+enum NodeDecodingResult {
+    Node(RlpNode),
+    Value(Vec<u8>),
+}
+
+impl Deref for NodeDecodingResult {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            NodeDecodingResult::Node(node) => node.as_slice(),
+            NodeDecodingResult::Value(value) => value,
+        }
     }
 }
 
@@ -81,7 +112,7 @@ fn process_branch(
     mut branch: BranchNode,
     walked_path: &mut Nibbles,
     key: &Nibbles,
-) -> Result<Option<RlpNode>, ProofVerificationError> {
+) -> Result<Option<NodeDecodingResult>, ProofVerificationError> {
     if let Some(next) = key.get(walked_path.len()) {
         let mut stack_ptr = branch.as_ref().first_child_index();
         for index in CHILD_INDEX_RANGE {
@@ -91,7 +122,7 @@ fn process_branch(
 
                     let child = branch.stack.remove(stack_ptr);
                     if child.len() == B256::len_bytes() + 1 {
-                        return Ok(Some(child));
+                        return Ok(Some(NodeDecodingResult::Node(child)));
                     } else {
                         // This node is encoded in-place.
                         match TrieNode::decode(&mut &child[..])? {
@@ -106,12 +137,12 @@ fn process_branch(
                                 walked_path.extend_from_slice(&child_extension.key);
 
                                 // If the extension node's child is a hash, the encoded extension
-                                // node itself wouldn't fit for encoding in- place. So this
-                                // extension node must have a child that is also encoded in-place.
+                                // node itself wouldn't fit for encoding in-place. So this extension
+                                // node must have a child that is also encoded in-place.
                                 //
                                 // Since the child cannot be a leaf node (otherwise this node itself
-                                // is a leaf node to begin with, the child must also be a branch
-                                // encoded in-place.
+                                // would be a leaf node, not an extension node), the child must be a
+                                // branch node encoded in-place.
                                 match TrieNode::decode(&mut &child_extension.child[..])? {
                                     TrieNode::Branch(extension_child_branch) => {
                                         return process_branch(
@@ -129,7 +160,7 @@ fn process_branch(
                             }
                             TrieNode::Leaf(child_leaf) => {
                                 walked_path.extend_from_slice(&child_leaf.key);
-                                return Ok(Some(child_leaf.value));
+                                return Ok(Some(NodeDecodingResult::Value(child_leaf.value)));
                             }
                             TrieNode::EmptyRoot => {
                                 return Err(ProofVerificationError::UnexpectedEmptyRoot)
@@ -467,7 +498,7 @@ mod tests {
 
         let mut buffer = vec![];
 
-        let value = RlpNode::from_raw(&[0x64]).unwrap();
+        let value = vec![0x64];
         let child_leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone()));
 
         let child_branch = TrieNode::Branch(BranchNode::new(
