@@ -58,7 +58,7 @@ impl Decodable for LeafNode {
         };
 
         let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
-        let value = Bytes::decode(&mut bytes)?.to_vec();
+        let value = Bytes::decode(&mut bytes)?.into();
         Ok(Self { key, value })
     }
 }

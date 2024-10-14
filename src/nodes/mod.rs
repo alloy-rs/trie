@@ -112,7 +112,7 @@ impl Decodable for TrieNode {
 
                 let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
                 let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
-                    let value = Bytes::decode(&mut items.remove(0))?.to_vec();
+                    let value = Bytes::decode(&mut items.remove(0))?.into();
                     Self::Leaf(LeafNode::new(key, value))
                 } else {
                     // We don't decode value because it is expected to be RLP encoded.
