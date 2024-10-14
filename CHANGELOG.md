@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1](https://github.com/alloy-rs/trie/releases/tag/v0.7.1) - 2024-10-14
+
+### Bug Fixes
+
+- Use vector of arbitrary length for leaf node value ([#56](https://github.com/alloy-rs/trie/issues/56))
+
+### Miscellaneous Tasks
+
+- Allow `Zlib` in `deny.toml` ([#54](https://github.com/alloy-rs/trie/issues/54))
+
 ## [0.7.0](https://github.com/alloy-rs/trie/releases/tag/v0.7.0) - 2024-10-14
 
 ### Bug Fixes
@@ -13,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.7.0
 - [meta] Add CODEOWNERS ([#47](https://github.com/alloy-rs/trie/issues/47))
 
 ### Performance
