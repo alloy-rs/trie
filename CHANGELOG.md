@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.0](https://github.com/alloy-rs/trie/releases/tag/v0.7.0) - 2024-10-14
+
+### Bug Fixes
+
+- Arbitrary impls ([#52](https://github.com/alloy-rs/trie/issues/52))
+
+### Miscellaneous Tasks
+
+- [meta] Add CODEOWNERS ([#47](https://github.com/alloy-rs/trie/issues/47))
+
+### Performance
+
+- Avoid cloning HashBuilder input ([#50](https://github.com/alloy-rs/trie/issues/50))
+- Store RLP-encoded nodes using ArrayVec ([#51](https://github.com/alloy-rs/trie/issues/51))
+- Avoid calculating branch node children if possible ([#49](https://github.com/alloy-rs/trie/issues/49))
+- Inline RLP encode functions ([#46](https://github.com/alloy-rs/trie/issues/46))
+
 ## [0.6.0](https://github.com/alloy-rs/trie/releases/tag/v0.6.0) - 2024-09-26
 
 ### Features
@@ -14,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.6.0
 - Display more information on assertions ([#40](https://github.com/alloy-rs/trie/issues/40))
 - Expose `rlp_node` ([#38](https://github.com/alloy-rs/trie/issues/38))
 - Remove children hashes methods ([#35](https://github.com/alloy-rs/trie/issues/35))
