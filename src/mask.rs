@@ -74,4 +74,9 @@ impl TrieMask {
     pub fn set_bit(&mut self, index: u8) {
         self.0 |= 1u16 << index;
     }
+
+    /// Unset bit at a specified index.
+    pub fn unset_bit(&mut self, index: u8) {
+        self.0 &= !(1u16 << index);
+    }
 }
