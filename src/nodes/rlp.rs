@@ -89,6 +89,16 @@ impl RlpNode {
     pub fn as_slice(&self) -> &[u8] {
         &self.0
     }
+
+    /// Returns hash if this is an RLP-encoded hash
+    #[inline]
+    pub fn as_hash(&self) -> Option<B256> {
+        if self.len() == B256::len_bytes() + 1 {
+            Some(B256::from_slice(&self.0[1..]))
+        } else {
+            None
+        }
+    }
 }
 
 #[cfg(feature = "arbitrary")]
