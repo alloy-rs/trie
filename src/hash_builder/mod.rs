@@ -668,7 +668,7 @@ mod tests {
 
         let deep_key = Nibbles::from_nibbles_unchecked(vec![0, 1, 2, 3]);
 
-        let value = alloy_rlp::encode(&U256::from(42)).to_vec();
+        let value = alloy_rlp::encode(U256::from(42)).to_vec();
         hb.add_leaf(deep_key.clone(), &value);
 
         // calculate root to ensure all nodes are created
@@ -721,7 +721,7 @@ mod tests {
         let key1 = Nibbles::from_nibbles_unchecked(vec![1, 2, 3]);
         let key2 = Nibbles::from_nibbles_unchecked(vec![1, 2, 4]);
 
-        let value = alloy_rlp::encode(&U256::from(42)).to_vec();
+        let value = alloy_rlp::encode(U256::from(42)).to_vec();
         hb.add_leaf(key1, &value);
         hb.add_leaf(key2, &value);
 
