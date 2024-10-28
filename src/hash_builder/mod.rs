@@ -479,9 +479,8 @@ mod tests {
     use super::*;
     use crate::{nodes::LeafNode, triehash_trie_root};
     use alloc::collections::BTreeMap;
-    use alloy_primitives::{b256, hex, U256};
+    use alloy_primitives::{b256, hex, map::HashSet, U256};
     use alloy_rlp::Encodable;
-    use std::collections::HashSet;
 
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.
     fn assert_hashed_trie_root<'a, I, K>(iter: I)
@@ -889,12 +888,6 @@ mod tests {
 
             for child_path in child_paths {
                 if !nodes.contains_key(&child_path) && !removed.contains(&child_path) {
-                    println!(
-                        "Missing child node at path: {:?} for parent: {:?} with mask: {:016b}",
-                        child_path,
-                        path,
-                        branch_node.tree_mask.get()
-                    );
                     return false;
                 }
             }
