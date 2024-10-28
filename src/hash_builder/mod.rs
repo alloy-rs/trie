@@ -479,7 +479,7 @@ mod tests {
     use super::*;
     use crate::{nodes::LeafNode, triehash_trie_root};
     use alloc::collections::BTreeMap;
-    use alloy_primitives::{b256, hex, map::HashSet, U256};
+    use alloy_primitives::{b256, hex, U256};
     use alloy_rlp::Encodable;
 
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.
@@ -872,10 +872,7 @@ mod tests {
         assert_eq!(root, triehash_trie_root(data));
     }
 
-    fn verify_tree_mask_invariant(
-        nodes: &HashMap<Nibbles, BranchNodeCompact>,
-        removed: &HashSet<Nibbles>,
-    ) -> bool {
+    fn verify_tree_mask_invariant(nodes: &HashMap<Nibbles, BranchNodeCompact>) -> bool {
         for (path, branch_node) in nodes {
             let child_paths = (0..16)
                 .filter(|&pos| (branch_node.tree_mask.get() & (1 << pos)) != 0)
@@ -887,7 +884,7 @@ mod tests {
                 .collect::<Vec<_>>();
 
             for child_path in child_paths {
-                if !nodes.contains_key(&child_path) && !removed.contains(&child_path) {
+                if !nodes.contains_key(&child_path) {
                     return false;
                 }
             }
@@ -933,6 +930,6 @@ mod tests {
             );
         }
 
-        assert!(verify_tree_mask_invariant(&updates, &HashSet::new()));
+        assert!(verify_tree_mask_invariant(&updates));
     }
 }
