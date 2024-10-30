@@ -70,8 +70,31 @@ impl TrieMask {
         self.0 == 0
     }
 
+    /// Returns the number of bits set in the mask.
+    #[inline]
+    pub const fn count_bits(self) -> u8 {
+        self.0.count_ones() as u8
+    }
+
+    /// Returns the index of the first bit set in the mask, or `None` if the mask is empty.
+    #[inline]
+    pub const fn first_set_bit_index(self) -> Option<u8> {
+        if self.is_empty() {
+            None
+        } else {
+            Some(self.0.trailing_zeros() as u8)
+        }
+    }
+
     /// Set bit at a specified index.
+    #[inline]
     pub fn set_bit(&mut self, index: u8) {
         self.0 |= 1u16 << index;
+    }
+
+    /// Unset bit at a specified index.
+    #[inline]
+    pub fn unset_bit(&mut self, index: u8) {
+        self.0 &= !(1u16 << index);
     }
 }
