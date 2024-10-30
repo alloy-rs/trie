@@ -492,20 +492,26 @@ mod tests {
         let mut hb = HashBuilder::default().with_updates(true);
 
         // We have 1 branch node update to be stored at 0x01, indicated by the first nibble.
-        // That branch root node has 2 branch node children present at 0x1 and 0x2.
-        // - 0x1 branch: It has the 2 empty items, at `0` and `1`.
-        // - 0x2 branch: It has the 2 empty items, at `0` and `2`.
+        // That branch root node has 4 children:
+        // - Leaf at nibble `0`: It has an empty value.
+        // - Branch at nibble `1`: It has 2 leaf nodes with empty values at nibbles `0` and `1`.
+        // - Branch at nibble `2`: It has 2 leaf nodes with empty values at nibbles `0` and `2`.
+        // - Leaf at nibble `3`: It has an empty value.
+        //
         // This is enough information to construct the intermediate node value:
-        // 1. State Mask: 0b111. The children of the branch + the branch value at `0`, `1` and `2`.
-        // 2. Hash Mask: 0b110. Of the above items, `1` and `2` correspond to sub-branch nodes.
-        // 3. Tree Mask: 0b000.
-        // 4. Hashes: The 2 sub-branch roots, at `1` and `2`, calculated by hashing
-        // the 0th and 1st element for the 0x1 branch (according to the 3rd nibble),
-        // and the 0th and 2nd element for the 0x2 branch (according to the 3rd nibble).
-        // This basically means that every BranchNodeCompact is capable of storing up to 2 levels
-        // deep of nodes (?).
+        // 1. State Mask: 0b1111. All children of the branch node set at nibbles `0`, `1`, `2` and
+        //    `3`.
+        // 2. Hash Mask: 0b0110. Of the above items, nibbles `1` and `2` correspond to children that
+        //    are branch nodes.
+        // 3. Tree Mask: 0b0000. None of the children are stored in the database (yet).
+        // 4. Hashes: Hashes of the 2 sub-branch roots, at nibbles `1` and `2`. Calculated by
+        //    hashing the 0th and 1st element for the branch at nibble `1` , and the 0th and 2nd
+        //    element for the branch at nibble `2`. This basically means that every
+        //    BranchNodeCompact is capable of storing up to 2 levels deep of nodes (?).
         let data = BTreeMap::from([
             (
+                // Leaf located at nibble `0` of the branch root node that doesn't result in
+                // creating another branch node
                 hex!("1000000000000000000000000000000000000000000000000000000000000000").to_vec(),
                 Vec::new(),
             ),
@@ -526,7 +532,8 @@ mod tests {
                 Vec::new(),
             ),
             (
-                // unrelated leaf
+                // Leaf located at nibble `3` of the branch root node that doesn't result in
+                // creating another branch node
                 hex!("1320000000000000000000000000000000000000000000000000000000000000").to_vec(),
                 Vec::new(),
             ),
@@ -540,10 +547,14 @@ mod tests {
         let (_, updates) = hb.split();
 
         let update = updates.get(&Nibbles::from_nibbles_unchecked(hex!("01"))).unwrap();
-        assert_eq!(update.state_mask, TrieMask::new(0b1111)); // 1st nibble: 0, 1, 2, 3
-        assert_eq!(update.tree_mask, TrieMask::new(0));
-        assert_eq!(update.hash_mask, TrieMask::new(6)); // in the 1st nibble, the ones with 1 and 2 are branches with `hashes`
-        assert_eq!(update.hashes.len(), 2); // calculated while the builder is running
+        // Nibbles 0, 1, 2, 3 have children
+        assert_eq!(update.state_mask, TrieMask::new(0b1111));
+        // None of the children are stored in the database
+        assert_eq!(update.tree_mask, TrieMask::new(0b0000));
+        // Children under nibbles `1` and `2` are branche nodes with `hashes`
+        assert_eq!(update.hash_mask, TrieMask::new(0b0110));
+        // Calculated when running the hash builder
+        assert_eq!(update.hashes.len(), 2);
 
         assert_eq!(_root, triehash_trie_root(data));
     }

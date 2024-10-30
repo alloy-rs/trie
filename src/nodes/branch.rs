@@ -249,11 +249,11 @@ impl ExactSizeIterator for BranchChildrenIter<'_> {
 /// A struct representing a branch node in an Ethereum trie.
 ///
 /// A branch node can have up to 16 children, each corresponding to one of the possible nibble
-/// values (0 to 15) in the trie's path.
+/// values (`0` to `f`) in the trie's path.
 ///
 /// The masks in a BranchNode are used to efficiently represent and manage information about the
 /// presence and types of its children. They are bitmasks, where each bit corresponds to a nibble
-/// (half-byte, or 4 bits) value from 0 to 15.
+/// (half-byte, or 4 bits) value from `0` to `f`.
 #[derive(Debug, Default, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BranchNodeCompact {
@@ -262,17 +262,16 @@ pub struct BranchNodeCompact {
     /// child exists for the nibble value i. If the bit is unset (0), it means there is no child
     /// for that nibble value.
     pub state_mask: TrieMask,
-    /// The bitmask representing the internal (unhashed) children at the
-    /// respective nibble positions in the trie. If the bit at position `i` (counting from the
-    /// right) is set (1) and also present in the state_mask, it indicates that the
-    /// corresponding child at the nibble value `i` is an internal child. If the bit is unset
-    /// (0), it means the child is not an internal child.
+    /// The bitmask representing the children at the respective nibble positions in the trie that
+    /// are also stored in the database. If the bit at position `i` (counting from the right)
+    /// is set (1) and also present in the state_mask, it indicates that the corresponding
+    /// child at the nibble value `i` is stored in the database. If the bit is unset (0), it means
+    /// the child is not stored in the database.
     pub tree_mask: TrieMask,
-    /// The bitmask representing the hashed children at the respective nibble
-    /// positions in the trie. If the bit at position `i` (counting from the right) is set (1) and
-    /// also present in the state_mask, it indicates that the corresponding child at the nibble
-    /// value `i` is a hashed child. If the bit is unset (0), it means the child is not a
-    /// hashed child.
+    /// The bitmask representing the hashed children at the respective nibble positions in the
+    /// trie. If the bit at position `i` (counting from the right) is set (1) and also present
+    /// in the state_mask, it indicates that the corresponding child at the nibble value `i` is
+    /// a hashed child. If the bit is unset (0), it means the child is not a hashed child.
     pub hash_mask: TrieMask,
     /// Collection of hashes associated with the children of the branch node.
     /// Each child hash is calculated by hashing two consecutive sub-branch roots.
