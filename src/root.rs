@@ -1,7 +1,7 @@
+use alloc::vec::Vec;
 use alloy_primitives::B256;
 use alloy_rlp::Encodable;
 use nybbles::Nibbles;
-use alloc::vec::Vec;
 
 use crate::{HashBuilder, EMPTY_ROOT_HASH};
 
