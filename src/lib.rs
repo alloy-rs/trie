@@ -31,6 +31,9 @@ pub mod proof;
 mod mask;
 pub use mask::TrieMask;
 
+#[allow(missing_docs)]
+pub mod root;
+
 #[doc(hidden)]
 pub use alloy_primitives::map::HashMap;
 

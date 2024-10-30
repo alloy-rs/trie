@@ -26,6 +26,7 @@ alloy-primitives = { version = "0.8.5", default-features = false, features = [
 ] }
 alloy-rlp = { version = "0.3.8", default-features = false, features = [
     "derive",
+    "arrayvec",
 ] }
 
 arrayvec = { version = "0.7", default-features = false }
