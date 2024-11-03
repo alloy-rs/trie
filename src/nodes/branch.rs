@@ -158,8 +158,9 @@ impl<'a> BranchNodeRef<'a> {
         self.stack.len().checked_sub(self.state_mask.count_ones() as usize).unwrap()
     }
 
+    /// Returns an iterator over children of the branch node.
     #[inline]
-    fn children(&self) -> impl Iterator<Item = (u8, Option<&RlpNode>)> + '_ {
+    pub fn children(&self) -> impl Iterator<Item = (u8, Option<&RlpNode>)> + '_ {
         BranchChildrenIter::new(self)
     }
 
