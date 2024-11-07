@@ -5,12 +5,34 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.3](https://github.com/alloy-rs/trie/releases/tag/v0.7.3) - 2024-11-07
+
+### Documentation
+
+- [nodes] Adjust comments about branch node masks ([#61](https://github.com/alloy-rs/trie/issues/61))
+
+### Features
+
+- [nodes] Make `BranchNodeRef::children` public ([#62](https://github.com/alloy-rs/trie/issues/62))
+
+### Miscellaneous Tasks
+
+- [hash-builder] Use `RlpNode::as_hash` ([#59](https://github.com/alloy-rs/trie/issues/59))
+
+### Styling
+
+- Migrated functions for computing trie root from reth to alloy ([#55](https://github.com/alloy-rs/trie/issues/55))
+
 ## [0.7.2](https://github.com/alloy-rs/trie/releases/tag/v0.7.2) - 2024-10-16
 
 ### Features
 
 - [mask] Unset bit, count set bits, index of the first set bit ([#58](https://github.com/alloy-rs/trie/issues/58))
 - `RlpNode::as_hash` ([#57](https://github.com/alloy-rs/trie/issues/57))
+
+### Miscellaneous Tasks
+
+- Release 0.7.2
 
 ## [0.7.1](https://github.com/alloy-rs/trie/releases/tag/v0.7.1) - 2024-10-14
 
