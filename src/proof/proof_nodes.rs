@@ -23,6 +23,12 @@ impl FromIterator<(Nibbles, Bytes)> for ProofNodes {
     }
 }
 
+impl Extend<(Nibbles, Bytes)> for ProofNodes {
+    fn extend<T: IntoIterator<Item = (Nibbles, Bytes)>>(&mut self, iter: T) {
+        self.0.extend(iter);
+    }
+}
+
 impl ProofNodes {
     /// Return iterator over proof nodes that match the target.
     pub fn matching_nodes_iter<'a>(
@@ -66,5 +72,10 @@ impl ProofNodes {
     /// Convert wrapper struct into inner map.
     pub fn into_inner(self) -> HashMap<Nibbles, Bytes> {
         self.0
+    }
+
+    /// Extends with the elements of another `ProofNodes`.
+    pub fn extend_from(&mut self, other: Self) {
+        self.extend(other.0);
     }
 }
