@@ -1,15 +1,9 @@
 use crate::{HashBuilder, TrieAccount, EMPTY_ROOT_HASH};
-use alloy_primitives::B256;
+use alloy_primitives::{keccak256, Address, B256};
 use alloy_rlp::Encodable;
 
 use alloc::vec::Vec;
 use nybbles::Nibbles;
-
-#[cfg(feature = "std")]
-use {
-    alloy_primitives::{keccak256, Address},
-    itertools::Itertools,
-};
 
 /// Adjust the index of an item for rlp encoding.
 pub const fn adjust_index_for_rlp(i: usize, len: usize) -> usize {
@@ -57,7 +51,6 @@ where
 /// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
 /// represented as MPT.
 /// See [`state_root_unsorted`] for more info.
-#[cfg(feature = "std")]
 pub fn state_root_ref_unhashed<'a, A: Into<TrieAccount> + Clone + 'a>(
     state: impl IntoIterator<Item = (&'a Address, &'a A)>,
 ) -> B256 {
@@ -69,7 +62,6 @@ pub fn state_root_ref_unhashed<'a, A: Into<TrieAccount> + Clone + 'a>(
 /// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
 /// represented as MPT.
 /// See [`state_root_unsorted`] for more info.
-#[cfg(feature = "std")]
 pub fn state_root_unhashed<A: Into<TrieAccount>>(
     state: impl IntoIterator<Item = (Address, A)>,
 ) -> B256 {
@@ -78,11 +70,12 @@ pub fn state_root_unhashed<A: Into<TrieAccount>>(
 
 /// Sorts the hashed account keys and calculates the root hash of the state represented as MPT.
 /// See [`state_root`] for more info.
-#[cfg(feature = "std")]
 pub fn state_root_unsorted<A: Into<TrieAccount>>(
     state: impl IntoIterator<Item = (B256, A)>,
 ) -> B256 {
-    state_root(state.into_iter().sorted_unstable_by_key(|(key, _)| *key))
+    let mut vec = Vec::from_iter(state);
+    vec.sort_unstable_by_key(|(key, _)| *key);
+    state_root(vec)
 }
 
 /// Calculates the root hash of the state represented as MPT.
