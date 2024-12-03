@@ -4,7 +4,7 @@ use alloy_rlp::{RlpDecodable, RlpEncodable};
 
 /// Represents an TrieAccount in the account trie.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, RlpDecodable, RlpEncodable)]
-#[cfg_attr(any(test, feature = "arbitrary"), derive(arbitrary::Arbitrary))]
+#[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct TrieAccount {
