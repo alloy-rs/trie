@@ -28,6 +28,12 @@ pub use hash_builder::HashBuilder;
 
 pub mod proof;
 
+#[cfg(feature = "serde")]
+pub mod serde;
+
+mod account;
+pub use account::Account;
+
 mod mask;
 pub use mask::TrieMask;
 
@@ -40,12 +46,18 @@ pub use alloy_primitives::map::HashMap;
 #[doc(no_inline)]
 pub use nybbles::{self, Nibbles};
 
+use alloy_primitives::{b256, B256};
+
 /// Root hash of an empty trie.
-pub const EMPTY_ROOT_HASH: alloy_primitives::B256 =
-    alloy_primitives::b256!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
+pub const EMPTY_ROOT_HASH: B256 =
+    b256!("56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421");
+
+/// Keccak256 over empty array.
+pub const KECCAK_EMPTY: B256 =
+    b256!("c5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470");
 
 #[cfg(test)]
-pub(crate) fn triehash_trie_root<I, K, V>(iter: I) -> alloy_primitives::B256
+pub(crate) fn triehash_trie_root<I, K, V>(iter: I) -> B256
 where
     I: IntoIterator<Item = (K, V)>,
     K: AsRef<[u8]> + Ord,
@@ -53,7 +65,7 @@ where
 {
     struct Keccak256Hasher;
     impl hash_db::Hasher for Keccak256Hasher {
-        type Out = alloy_primitives::B256;
+        type Out = B256;
         type StdHasher = plain_hasher::PlainHasher;
 
         const LENGTH: usize = 32;

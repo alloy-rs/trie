@@ -1,9 +1,12 @@
-use alloc::vec::Vec;
-use alloy_primitives::B256;
+use crate::{Account, HashBuilder, EMPTY_ROOT_HASH};
+use alloy_primitives::{keccak256, B256};
 use alloy_rlp::Encodable;
+
+use alloc::vec::Vec;
 use nybbles::Nibbles;
 
-use crate::{HashBuilder, EMPTY_ROOT_HASH};
+#[cfg(feature = "std")]
+use {alloy_primitives::Address, itertools::Itertools};
 
 /// Adjust the index of an item for rlp encoding.
 pub const fn adjust_index_for_rlp(i: usize, len: usize) -> usize {
@@ -45,5 +48,50 @@ where
         hb.add_leaf(Nibbles::unpack(&index_buffer), &value_buffer);
     }
 
+    hb.root()
+}
+
+/// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
+/// represented as MPT.
+/// See [`state_root_unsorted`] for more info.
+#[cfg(feature = "std")]
+pub fn state_root_ref_unhashed<'a, A: Into<Account> + Clone + 'a>(
+    state: impl IntoIterator<Item = (&'a Address, &'a A)>,
+) -> B256 {
+    state_root_unsorted(
+        state.into_iter().map(|(address, account)| (keccak256(address), account.clone())),
+    )
+}
+
+/// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
+/// represented as MPT.
+/// See [`state_root_unsorted`] for more info.
+#[cfg(feature = "std")]
+pub fn state_root_unhashed<A: Into<Account>>(
+    state: impl IntoIterator<Item = (Address, A)>,
+) -> B256 {
+    state_root_unsorted(state.into_iter().map(|(address, account)| (keccak256(address), account)))
+}
+
+/// Sorts the hashed account keys and calculates the root hash of the state represented as MPT.
+/// See [`state_root`] for more info.
+#[cfg(feature = "std")]
+pub fn state_root_unsorted<A: Into<Account>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
+    state_root(state.into_iter().sorted_unstable_by_key(|(key, _)| *key))
+}
+
+/// Calculates the root hash of the state represented as MPT.
+///
+/// Corresponds to [geth's `deriveHash`](https://github.com/ethereum/go-ethereum/blob/6c149fd4ad063f7c24d726a73bc0546badd1bc73/core/genesis.go#L119).
+///
+/// # Panics
+///
+/// If the items are not in sorted order.
+pub fn state_root<A: Into<Account>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
+    let mut hb = HashBuilder::default();
+    for (hashed_key, account) in state {
+        let account_rlp_buf = alloy_rlp::encode(account.into());
+        hb.add_leaf(Nibbles::unpack(hashed_key), &account_rlp_buf);
+    }
     hb.root()
 }

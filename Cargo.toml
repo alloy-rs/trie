@@ -37,6 +37,7 @@ derive_more = { version = "1", default-features = false, features = [
     "from",
     "not",
 ] }
+itertools = { version = "0.13", default-features = false }
 nybbles = { version = "0.2", default-features = false }
 smallvec = { version = "1.0", default-features = false, features = [
     "const_new",
@@ -67,6 +68,7 @@ std = [
     "alloy-rlp/std",
     "arrayvec/std",
     "derive_more/std",
+    "itertools/use_alloc",
     "nybbles/std",
     "tracing/std",
     "serde?/std",
