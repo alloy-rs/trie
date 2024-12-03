@@ -1,12 +1,15 @@
 use crate::{HashBuilder, TrieAccount, EMPTY_ROOT_HASH};
-use alloy_primitives::{keccak256, B256};
+use alloy_primitives::B256;
 use alloy_rlp::Encodable;
 
 use alloc::vec::Vec;
 use nybbles::Nibbles;
 
 #[cfg(feature = "std")]
-use {alloy_primitives::Address, itertools::Itertools};
+use {
+    alloy_primitives::{keccak256, Address},
+    itertools::Itertools,
+};
 
 /// Adjust the index of an item for rlp encoding.
 pub const fn adjust_index_for_rlp(i: usize, len: usize) -> usize {
