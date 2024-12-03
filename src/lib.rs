@@ -28,11 +28,8 @@ pub use hash_builder::HashBuilder;
 
 pub mod proof;
 
-#[cfg(feature = "serde")]
-pub mod serde;
-
 mod account;
-pub use account::Account;
+pub use account::TrieAccount;
 
 mod mask;
 pub use mask::TrieMask;

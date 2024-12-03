@@ -1,4 +1,4 @@
-use crate::{Account, HashBuilder, EMPTY_ROOT_HASH};
+use crate::{HashBuilder, TrieAccount, EMPTY_ROOT_HASH};
 use alloy_primitives::{keccak256, B256};
 use alloy_rlp::Encodable;
 
@@ -55,7 +55,7 @@ where
 /// represented as MPT.
 /// See [`state_root_unsorted`] for more info.
 #[cfg(feature = "std")]
-pub fn state_root_ref_unhashed<'a, A: Into<Account> + Clone + 'a>(
+pub fn state_root_ref_unhashed<'a, A: Into<TrieAccount> + Clone + 'a>(
     state: impl IntoIterator<Item = (&'a Address, &'a A)>,
 ) -> B256 {
     state_root_unsorted(
@@ -67,7 +67,7 @@ pub fn state_root_ref_unhashed<'a, A: Into<Account> + Clone + 'a>(
 /// represented as MPT.
 /// See [`state_root_unsorted`] for more info.
 #[cfg(feature = "std")]
-pub fn state_root_unhashed<A: Into<Account>>(
+pub fn state_root_unhashed<A: Into<TrieAccount>>(
     state: impl IntoIterator<Item = (Address, A)>,
 ) -> B256 {
     state_root_unsorted(state.into_iter().map(|(address, account)| (keccak256(address), account)))
@@ -76,7 +76,9 @@ pub fn state_root_unhashed<A: Into<Account>>(
 /// Sorts the hashed account keys and calculates the root hash of the state represented as MPT.
 /// See [`state_root`] for more info.
 #[cfg(feature = "std")]
-pub fn state_root_unsorted<A: Into<Account>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
+pub fn state_root_unsorted<A: Into<TrieAccount>>(
+    state: impl IntoIterator<Item = (B256, A)>,
+) -> B256 {
     state_root(state.into_iter().sorted_unstable_by_key(|(key, _)| *key))
 }
 
@@ -87,7 +89,7 @@ pub fn state_root_unsorted<A: Into<Account>>(state: impl IntoIterator<Item = (B2
 /// # Panics
 ///
 /// If the items are not in sorted order.
-pub fn state_root<A: Into<Account>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
+pub fn state_root<A: Into<TrieAccount>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
     let mut hb = HashBuilder::default();
     for (hashed_key, account) in state {
         let account_rlp_buf = alloy_rlp::encode(account.into());
