@@ -169,9 +169,15 @@ impl HashBuilder {
     }
 
     fn current_root(&self) -> B256 {
-        self.stack.last().map_or(EMPTY_ROOT_HASH, |node_ref| {
-            node_ref.as_hash().map_or_else(|| keccak256(node_ref), |hash| hash)
-        })
+        if let Some(node_ref) = self.stack.last() {
+            if let Some(hash) = node_ref.as_hash() {
+                hash
+            } else {
+                keccak256(node_ref)
+            }
+        } else {
+            EMPTY_ROOT_HASH
+        }
     }
 
     /// Given a new element, it appends it to the stack and proceeds to loop through the stack state
