@@ -110,8 +110,21 @@ impl HashBuilder {
     }
 
     /// Adds a new leaf element and its value to the trie hash builder.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new key does not come after the current key.
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
         assert!(key > self.key, "add_leaf key {:?} self.key {:?}", key, self.key);
+        self.add_leaf_unchecked(key, value);
+    }
+
+    /// Adds a new leaf element and its value to the trie hash builder,
+    /// without checking the order of the new key. This is only for
+    /// performance-critical usage that guarantees keys are inserted
+    /// in sorted order.
+    pub fn add_leaf_unchecked(&mut self, key: Nibbles, value: &[u8]) {
+        debug_assert!(key > self.key, "add_leaf_unchecked key {:?} self.key {:?}", key, self.key);
         if !self.key.is_empty() {
             self.update(&key);
         }
