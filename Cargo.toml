@@ -19,6 +19,24 @@ homepage = "https://github.com/alloy-rs/trie"
 repository = "https://github.com/alloy-rs/trie"
 exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
+[lints.rust]
+missing-debug-implementations = "warn"
+missing-docs = "warn"
+unreachable-pub = "warn"
+unused-must-use = "deny"
+rust-2018-idioms = "deny"
+unnameable-types = "warn"
+
+[lints.rustdoc]
+all = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+missing-const-for-fn = "warn"
+use-self = "warn"
+option-if-let-else = "warn"
+redundant-clone = "warn"
+
 [dependencies]
 alloy-primitives = { version = "0.8.14", default-features = false, features = [
     "rlp",

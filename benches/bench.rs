@@ -1,3 +1,5 @@
+#![allow(missing_docs)]
+
 use alloy_trie::nodes::encode_path_leaf;
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion,
