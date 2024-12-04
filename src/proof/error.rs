@@ -34,7 +34,7 @@ impl std::error::Error for ProofVerificationError {
     fn source(&self) -> ::core::option::Option<&(dyn std::error::Error + 'static)> {
         #[allow(deprecated)]
         match self {
-            ProofVerificationError::Rlp { 0: transparent } => {
+            Self::Rlp { 0: transparent } => {
                 std::error::Error::source(transparent as &dyn std::error::Error)
             }
             _ => None,
@@ -45,22 +45,22 @@ impl std::error::Error for ProofVerificationError {
 impl fmt::Display for ProofVerificationError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            ProofVerificationError::RootMismatch { got, expected } => {
+            Self::RootMismatch { got, expected } => {
                 write!(f, "root mismatch. got: {got}. expected: {expected}")
             }
-            ProofVerificationError::ValueMismatch { path, got, expected } => {
+            Self::ValueMismatch { path, got, expected } => {
                 write!(f, "value mismatch at path {path:?}. got: {got:?}. expected: {expected:?}")
             }
-            ProofVerificationError::UnexpectedEmptyRoot => {
+            Self::UnexpectedEmptyRoot => {
                 write!(f, "unexpected empty root node")
             }
-            ProofVerificationError::Rlp(error) => fmt::Display::fmt(error, f),
+            Self::Rlp(error) => fmt::Display::fmt(error, f),
         }
     }
 }
 
 impl From<alloy_rlp::Error> for ProofVerificationError {
     fn from(source: alloy_rlp::Error) -> Self {
-        ProofVerificationError::Rlp(source)
+        Self::Rlp(source)
     }
 }

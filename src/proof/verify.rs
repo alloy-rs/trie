@@ -101,8 +101,8 @@ impl Deref for NodeDecodingResult {
 
     fn deref(&self) -> &Self::Target {
         match self {
-            NodeDecodingResult::Node(node) => node.as_slice(),
-            NodeDecodingResult::Value(value) => value,
+            Self::Node(node) => node.as_slice(),
+            Self::Value(value) => value,
         }
     }
 }
@@ -332,7 +332,7 @@ mod tests {
         assert_eq!(
             verify_proof(
                 root,
-                target.clone(),
+                target,
                 Some(value.to_vec()),
                 proof.into_nodes_sorted().iter().map(|(_, node)| node)
             ),
@@ -510,7 +510,7 @@ mod tests {
                 },
                 {
                     buffer.clear();
-                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xb]), value.clone()))
+                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xb]), value))
                         .rlp(&mut buffer)
                 },
             ],
