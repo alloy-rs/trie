@@ -47,12 +47,17 @@ impl ProofRetainer {
     }
 
     /// Retain the proof if the key matches any of the targets.
-    pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8], hash_mask: Option<TrieMask>) {
+    pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8]) {
         if prefix.is_empty() || self.matches(prefix) {
             self.proof_nodes.insert(prefix.clone(), Bytes::from(proof.to_vec()));
-            if let Some(hash_mask) = hash_mask {
-                self.hash_masks.insert(prefix.clone(), hash_mask);
-            }
+        }
+    }
+
+    /// Retain the proof and the branch node hash mask if the key matches any of the targets.
+    pub fn retain_with_hash_mask(&mut self, prefix: &Nibbles, proof: &[u8], hash_mask: TrieMask) {
+        if prefix.is_empty() || self.matches(prefix) {
+            self.proof_nodes.insert(prefix.clone(), Bytes::from(proof.to_vec()));
+            self.hash_masks.insert(prefix.clone(), hash_mask);
         }
     }
 }

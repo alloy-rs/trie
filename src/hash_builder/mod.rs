@@ -158,7 +158,7 @@ impl HashBuilder {
         let root = self.current_root();
         if root == EMPTY_ROOT_HASH {
             if let Some(proof_retainer) = self.proof_retainer.as_mut() {
-                proof_retainer.retain(&Nibbles::default(), &[EMPTY_STRING_CODE], None)
+                proof_retainer.retain(&Nibbles::default(), &[EMPTY_STRING_CODE])
             }
         }
         root
@@ -267,7 +267,7 @@ impl HashBuilder {
                             "pushing leaf node",
                         );
                         self.stack.push(rlp);
-                        self.retain_proof_from_buf(&current.slice(..len_from), None);
+                        self.retain_proof_from_buf(&current.slice(..len_from));
                     }
                     HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
@@ -299,7 +299,7 @@ impl HashBuilder {
                     "pushing extension node",
                 );
                 self.stack.push(rlp);
-                self.retain_proof_from_buf(&current.slice(..len_from), None);
+                self.retain_proof_from_buf(&current.slice(..len_from));
                 self.resize_masks(len_from);
             }
 
@@ -357,7 +357,7 @@ impl HashBuilder {
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);
-        self.retain_proof_from_buf(&current.slice(..len), Some(hash_mask));
+        self.retain_proof_from_buf_with_hash_mask(&current.slice(..len), hash_mask);
 
         // Clears the stack from the branch node elements
         let first_child_idx = self.stack.len() - state_mask.count_ones() as usize;
@@ -406,9 +406,15 @@ impl HashBuilder {
         }
     }
 
-    fn retain_proof_from_buf(&mut self, prefix: &Nibbles, hash_mask: Option<TrieMask>) {
+    fn retain_proof_from_buf(&mut self, prefix: &Nibbles) {
         if let Some(proof_retainer) = self.proof_retainer.as_mut() {
-            proof_retainer.retain(prefix, &self.rlp_buf, hash_mask)
+            proof_retainer.retain(prefix, &self.rlp_buf)
+        }
+    }
+
+    fn retain_proof_from_buf_with_hash_mask(&mut self, prefix: &Nibbles, hash_mask: TrieMask) {
+        if let Some(proof_retainer) = self.proof_retainer.as_mut() {
+            proof_retainer.retain_with_hash_mask(prefix, &self.rlp_buf, hash_mask);
         }
     }
 
