@@ -1,6 +1,11 @@
-use crate::{HashBuilder, TrieAccount, EMPTY_ROOT_HASH};
-use alloy_primitives::{keccak256, Address, B256};
+use crate::{HashBuilder, EMPTY_ROOT_HASH};
+use alloy_primitives::B256;
 use alloy_rlp::Encodable;
+#[cfg(feature = "ethereum")]
+use {
+    crate::TrieAccount,
+    alloy_primitives::{keccak256, Address},
+};
 
 use alloc::vec::Vec;
 use nybbles::Nibbles;
