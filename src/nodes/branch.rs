@@ -269,10 +269,11 @@ pub struct BranchNodeCompact {
     /// child at the nibble value `i` is stored in the database. If the bit is unset (0), it means
     /// the child is not stored in the database.
     pub tree_mask: TrieMask,
-    /// The bitmask representing the hashed children at the respective nibble positions in the
-    /// trie. If the bit at position `i` (counting from the right) is set (1) and also present
-    /// in the state_mask, it indicates that the corresponding child at the nibble value `i` is
-    /// a hashed child. If the bit is unset (0), it means the child is not a hashed child.
+    /// The bitmask representing the hashed branch children nodes at the respective nibble
+    /// positions in the trie. If the bit at position `i` (counting from the right) is set (1)
+    /// and also present in the state_mask, it indicates that the corresponding child at the
+    /// nibble value `i` is a hashed branch child node. If the bit is unset (0), it means the child
+    /// is not a hashed branch child node.
     pub hash_mask: TrieMask,
     /// Collection of hashes associated with the children of the branch node.
     /// Each child hash is calculated by hashing two consecutive sub-branch roots.
