@@ -28,7 +28,9 @@ pub use hash_builder::HashBuilder;
 
 pub mod proof;
 
+#[cfg(feature = "ethereum")]
 mod account;
+#[cfg(feature = "ethereum")]
 pub use account::TrieAccount;
 
 mod mask;

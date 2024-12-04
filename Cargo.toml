@@ -86,6 +86,7 @@ arbitrary = [
     "alloy-primitives/arbitrary",
     "nybbles/arbitrary",
 ]
+ethereum = []
 
 [[bench]]
 name = "bench"

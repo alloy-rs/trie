@@ -51,6 +51,7 @@ where
 /// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
 /// represented as MPT.
 /// See [`state_root_unsorted`] for more info.
+#[cfg(feature = "ethereum")]
 pub fn state_root_ref_unhashed<'a, A: Into<TrieAccount> + Clone + 'a>(
     state: impl IntoIterator<Item = (&'a Address, &'a A)>,
 ) -> B256 {
@@ -62,6 +63,7 @@ pub fn state_root_ref_unhashed<'a, A: Into<TrieAccount> + Clone + 'a>(
 /// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
 /// represented as MPT.
 /// See [`state_root_unsorted`] for more info.
+#[cfg(feature = "ethereum")]
 pub fn state_root_unhashed<A: Into<TrieAccount>>(
     state: impl IntoIterator<Item = (Address, A)>,
 ) -> B256 {
@@ -70,6 +72,7 @@ pub fn state_root_unhashed<A: Into<TrieAccount>>(
 
 /// Sorts the hashed account keys and calculates the root hash of the state represented as MPT.
 /// See [`state_root`] for more info.
+#[cfg(feature = "ethereum")]
 pub fn state_root_unsorted<A: Into<TrieAccount>>(
     state: impl IntoIterator<Item = (B256, A)>,
 ) -> B256 {
@@ -85,6 +88,7 @@ pub fn state_root_unsorted<A: Into<TrieAccount>>(
 /// # Panics
 ///
 /// If the items are not in sorted order.
+#[cfg(feature = "ethereum")]
 pub fn state_root<A: Into<TrieAccount>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
     let mut hb = HashBuilder::default();
     for (hashed_key, account) in state {
