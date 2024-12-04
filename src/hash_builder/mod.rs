@@ -166,6 +166,9 @@ impl HashBuilder {
             if let Some(proof_retainer) = self.proof_retainer.as_mut() {
                 proof_retainer.retain(&Nibbles::default(), &[EMPTY_STRING_CODE])
             }
+            if let Some(decoded_proof_retainer) = self.decoded_proof_retainer.as_mut() {
+                decoded_proof_retainer.retain(&Nibbles::default(), TrieNode::EmptyRoot)
+            }
         }
         root
     }
@@ -273,6 +276,10 @@ impl HashBuilder {
                             "pushing leaf node",
                         );
                         self.stack.push(rlp);
+                        if let Some(decoded_proof_retainer) = self.decoded_proof_retainer.as_mut() {
+                            let node = TrieNode::Leaf(leaf_node.to_value());
+                            decoded_proof_retainer.retain(&current.slice(..len_from), node);
+                        }
                         self.retain_proof_from_buf(&current.slice(..len_from));
                     }
                     HashBuilderValueRef::Hash(hash) => {
@@ -305,6 +312,10 @@ impl HashBuilder {
                     "pushing extension node",
                 );
                 self.stack.push(rlp);
+                if let Some(decoded_proof_retainer) = self.decoded_proof_retainer.as_mut() {
+                    let node = TrieNode::Extension(extension_node.to_value());
+                    decoded_proof_retainer.retain(&current.slice(..len_from), node);
+                }
                 self.retain_proof_from_buf(&current.slice(..len_from));
                 self.resize_masks(len_from);
             }
@@ -363,6 +374,10 @@ impl HashBuilder {
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);
+        if let Some(decoded_proof_retainer) = self.decoded_proof_retainer.as_mut() {
+            let node = TrieNode::Branch(branch_node.to_value());
+            decoded_proof_retainer.retain(&current.slice(..len), node);
+        }
         self.retain_proof_from_buf(&current.slice(..len));
 
         // Clears the stack from the branch node elements

@@ -137,6 +137,10 @@ impl<'a> LeafNodeRef<'a> {
         }
         encoded_key_len + Encodable::length(&self.value)
     }
+
+    pub fn to_value(&self) -> LeafNode {
+        LeafNode { key: self.key.clone(), value: self.value.to_vec() }
+    }
 }
 
 #[cfg(test)]

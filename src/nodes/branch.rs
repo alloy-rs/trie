@@ -194,6 +194,10 @@ impl<'a> BranchNodeRef<'a> {
         }
         payload_length
     }
+
+    pub fn to_value(&self) -> BranchNode {
+        BranchNode { stack: self.stack.to_vec(), state_mask: self.state_mask }
+    }
 }
 
 /// Iterator over branch node children.

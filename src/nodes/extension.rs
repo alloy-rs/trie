@@ -140,6 +140,10 @@ impl<'a> ExtensionNodeRef<'a> {
         }
         encoded_key_len + self.child.len()
     }
+
+    pub fn to_value(&self) -> ExtensionNode {
+        ExtensionNode { key: self.key.clone(), child: RlpNode::from_rlp(self.child) }
+    }
 }
 
 #[cfg(test)]
