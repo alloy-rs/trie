@@ -5,11 +5,36 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.5](https://github.com/alloy-rs/trie/releases/tag/v0.7.5) - 2024-12-04
+
+### Dependencies
+
+- Bump MSRV to 1.81 ([#66](https://github.com/alloy-rs/trie/issues/66))
+
+### Documentation
+
+- Clarify the documentation for `hash_mask` field of a branch node ([#70](https://github.com/alloy-rs/trie/issues/70))
+
+### Features
+
+- Migrate trie account type and state root functions from alloy ([#65](https://github.com/alloy-rs/trie/issues/65))
+- `HashBuilder::add_leaf_unchecked` ([#64](https://github.com/alloy-rs/trie/issues/64))
+- Derive `Clone` for `HashBuilder` ([#72](https://github.com/alloy-rs/trie/issues/72))
+
+### Miscellaneous Tasks
+
+- Add clippy settings to `Cargo.toml` ([#71](https://github.com/alloy-rs/trie/issues/71))
+- Update cargo deny ([#69](https://github.com/alloy-rs/trie/issues/69))
+
 ## [0.7.4](https://github.com/alloy-rs/trie/releases/tag/v0.7.4) - 2024-11-13
 
 ### Features
 
 - Impl Extend for ProofNodes ([#63](https://github.com/alloy-rs/trie/issues/63))
+
+### Miscellaneous Tasks
+
+- Release 0.7.4
 
 ## [0.7.3](https://github.com/alloy-rs/trie/releases/tag/v0.7.3) - 2024-11-07
 
