@@ -13,4 +13,4 @@ mod proof_nodes;
 pub use proof_nodes::ProofNodes;
 
 mod retainer;
-pub use retainer::{HashMasks, ProofRetainer};
+pub use retainer::{BranchNodeHashMasks, ProofRetainer};

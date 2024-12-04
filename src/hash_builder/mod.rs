@@ -7,7 +7,7 @@ use super::{
 };
 use crate::{
     nodes::RlpNode,
-    proof::{HashMasks, ProofNodes},
+    proof::{BranchNodeHashMasks, ProofNodes},
     HashMap,
 };
 use alloc::vec::Vec;
@@ -92,9 +92,17 @@ impl HashBuilder {
         (self, updates.unwrap_or_default())
     }
 
-    /// Take and return retained proof nodes along with hash masks of retained branch nodes.
-    pub fn take_proof_nodes(&mut self) -> (ProofNodes, HashMasks) {
+    /// Take and return retained proof nodes.
+    pub fn take_proof_nodes(&mut self) -> ProofNodes {
         self.proof_retainer.take().map(ProofRetainer::into_proof_nodes).unwrap_or_default()
+    }
+
+    /// Take and return retained proof nodes along with hash masks of retained branch nodes.
+    pub fn take_proof_nodes_with_hash_masks(&mut self) -> (ProofNodes, BranchNodeHashMasks) {
+        self.proof_retainer
+            .take()
+            .map(ProofRetainer::into_proof_nodes_with_hash_masks)
+            .unwrap_or_default()
     }
 
     /// The number of total updates accrued.

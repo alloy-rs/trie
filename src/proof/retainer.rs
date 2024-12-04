@@ -13,11 +13,11 @@ pub struct ProofRetainer {
     /// Map of retained trie node paths to RLP serialized trie nodes.
     proof_nodes: ProofNodes,
     /// Map of retained branch node paths to hash masks.
-    hash_masks: HashMasks,
+    hash_masks: BranchNodeHashMasks,
 }
 
 /// Map of retained branch node paths to hash masks.
-pub type HashMasks = HashMap<Nibbles, TrieMask>;
+pub type BranchNodeHashMasks = HashMap<Nibbles, TrieMask>;
 
 impl FromIterator<Nibbles> for ProofRetainer {
     fn from_iter<T: IntoIterator<Item = Nibbles>>(iter: T) -> Self {
@@ -36,8 +36,13 @@ impl ProofRetainer {
         self.targets.iter().any(|target| target.starts_with(prefix))
     }
 
+    /// Returns all collected proofs.
+    pub fn into_proof_nodes(self) -> ProofNodes {
+        self.proof_nodes
+    }
+
     /// Returns all collected proofs and hash masks of retained branch nodes.
-    pub fn into_proof_nodes(self) -> (ProofNodes, HashMasks) {
+    pub fn into_proof_nodes_with_hash_masks(self) -> (ProofNodes, BranchNodeHashMasks) {
         (self.proof_nodes, self.hash_masks)
     }
 
