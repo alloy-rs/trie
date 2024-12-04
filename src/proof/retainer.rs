@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 
 /// Proof retainer is used to store proofs during merkle trie construction.
 /// It is intended to be used within the [`HashBuilder`](crate::HashBuilder).
-#[derive(Default, Debug)]
+#[derive(Default, Clone, Debug)]
 pub struct ProofRetainer {
     /// The nibbles of the target trie keys to retain proofs for.
     targets: Vec<Nibbles>,

@@ -39,7 +39,7 @@ pub use value::{HashBuilderValue, HashBuilderValueRef};
 /// up, combining the hashes of child nodes and ultimately generating the root hash. The root hash
 /// can then be used to verify the integrity and authenticity of the trie's data by constructing and
 /// verifying Merkle proofs.
-#[derive(Debug, Default)]
+#[derive(Debug, Clone, Default)]
 #[allow(missing_docs)]
 pub struct HashBuilder {
     pub key: Nibbles,
