@@ -54,7 +54,37 @@ pub use ethereum::*;
 mod ethereum {
     use super::*;
     use crate::TrieAccount;
-    use alloy_primitives::{keccak256, Address};
+    use alloy_primitives::{keccak256, Address, U256};
+
+    /// Hashes storage keys, sorts them and them calculates the root hash of the storage trie.
+    /// See [`storage_root_unsorted`] for more info.
+    pub fn storage_root_unhashed(storage: impl IntoIterator<Item = (B256, U256)>) -> B256 {
+        storage_root_unsorted(storage.into_iter().map(|(slot, value)| (keccak256(slot), value)))
+    }
+
+    /// Sorts and calculates the root hash of account storage trie.
+    /// See [`storage_root`] for more info.
+    pub fn storage_root_unsorted(storage: impl IntoIterator<Item = (B256, U256)>) -> B256 {
+        let mut v = Vec::from_iter(storage);
+        v.sort_unstable_by_key(|(key, _)| *key);
+        storage_root(v)
+    }
+
+    /// Calculates the root hash of account storage trie.
+    ///
+    /// # Panics
+    ///
+    /// If the items are not in sorted order.
+    pub fn storage_root(storage: impl IntoIterator<Item = (B256, U256)>) -> B256 {
+        let mut hb = HashBuilder::default();
+        for (hashed_slot, value) in storage {
+            hb.add_leaf(
+                Nibbles::unpack(hashed_slot),
+                alloy_rlp::encode_fixed_size(&value).as_ref(),
+            );
+        }
+        hb.root()
+    }
 
     /// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
     /// represented as MPT.
