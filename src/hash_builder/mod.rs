@@ -5,9 +5,13 @@ use super::{
     proof::ProofRetainer,
     BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
-use crate::{nodes::RlpNode, proof::ProofNodes, HashMap};
+use crate::{
+    nodes::{RlpNode, TrieNode},
+    proof::{DecodedProofRetainer, ProofNodes},
+    HashMap,
+};
 use alloc::vec::Vec;
-use alloy_primitives::{keccak256, B256};
+use alloy_primitives::{keccak256, Bytes, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
@@ -54,6 +58,7 @@ pub struct HashBuilder {
 
     pub updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
     pub proof_retainer: Option<ProofRetainer>,
+    pub decoded_proof_retainer: Option<DecodedProofRetainer>,
 
     pub rlp_buf: Vec<u8>,
 }
@@ -73,6 +78,11 @@ impl HashBuilder {
         self
     }
 
+    pub fn with_decoded_proof_retainer(mut self, retainer: DecodedProofRetainer) -> Self {
+        self.decoded_proof_retainer = Some(retainer);
+        self
+    }
+
     /// Enables the Hash Builder to store updated branch nodes.
     ///
     /// Call [HashBuilder::split] to get the updates to branch nodes.
@@ -89,8 +99,16 @@ impl HashBuilder {
     }
 
     /// Take and return retained proof nodes.
-    pub fn take_proof_nodes(&mut self) -> ProofNodes {
+    pub fn take_proof_nodes(&mut self) -> ProofNodes<Bytes> {
         self.proof_retainer.take().map(ProofRetainer::into_proof_nodes).unwrap_or_default()
+    }
+
+    /// Take and return retained decoded proof nodes.
+    pub fn take_decoded_proof_nodes(&mut self) -> ProofNodes<TrieNode> {
+        self.decoded_proof_retainer
+            .take()
+            .map(DecodedProofRetainer::into_proof_nodes)
+            .unwrap_or_default()
     }
 
     /// The number of total updates accrued.
