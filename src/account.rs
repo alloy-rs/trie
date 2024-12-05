@@ -58,3 +58,43 @@ mod quantity {
         U64::deserialize(deserializer).map(|value| value.to())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::{hex, U256};
+    use alloy_rlp::Decodable;
+
+    #[test]
+    fn test_account_encoding() {
+        let account = TrieAccount {
+            nonce: 1,
+            balance: U256::from(1000),
+            storage_root: B256::from_slice(&hex!(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            )),
+            code_hash: keccak256(hex!("5a465a905090036002900360015500")),
+        };
+
+        let encoded = alloy_rlp::encode(account);
+
+        let decoded = TrieAccount::decode(&mut &encoded[..]).unwrap();
+        assert_eq!(account, decoded);
+    }
+
+    #[test]
+    fn test_trie_hash_slow() {
+        let account = TrieAccount {
+            nonce: 1,
+            balance: U256::from(1000),
+            storage_root: B256::from_slice(&hex!(
+                "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+            )),
+            code_hash: keccak256(hex!("5a465a905090036002900360015500")),
+        };
+
+        let expected_hash = keccak256(alloy_rlp::encode(account));
+        let actual_hash = account.trie_hash_slow();
+        assert_eq!(expected_hash, actual_hash);
+    }
+}
