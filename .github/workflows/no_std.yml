@@ -13,12 +13,9 @@ jobs:
     name: check no_std ${{ matrix.features }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
-    strategy:
-      fail-fast: false
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: riscv32imac-unknown-none-elf
       - run: cargo check --target riscv32imac-unknown-none-elf --no-default-features
-
