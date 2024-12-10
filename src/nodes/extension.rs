@@ -1,4 +1,4 @@
-use super::{super::Nibbles, unpack_path_to_nibbles, RlpNode};
+use super::{super::Nibbles, encode_path_leaf, unpack_path_to_nibbles, RlpNode};
 use alloy_primitives::{hex, Bytes};
 use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable, Header};
 use core::fmt;
@@ -104,7 +104,7 @@ impl Encodable for ExtensionNodeRef<'_> {
     #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
-        self.key.encode_path_leaf(false).as_slice().encode(out);
+        encode_path_leaf(self.key, false).as_slice().encode(out);
         // Pointer to the child is already RLP encoded.
         out.put_slice(self.child);
     }

@@ -206,22 +206,24 @@ pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles 
 /// # Examples
 ///
 /// ```
-/// # use nybbles::Nibbles;
+/// use alloy_trie::nodes::encode_path_leaf;
+/// use nybbles::Nibbles;
+///
 /// // Extension node with an even path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C, 0x0D]);
-/// assert_eq!(nibbles.encode_path_leaf(false)[..], [0x00, 0xAB, 0xCD]);
+/// assert_eq!(encode_path_leaf(&nibbles, false)[..], [0x00, 0xAB, 0xCD]);
 ///
 /// // Extension node with an odd path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C]);
-/// assert_eq!(nibbles.encode_path_leaf(false)[..], [0x1A, 0xBC]);
+/// assert_eq!(encode_path_leaf(&nibbles, false)[..], [0x1A, 0xBC]);
 ///
 /// // Leaf node with an even path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C, 0x0D]);
-/// assert_eq!(nibbles.encode_path_leaf(true)[..], [0x20, 0xAB, 0xCD]);
+/// assert_eq!(encode_path_leaf(&nibbles, true)[..], [0x20, 0xAB, 0xCD]);
 ///
 /// // Leaf node with an odd path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C]);
-/// assert_eq!(nibbles.encode_path_leaf(true)[..], [0x3A, 0xBC]);
+/// assert_eq!(encode_path_leaf(&nibbles, true)[..], [0x3A, 0xBC]);
 /// ```
 #[inline]
 pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> {
@@ -335,7 +337,7 @@ mod tests {
             prop_assert!(input.iter().all(|&nibble| nibble <= 0xf));
             let input_is_odd = input.len() % 2 == 1;
 
-            let compact_leaf = input.encode_path_leaf(true);
+            let compact_leaf = encode_path_leaf(&input, true);
             let leaf_flag = compact_leaf[0];
             // Check flag
             assert_ne!(leaf_flag & LeafNode::EVEN_FLAG, 0);
@@ -344,7 +346,7 @@ mod tests {
                 assert_eq!(leaf_flag & 0x0f, input.first().unwrap());
             }
 
-            let compact_extension = input.encode_path_leaf(false);
+            let compact_extension = encode_path_leaf(&input, false);
             let extension_flag = compact_extension[0];
             // Check first byte
             assert_eq!(extension_flag & LeafNode::EVEN_FLAG, 0);

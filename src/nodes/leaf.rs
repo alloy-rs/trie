@@ -1,4 +1,4 @@
-use super::{super::Nibbles, unpack_path_to_nibbles, RlpNode};
+use super::{super::Nibbles, encode_path_leaf, unpack_path_to_nibbles, RlpNode};
 use alloy_primitives::{hex, Bytes};
 use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable, Header};
 use core::fmt;
@@ -103,7 +103,7 @@ impl Encodable for LeafNodeRef<'_> {
     #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
-        self.key.encode_path_leaf(true).as_slice().encode(out);
+        encode_path_leaf(self.key, true).as_slice().encode(out);
         self.value.encode(out);
     }
 
@@ -146,8 +146,8 @@ mod tests {
     // From manual regression test
     #[test]
     fn encode_leaf_node_nibble() {
-        let nibble = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
-        let encoded = nibble.encode_path_leaf(true);
+        let nibbles = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
+        let encoded = encode_path_leaf(&nibbles, true);
         assert_eq!(encoded[..], hex!("20646f"));
     }
 
