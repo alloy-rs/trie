@@ -2,7 +2,7 @@
 
 use alloy_primitives::{Bytes, B256};
 use alloy_rlp::{Decodable, Encodable, Header, EMPTY_STRING_CODE};
-use core::ops::Range;
+use core::{mem::MaybeUninit, ops::Range};
 use nybbles::Nibbles;
 use smallvec::SmallVec;
 
@@ -230,7 +230,7 @@ pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> 
     let encoded_len = nibbles.len() / 2 + 1;
     let mut encoded = SmallVec::with_capacity(encoded_len);
     // SAFETY: enough capacity.
-    unsafe { encode_path_leaf_to(nibbles, is_leaf, encoded.as_mut_ptr()) };
+    unsafe { encode_path_leaf_to(nibbles, is_leaf, smallvec_spare_capacity_mut(&mut encoded)) };
     // SAFETY: within capacity and `encode_path_leaf_to` initialized the memory.
     unsafe { encoded.set_len(encoded_len) };
     encoded
@@ -238,20 +238,35 @@ pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> 
 
 /// # Safety
 ///
-/// `ptr` must be valid for at least `self.len() / 2 + 1` bytes.
+/// `out` must be valid for at least `self.len() / 2 + 1` bytes.
 #[inline]
-unsafe fn encode_path_leaf_to(nibbles: &Nibbles, is_leaf: bool, ptr: *mut u8) {
-    let odd_nibbles = nibbles.len() % 2 != 0;
-    *ptr = match (is_leaf, odd_nibbles) {
+unsafe fn encode_path_leaf_to(nibbles: &Nibbles, is_leaf: bool, out: &mut [MaybeUninit<u8>]) {
+    let len = nibbles.len();
+    let (odd_nibbles, bytes_len) = (len % 2 != 0, len / 2);
+    let (first, rest) = out.split_first_mut().unwrap_unchecked();
+    first.write(match (is_leaf, odd_nibbles) {
         (true, true) => LeafNode::ODD_FLAG | nibbles[0],
         (true, false) => LeafNode::EVEN_FLAG,
         (false, true) => ExtensionNode::ODD_FLAG | nibbles[0],
         (false, false) => ExtensionNode::EVEN_FLAG,
-    };
+    });
     let mut nibble_idx = if odd_nibbles { 1 } else { 0 };
-    for i in 0..nibbles.len() / 2 {
-        ptr.add(i + 1).write(nibbles.get_byte_unchecked(nibble_idx));
+    for i in 0..bytes_len {
+        rest.get_unchecked_mut(i).write(nibbles.get_byte_unchecked(nibble_idx));
         nibble_idx += 2;
+    }
+}
+
+// TODO: https://github.com/servo/rust-smallvec/pull/364
+#[inline]
+fn smallvec_spare_capacity_mut<A: smallvec::Array>(
+    vec: &mut SmallVec<A>,
+) -> &mut [MaybeUninit<A::Item>] {
+    unsafe {
+        core::slice::from_raw_parts_mut(
+            vec.as_mut_ptr().add(vec.len()).cast(),
+            vec.capacity() - vec.len(),
+        )
     }
 }
 
