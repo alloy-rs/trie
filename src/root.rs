@@ -15,9 +15,47 @@ pub const fn adjust_index_for_rlp(i: usize, len: usize) -> usize {
     }
 }
 
+/// Compute a trie root of the iterator of rlp encodable items.
+pub fn ordered_trie_root_iter<'a, I, T>(items: I) -> B256
+where
+    I: ExactSizeIterator<Item = &'a T>,
+    T: Encodable +'a,
+{
+    ordered_trie_root_with_encoder_iter(items, |item, buf| item.encode(buf))
+}
+
 /// Compute a trie root of the collection of rlp encodable items.
 pub fn ordered_trie_root<T: Encodable>(items: &[T]) -> B256 {
     ordered_trie_root_with_encoder(items, |item, buf| item.encode(buf))
+}
+
+/// Compute a trie root of the given iterator of items with a custom encoder.
+pub fn ordered_trie_root_with_encoder_iter<'a, I, T, F>(items: I, mut encode: F) -> B256
+where
+    I: ExactSizeIterator<Item = &'a T>,
+    T:'a,
+    F: FnMut(&T, &mut Vec<u8>),
+{
+    let items_len = items.len();
+    if items_len == 0 {
+        return EMPTY_ROOT_HASH;
+    }
+
+    let mut value_buffer = Vec::new();
+
+    let mut hb = HashBuilder::default();
+    for (i, item) in items.enumerate() {
+        let index = adjust_index_for_rlp(i, items_len);
+
+        let index_buffer = alloy_rlp::encode_fixed_size(&index);
+
+        value_buffer.clear();
+        encode(item, &mut value_buffer);
+
+        hb.add_leaf(Nibbles::unpack(&index_buffer), &value_buffer);
+    }
+
+    hb.root()
 }
 
 /// Compute a trie root of the collection of items with a custom encoder.
@@ -25,26 +63,7 @@ pub fn ordered_trie_root_with_encoder<T, F>(items: &[T], mut encode: F) -> B256
 where
     F: FnMut(&T, &mut Vec<u8>),
 {
-    if items.is_empty() {
-        return EMPTY_ROOT_HASH;
-    }
-
-    let mut value_buffer = Vec::new();
-
-    let mut hb = HashBuilder::default();
-    let items_len = items.len();
-    for i in 0..items_len {
-        let index = adjust_index_for_rlp(i, items_len);
-
-        let index_buffer = alloy_rlp::encode_fixed_size(&index);
-
-        value_buffer.clear();
-        encode(&items[index], &mut value_buffer);
-
-        hb.add_leaf(Nibbles::unpack(&index_buffer), &value_buffer);
-    }
-
-    hb.root()
+    ordered_trie_root_with_encoder_iter(items.iter(), |item, buf| encode(item, buf))
 }
 
 /// Ethereum specific trie root functions.
