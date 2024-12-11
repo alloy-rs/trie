@@ -19,7 +19,7 @@ pub const fn adjust_index_for_rlp(i: usize, len: usize) -> usize {
 pub fn ordered_trie_root_iter<'a, I, T>(items: I) -> B256
 where
     I: ExactSizeIterator<Item = &'a T>,
-    T: Encodable +'a,
+    T: Encodable + 'a,
 {
     ordered_trie_root_with_encoder_iter(items, |item, buf| item.encode(buf))
 }
@@ -33,7 +33,7 @@ pub fn ordered_trie_root<T: Encodable>(items: &[T]) -> B256 {
 pub fn ordered_trie_root_with_encoder_iter<'a, I, T, F>(items: I, mut encode: F) -> B256
 where
     I: ExactSizeIterator<Item = &'a T>,
-    T:'a,
+    T: 'a,
     F: FnMut(&T, &mut Vec<u8>),
 {
     let items_len = items.len();
