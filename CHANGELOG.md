@@ -5,11 +5,29 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.7](https://github.com/alloy-rs/trie/releases/tag/v0.7.7) - 2024-12-22
+
+### Features
+
+- Bump nybbles, use local encode_path ([#76](https://github.com/alloy-rs/trie/issues/76))
+
+### Miscellaneous Tasks
+
+- Use-single-account-buf ([#78](https://github.com/alloy-rs/trie/issues/78))
+
+### Other
+
+- Move deny to ci ([#75](https://github.com/alloy-rs/trie/issues/75))
+
 ## [0.7.6](https://github.com/alloy-rs/trie/releases/tag/v0.7.6) - 2024-12-04
 
 ### Features
 
 - Add storage root fns ([#74](https://github.com/alloy-rs/trie/issues/74))
+
+### Miscellaneous Tasks
+
+- Release 0.7.6
 
 ## [0.7.5](https://github.com/alloy-rs/trie/releases/tag/v0.7.5) - 2024-12-04
 
