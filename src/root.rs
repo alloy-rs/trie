@@ -127,8 +127,10 @@ mod ethereum {
     /// If the items are not in sorted order.
     pub fn state_root<A: Into<TrieAccount>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
         let mut hb = HashBuilder::default();
+        let mut account_rlp_buf = Vec::new();
         for (hashed_key, account) in state {
-            let account_rlp_buf = alloy_rlp::encode(account.into());
+            account_rlp_buf.clear();
+            account.into().encode(&mut account_rlp_buf);
             hb.add_leaf(Nibbles::unpack(hashed_key), &account_rlp_buf);
         }
         hb.root()
