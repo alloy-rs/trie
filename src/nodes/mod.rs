@@ -161,19 +161,19 @@ pub fn word_rlp(word: &B256) -> RlpNode {
 ///
 /// `first` - first nibble of the path if it is odd
 /// `rest` - rest of the nibbles packed
+#[inline]
 pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles {
-    let is_odd = first.is_some();
-    let len = rest.len() * 2 + is_odd as usize;
-    let mut nibbles = Vec::with_capacity(len);
+    let Some(first) = first else { return Nibbles::unpack(rest) };
+    debug_assert!(first <= 0xf);
+    let len = rest.len() * 2 + 1;
+    // SAFETY: `len` is calculated correctly.
     unsafe {
-        let ptr: *mut u8 = nibbles.as_mut_ptr();
-        let rest = rest.iter().copied().flat_map(|b| [b >> 4, b & 0x0f]);
-        for (i, nibble) in first.into_iter().chain(rest).enumerate() {
-            ptr.add(i).write(nibble)
-        }
-        nibbles.set_len(len);
+        Nibbles::from_repr_unchecked(nybbles::smallvec_with(len, |buf| {
+            let (f, r) = buf.split_first_mut().unwrap_unchecked();
+            f.write(first);
+            Nibbles::unpack_to_unchecked(rest, r);
+        }))
     }
-    Nibbles::from_vec_unchecked(nibbles)
 }
 
 /// Encodes a given path leaf as a compact array of bytes.
@@ -227,31 +227,24 @@ pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles 
 /// ```
 #[inline]
 pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> {
+    let mut nibbles = nibbles.as_slice();
     let encoded_len = nibbles.len() / 2 + 1;
-    let mut encoded = SmallVec::with_capacity(encoded_len);
-    // SAFETY: enough capacity.
-    unsafe { encode_path_leaf_to(nibbles, is_leaf, encoded.as_mut_ptr()) };
-    // SAFETY: within capacity and `encode_path_leaf_to` initialized the memory.
-    unsafe { encoded.set_len(encoded_len) };
-    encoded
-}
-
-/// # Safety
-///
-/// `ptr` must be valid for at least `self.len() / 2 + 1` bytes.
-#[inline]
-unsafe fn encode_path_leaf_to(nibbles: &Nibbles, is_leaf: bool, ptr: *mut u8) {
     let odd_nibbles = nibbles.len() % 2 != 0;
-    *ptr = match (is_leaf, odd_nibbles) {
-        (true, true) => LeafNode::ODD_FLAG | nibbles[0],
-        (true, false) => LeafNode::EVEN_FLAG,
-        (false, true) => ExtensionNode::ODD_FLAG | nibbles[0],
-        (false, false) => ExtensionNode::EVEN_FLAG,
-    };
-    let mut nibble_idx = if odd_nibbles { 1 } else { 0 };
-    for i in 0..nibbles.len() / 2 {
-        ptr.add(i + 1).write(nibbles.get_byte_unchecked(nibble_idx));
-        nibble_idx += 2;
+    // SAFETY: `len` is calculated correctly.
+    unsafe {
+        nybbles::smallvec_with(encoded_len, |buf| {
+            let (first, rest) = buf.split_first_mut().unwrap_unchecked();
+            first.write(match (is_leaf, odd_nibbles) {
+                (true, true) => LeafNode::ODD_FLAG | *nibbles.get_unchecked(0),
+                (true, false) => LeafNode::EVEN_FLAG,
+                (false, true) => ExtensionNode::ODD_FLAG | *nibbles.get_unchecked(0),
+                (false, false) => ExtensionNode::EVEN_FLAG,
+            });
+            if odd_nibbles {
+                nibbles = nibbles.get_unchecked(1..);
+            }
+            nybbles::pack_to_unchecked(nibbles, rest);
+        })
     }
 }
 
@@ -331,8 +324,7 @@ mod tests {
     fn encode_path_first_byte() {
         use proptest::{collection::vec, prelude::*};
 
-        proptest::proptest!(|(input in vec(any::<u8>(), 1..64))| {
-            prop_assume!(!input.is_empty());
+        proptest::proptest!(|(input in vec(any::<u8>(), 0..128))| {
             let input = Nibbles::unpack(input);
             prop_assert!(input.iter().all(|&nibble| nibble <= 0xf));
             let input_is_odd = input.len() % 2 == 1;

@@ -54,7 +54,7 @@ derive_more = { version = "1", default-features = false, features = [
     "from",
     "not",
 ] }
-nybbles = { version = "0.3", default-features = false }
+nybbles = { version = "0.3.3", default-features = false }
 smallvec = { version = "1.0", default-features = false, features = [
     "const_new",
 ] }
