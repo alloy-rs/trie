@@ -17,8 +17,8 @@ pub fn nibbles_path_encoding(c: &mut Criterion) {
         g.throughput(criterion::Throughput::Bytes(len));
         let id = criterion::BenchmarkId::new("trie", len);
         g.bench_function(id, |b| {
-            let nibbles = get_nibbles(len as usize);
-            b.iter(|| black_box(encode_path_leaf(&nibbles, false)))
+            let nibbles = &get_nibbles(len as usize);
+            b.iter(|| encode_path_leaf(black_box(nibbles), false))
         });
     }
 }
