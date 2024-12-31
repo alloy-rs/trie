@@ -5,6 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.8](https://github.com/alloy-rs/trie/releases/tag/v0.7.8) - 2024-12-31
+
+### Dependencies
+
+- Bump and use nybbles 0.3.3 raw APIs ([#80](https://github.com/alloy-rs/trie/issues/80))
+
+### Miscellaneous Tasks
+
+- Add tests for `TrieAccount` ([#73](https://github.com/alloy-rs/trie/issues/73))
+
 ## [0.7.7](https://github.com/alloy-rs/trie/releases/tag/v0.7.7) - 2024-12-22
 
 ### Features
@@ -13,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.7.7
 - Use-single-account-buf ([#78](https://github.com/alloy-rs/trie/issues/78))
 
 ### Other
