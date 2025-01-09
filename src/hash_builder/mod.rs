@@ -267,6 +267,11 @@ impl HashBuilder {
                             ?rlp,
                             "pushing leaf node",
                         );
+                        debug!(
+                            target: "trie::hash_builder",
+                            ?current,
+                            "Pushing leaf node"
+                        );
                         self.stack.push(rlp);
                         self.retain_proof_from_buf(&current.slice(..len_from));
                     }
