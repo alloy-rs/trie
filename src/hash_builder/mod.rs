@@ -115,6 +115,11 @@ impl HashBuilder {
     ///
     /// Panics if the new key does not come after the current key.
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
+        debug!(
+            target: "trie::hash_builder",
+            path = ?key,
+            "Adding leaf"
+        );
         assert!(key > self.key, "add_leaf key {:?} self.key {:?}", key, self.key);
         self.add_leaf_unchecked(key, value);
     }
@@ -133,6 +138,11 @@ impl HashBuilder {
 
     /// Adds a new branch element and its hash to the trie hash builder.
     pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
+        debug!(
+            target: "trie::hash_builder",
+            path = ?key,
+            "Adding branch"
+        );
         assert!(
             key > self.key || (self.key.is_empty() && key.is_empty()),
             "add_branch key {:?} self.key {:?}",
