@@ -417,6 +417,12 @@ impl HashBuilder {
                     children,
                     (len == 0).then(|| self.current_root()),
                 );
+                debug!(
+                    target: "trie::hash_builder",
+                    ?common_prefix,
+                    tree_mask = ?self.tree_masks[len],
+                    "Updated branch node"
+                );
                 trace!(target: "trie::hash_builder", ?node, "intermediate node");
                 self.updated_branch_nodes.as_mut().unwrap().insert(common_prefix, node);
             }
