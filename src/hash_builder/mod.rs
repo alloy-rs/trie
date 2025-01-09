@@ -10,7 +10,7 @@ use alloc::vec::Vec;
 use alloy_primitives::{keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
-use tracing::trace;
+use tracing::{debug, trace};
 
 mod value;
 pub use value::{HashBuilderValue, HashBuilderValueRef};
@@ -275,8 +275,16 @@ impl HashBuilder {
                         self.stack.push(RlpNode::word_rlp(hash));
 
                         if self.stored_in_database {
+                            let original = self.tree_masks[current.len() - 1];
                             self.tree_masks[current.len() - 1] |=
                                 TrieMask::from_nibble(current.last().unwrap());
+                            debug!(
+                                target: "trie::hash_builder",
+                                path = ?current,
+                                ?original,
+                                new = ?self.tree_masks[current.len() - 1],
+                                "Updating tree mask when value is Hash"
+                            );
                         }
                         self.hash_masks[current.len() - 1] |=
                             TrieMask::from_nibble(current.last().unwrap());
@@ -389,7 +397,15 @@ impl HashBuilder {
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
+                let original = self.tree_masks[parent_index];
                 self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
+                debug!(
+                    target: "trie::hash_builder",
+                    path = ?current,
+                    ?original,
+                    new = ?self.tree_masks[parent_index],
+                    "Updating tree mask when storing branch node"
+                );
             }
 
             if self.updated_branch_nodes.is_some() {
@@ -420,7 +436,15 @@ impl HashBuilder {
             self.hash_masks[len_from - 1] &= !flag;
 
             if !self.tree_masks[current.len() - 1].is_empty() {
+                let original = self.tree_masks[len_from - 1];
                 self.tree_masks[len_from - 1] |= flag;
+                debug!(
+                    target: "trie::hash_builder",
+                    path = ?current,
+                    ?original,
+                    new = ?self.tree_masks[len_from - 1],
+                    "Updating tree mask when updating masks"
+                );
             }
         }
     }
