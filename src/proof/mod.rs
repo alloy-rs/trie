@@ -9,6 +9,9 @@ pub use verify::verify_proof;
 mod error;
 pub use error::ProofVerificationError;
 
+mod decoded_proof_nodes;
+pub use decoded_proof_nodes::DecodedProofNodes;
+
 mod proof_nodes;
 pub use proof_nodes::ProofNodes;
 
