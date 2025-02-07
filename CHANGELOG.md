@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.9](https://github.com/alloy-rs/trie/releases/tag/v0.7.9) - 2025-02-07
+
+### Features
+
+- Add DecodedProofNodes struct ([#81](https://github.com/alloy-rs/trie/issues/81))
+
 ## [0.7.8](https://github.com/alloy-rs/trie/releases/tag/v0.7.8) - 2024-12-31
 
 ### Dependencies
