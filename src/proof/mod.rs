@@ -12,6 +12,9 @@ pub use error::ProofVerificationError;
 mod decoded_proof_nodes;
 pub use decoded_proof_nodes::DecodedProofNodes;
 
+mod decoded_retainer;
+pub use decoded_retainer::DecodedProofRetainer;
+
 mod proof_nodes;
 pub use proof_nodes::ProofNodes;
 
