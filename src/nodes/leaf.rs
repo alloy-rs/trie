@@ -14,6 +14,7 @@ use alloc::vec::Vec;
 /// data associated with the full key. When searching the trie for a specific key, reaching a leaf
 /// node means that the search has successfully found the value associated with that key.
 #[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LeafNode {
     /// The key for this leaf node.
     pub key: Nibbles,

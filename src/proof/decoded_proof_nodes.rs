@@ -7,6 +7,7 @@ use alloc::vec::Vec;
 
 /// A wrapper struct for trie node key to RLP encoded trie node.
 #[derive(PartialEq, Eq, Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct DecodedProofNodes(HashMap<Nibbles, TrieNode>);
 
 impl Deref for DecodedProofNodes {
