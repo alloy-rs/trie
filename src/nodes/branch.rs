@@ -12,6 +12,7 @@ use alloc::vec::Vec;
 /// character and an additional slot for a value. We do exclude the node value since all paths have
 /// a fixed size.
 #[derive(PartialEq, Eq, Clone, Default)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BranchNode {
     /// The collection of RLP encoded children.
     pub stack: Vec<RlpNode>,

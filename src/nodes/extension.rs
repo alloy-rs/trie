@@ -16,6 +16,7 @@ use alloc::vec::Vec;
 /// with a single child into one node. This simplification reduces the space and computational
 /// complexity when performing operations on the trie.
 #[derive(PartialEq, Eq, Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExtensionNode {
     /// The key for this extension node.
     pub key: Nibbles,

@@ -26,6 +26,7 @@ pub const CHILD_INDEX_RANGE: Range<u8> = 0..16;
 
 /// Enum representing an MPT trie node.
 #[derive(PartialEq, Eq, Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum TrieNode {
     /// Variant representing empty root node.
     EmptyRoot,
