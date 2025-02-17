@@ -46,7 +46,7 @@ pub struct HashBuilder {
     pub value: HashBuilderValue,
     pub stack: Vec<RlpNode>,
 
-    pub groups: Vec<TrieMask>,
+    pub state_masks: Vec<TrieMask>,
     pub tree_masks: Vec<TrieMask>,
     pub hash_masks: Vec<TrieMask>,
 
@@ -209,8 +209,8 @@ impl HashBuilder {
         loop {
             let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
 
-            let preceding_exists = !self.groups.is_empty();
-            let preceding_len = self.groups.len().saturating_sub(1);
+            let preceding_exists = !self.state_masks.is_empty();
+            let preceding_len = self.state_masks.len().saturating_sub(1);
 
             let common_prefix_len = succeeding.common_prefix_length(current.as_slice());
             let len = cmp::max(preceding_len, common_prefix_len);
@@ -227,16 +227,16 @@ impl HashBuilder {
 
             // Adjust the state masks for branch calculation
             let extra_digit = current[len];
-            if self.groups.len() <= len {
+            if self.state_masks.len() <= len {
                 let new_len = len + 1;
-                trace!(target: "trie::hash_builder", new_len, old_len = self.groups.len(), "scaling state masks to fit");
-                self.groups.resize(new_len, TrieMask::default());
+                trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
+                self.state_masks.resize(new_len, TrieMask::default());
             }
-            self.groups[len] |= TrieMask::from_nibble(extra_digit);
+            self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
             trace!(
                 target: "trie::hash_builder",
                 ?extra_digit,
-                groups = ?self.groups,
+                state_masks = ?self.state_masks,
             );
 
             // Adjust the tree masks for exporting to the DB
@@ -317,7 +317,7 @@ impl HashBuilder {
                 self.store_branch_node(&current, len, children);
             }
 
-            self.groups.resize(len, TrieMask::default());
+            self.state_masks.resize(len, TrieMask::default());
             self.resize_masks(len);
 
             if preceding_len == 0 {
@@ -328,9 +328,9 @@ impl HashBuilder {
             current.truncate(preceding_len);
             trace!(target: "trie::hash_builder", ?current, "truncated nibbles to {} bytes", preceding_len);
 
-            trace!(target: "trie::hash_builder", groups = ?self.groups, "popping empty state masks");
-            while self.groups.last() == Some(&TrieMask::default()) {
-                self.groups.pop();
+            trace!(target: "trie::hash_builder", state_masks = ?self.state_masks, "popping empty state masks");
+            while self.state_masks.last() == Some(&TrieMask::default()) {
+                self.state_masks.pop();
             }
 
             build_extensions = true;
@@ -346,7 +346,7 @@ impl HashBuilder {
     /// Returns the hashes of the children of the branch node, only if `updated_branch_nodes` is
     /// enabled.
     fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
-        let state_mask = self.groups[len];
+        let state_mask = self.state_masks[len];
         let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(&self.stack, state_mask);
         // Avoid calculating this value if it's not needed.
@@ -395,7 +395,7 @@ impl HashBuilder {
             if self.updated_branch_nodes.is_some() {
                 let common_prefix = current.slice(..len);
                 let node = BranchNodeCompact::new(
-                    self.groups[len],
+                    self.state_masks[len],
                     self.tree_masks[len],
                     self.hash_masks[len],
                     children,
@@ -564,7 +564,7 @@ mod tests {
         assert_eq!(update.state_mask, TrieMask::new(0b1111));
         // None of the children are stored in the database
         assert_eq!(update.tree_mask, TrieMask::new(0b0000));
-        // Children under nibbles `1` and `2` are branche nodes with `hashes`
+        // Children under nibbles `1` and `2` are branch nodes with `hashes`
         assert_eq!(update.hash_mask, TrieMask::new(0b0110));
         // Calculated when running the hash builder
         assert_eq!(update.hashes.len(), 2);
@@ -620,7 +620,7 @@ mod tests {
         let leaf1 = LeafNode::new(Nibbles::unpack(&raw_input[0].0[1..]), raw_input[0].1.clone());
         let leaf2 = LeafNode::new(Nibbles::unpack(&raw_input[1].0[1..]), raw_input[1].1.clone());
         let mut branch: [&dyn Encodable; 17] = [b""; 17];
-        // We set this to `4` and `7` because that mathces the 2nd element of the corresponding
+        // We set this to `4` and `7` because that matches the 2nd element of the corresponding
         // leaves. We set this to `7` because the 2nd element of Leaf 1 is `7`.
         branch[4] = &leaf1;
         branch[7] = &leaf2;
