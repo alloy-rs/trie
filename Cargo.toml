@@ -32,7 +32,7 @@ all = "warn"
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
-missing-const-for-fn = "warn"
+missing-const-for-fn = "allow" # TODO: https://github.com/rust-lang/rust-clippy/issues/14020
 use-self = "warn"
 redundant-clone = "warn"
 
