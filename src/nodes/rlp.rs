@@ -78,10 +78,10 @@ impl RlpNode {
     /// RLP-encodes the given word and returns it as a new RLP node.
     #[inline]
     pub fn word_rlp(word: &B256) -> Self {
-        let mut arr = ArrayVec::new();
-        arr.push(EMPTY_STRING_CODE + 32);
-        arr.try_extend_from_slice(word.as_slice()).unwrap();
-        Self(arr)
+        let mut arr = [0u8; 33];
+        arr[0] = EMPTY_STRING_CODE + 32;
+        arr[1..].copy_from_slice(word.as_slice());
+        Self(ArrayVec::from(arr))
     }
 
     /// Returns the RLP-encoded node as a slice.
