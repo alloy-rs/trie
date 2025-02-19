@@ -63,6 +63,7 @@ tracing = { version = "0.1", default-features = false }
 # serde
 serde = { version = "1.0", default-features = false, features = [
     "derive",
+    "rc",
 ], optional = true }
 
 # arbitrary
