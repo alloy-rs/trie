@@ -3,6 +3,7 @@ use alloy_primitives::{hex, B256};
 use alloy_rlp::{length_of_length, Buf, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::{fmt, ops::Range, slice::Iter};
 
+use alloc::sync::Arc;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
 
@@ -278,7 +279,7 @@ pub struct BranchNodeCompact {
     pub hash_mask: TrieMask,
     /// Collection of hashes associated with the children of the branch node.
     /// Each child hash is calculated by hashing two consecutive sub-branch roots.
-    pub hashes: Vec<B256>,
+    pub hashes: Arc<Vec<B256>>,
     /// An optional root hash of the subtree rooted at this branch node.
     pub root_hash: Option<B256>,
 }
@@ -303,7 +304,7 @@ impl BranchNodeCompact {
             "state_mask {state_mask:?} hash_mask: {hash_mask:?}"
         );
         assert_eq!(hash_mask.count_ones() as usize, hashes.len());
-        Self { state_mask, tree_mask, hash_mask, hashes, root_hash }
+        Self { state_mask, tree_mask, hash_mask, hashes: hashes.into(), root_hash }
     }
 
     /// Returns the hash associated with the given nibble.
