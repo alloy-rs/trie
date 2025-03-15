@@ -274,16 +274,16 @@ impl HashBuilder {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
                         self.stack.push(RlpNode::word_rlp(hash));
 
-                        if self.stored_in_database {
-                            self.tree_masks[current.len() - 1] |=
-                                TrieMask::from_nibble(current.last().unwrap());
-                        }
-                        self.hash_masks[current.len() - 1] |=
-                            TrieMask::from_nibble(current.last().unwrap());
-
                         build_extensions = true;
                     }
                 }
+
+                if self.stored_in_database {
+                    self.tree_masks[current.len() - 1] |=
+                        TrieMask::from_nibble(current.last().unwrap());
+                }
+                self.hash_masks[current.len() - 1] |=
+                    TrieMask::from_nibble(current.last().unwrap());
             }
 
             if build_extensions && !short_node_key.is_empty() {
