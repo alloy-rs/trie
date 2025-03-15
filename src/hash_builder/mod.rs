@@ -225,7 +225,7 @@ impl HashBuilder {
                 "prefix lengths after comparing keys"
             );
 
-            // Adjust the state masks for branch calculation
+            // Adjust the masks for branch calculation
             let extra_digit = current[len];
             if self.state_masks.len() <= len {
                 let new_len = len + 1;
@@ -233,10 +233,27 @@ impl HashBuilder {
                 self.state_masks.resize(new_len, TrieMask::default());
             }
             self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
+            if self.stored_in_database {
+                if self.tree_masks.len() <= len {
+                    let new_len = len + 1;
+                    trace!(target: "trie::hash_builder", new_len, old_len = self.tree_masks.len(), "scaling tree masks to fit");
+                    self.tree_masks.resize(new_len, TrieMask::default());
+                }
+                self.tree_masks[len] |= TrieMask::from_nibble(extra_digit);
+            }
+            if self.hash_masks.len() <= len {
+                let new_len = len + 1;
+                trace!(target: "trie::hash_builder", new_len, old_len = self.hash_masks.len(), "scaling hash masks to fit");
+                self.hash_masks.resize(new_len, TrieMask::default());
+            }
+            self.hash_masks[len] |= TrieMask::from_nibble(extra_digit);
             trace!(
                 target: "trie::hash_builder",
                 ?extra_digit,
                 state_masks = ?self.state_masks,
+                tree_masks = ?self.tree_masks,
+                hash_masks = ?self.hash_masks,
+                "adjusted branch node masks"
             );
 
             // Adjust the tree masks for exporting to the DB
@@ -277,13 +294,6 @@ impl HashBuilder {
                         build_extensions = true;
                     }
                 }
-
-                if self.stored_in_database {
-                    self.tree_masks[current.len() - 1] |=
-                        TrieMask::from_nibble(current.last().unwrap());
-                }
-                self.hash_masks[current.len() - 1] |=
-                    TrieMask::from_nibble(current.last().unwrap());
             }
 
             if build_extensions && !short_node_key.is_empty() {
@@ -370,7 +380,14 @@ impl HashBuilder {
         );
         self.stack.resize_with(first_child_idx, Default::default);
 
-        trace!(target: "trie::hash_builder", ?rlp, "pushing branch node with {state_mask:?} mask from stack");
+        trace!(
+            target: "trie::hash_builder",
+            ?rlp,
+            ?state_mask,
+            ?hash_mask,
+            ?children,
+            "pushing branch node to stack"
+        );
         self.stack.push(rlp);
         children
     }
@@ -556,11 +573,11 @@ mod tests {
         // Nibbles 0, 1, 2, 3 have children
         assert_eq!(update.state_mask, TrieMask::new(0b1111));
         // None of the children are stored in the database
-        assert_eq!(update.tree_mask, TrieMask::new(0b0000));
+        assert_eq!(update.tree_mask, TrieMask::new(0b0110));
         // Children under nibbles `1` and `2` are branch nodes with `hashes`
-        assert_eq!(update.hash_mask, TrieMask::new(0b0110));
+        assert_eq!(update.hash_mask, TrieMask::new(0b1111));
         // Calculated when running the hash builder
-        assert_eq!(update.hashes.len(), 2);
+        assert_eq!(update.hashes.len(), 4);
 
         assert_eq!(_root, triehash_trie_root(data));
     }
