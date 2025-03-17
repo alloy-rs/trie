@@ -355,7 +355,7 @@ impl HashBuilder {
     ///
     /// Returns the hashes of the children of the branch node, only if `updated_branch_nodes` is
     /// enabled.
-    fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
+    fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<RlpNode> {
         let state_mask = self.state_masks[len];
         let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(&self.stack, state_mask);
@@ -396,7 +396,7 @@ impl HashBuilder {
     /// to update the masks for the next level and store the branch node and the
     /// masks in the database. We will use that when consuming the intermediate nodes
     /// from the database to efficiently build the trie.
-    fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
+    fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<RlpNode>) {
         if len > 0 {
             let parent_index = len - 1;
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);

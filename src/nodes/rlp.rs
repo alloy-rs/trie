@@ -6,7 +6,7 @@ use core::fmt;
 const MAX: usize = 33;
 
 /// An RLP-encoded node.
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RlpNode(ArrayVec<u8, MAX>);
 
