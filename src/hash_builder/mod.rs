@@ -132,7 +132,7 @@ impl HashBuilder {
     }
 
     /// Adds a new branch element and its hash to the trie hash builder.
-    pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
+    pub fn add_branch(&mut self, key: Nibbles, value: RlpNode, stored_in_database: bool) {
         assert!(
             key > self.key || (self.key.is_empty() && key.is_empty()),
             "add_branch key {:?} self.key {:?}",
@@ -142,9 +142,9 @@ impl HashBuilder {
         if !self.key.is_empty() {
             self.update(&key);
         } else if key.is_empty() {
-            self.stack.push(RlpNode::word_rlp(&value));
+            self.stack.push(value.clone());
         }
-        self.set_key_value(key, HashBuilderValueRef::Hash(&value));
+        self.set_key_value(key, HashBuilderValueRef::Hash(value));
         self.stored_in_database = stored_in_database;
     }
 
@@ -225,34 +225,38 @@ impl HashBuilder {
                 "prefix lengths after comparing keys"
             );
 
-            // Adjust the masks for branch calculation
-            let extra_digit = current[len];
+            // Resize masks if needed
             if self.state_masks.len() <= len {
                 let new_len = len + 1;
                 trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
                 self.state_masks.resize(new_len, TrieMask::default());
             }
-            self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
-            if self.stored_in_database {
-                if self.tree_masks.len() <= len {
-                    let new_len = len + 1;
-                    trace!(target: "trie::hash_builder", new_len, old_len = self.tree_masks.len(), "scaling tree masks to fit");
-                    self.tree_masks.resize(new_len, TrieMask::default());
-                }
-                self.tree_masks[len] |= TrieMask::from_nibble(extra_digit);
+            if self.stored_in_database && self.tree_masks.len() <= len {
+                let new_len = len + 1;
+                trace!(target: "trie::hash_builder", new_len, old_len = self.tree_masks.len(), "scaling tree masks to fit");
+                self.tree_masks.resize(new_len, TrieMask::default());
             }
             if self.hash_masks.len() <= len {
                 let new_len = len + 1;
                 trace!(target: "trie::hash_builder", new_len, old_len = self.hash_masks.len(), "scaling hash masks to fit");
                 self.hash_masks.resize(new_len, TrieMask::default());
             }
+
+            // Adjust the masks for branch calculation
+            let extra_digit = current[len];
+            self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
+            if self.stored_in_database {
+                self.tree_masks[len] |= TrieMask::from_nibble(extra_digit);
+            }
             self.hash_masks[len] |= TrieMask::from_nibble(extra_digit);
+
             trace!(
                 target: "trie::hash_builder",
-                ?extra_digit,
-                state_masks = ?self.state_masks,
-                tree_masks = ?self.tree_masks,
-                hash_masks = ?self.hash_masks,
+                len,
+                extra_digit,
+                state_mask = ?self.state_masks[len],
+                tree_mask = ?self.stored_in_database.then(|| self.tree_masks[len]),
+                hash_mask = ?self.hash_masks[len],
                 "adjusted branch node masks"
             );
 
@@ -289,7 +293,7 @@ impl HashBuilder {
                     }
                     HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
-                        self.stack.push(RlpNode::word_rlp(hash));
+                        self.stack.push(hash.clone());
 
                         build_extensions = true;
                     }
@@ -427,7 +431,9 @@ impl HashBuilder {
         if len_from > 0 {
             let flag = TrieMask::from_nibble(current[len_from - 1]);
 
-            self.hash_masks[len_from - 1] &= !flag;
+            if !self.hash_masks[current.len() - 1].is_empty() {
+                self.hash_masks[len_from - 1] |= flag;
+            }
 
             if !self.tree_masks[current.len() - 1].is_empty() {
                 self.tree_masks[len_from - 1] |= flag;
@@ -606,7 +612,7 @@ mod tests {
     fn test_root_known_hash() {
         let root_hash = b256!("45596e474b536a6b4d64764e4f75514d544577646c414e684271706871446456");
         let mut hb = HashBuilder::default();
-        hb.add_branch(Nibbles::default(), root_hash, false);
+        hb.add_branch(Nibbles::default(), RlpNode::word_rlp(&root_hash), false);
         assert_eq!(hb.root(), root_hash);
     }
 
@@ -640,7 +646,11 @@ mod tests {
 
         let mut hb2 = HashBuilder::default();
         // Insert the branch with the `0x6` shared prefix.
-        hb2.add_branch(Nibbles::from_nibbles_unchecked([0x6]), branch_node_hash, false);
+        hb2.add_branch(
+            Nibbles::from_nibbles_unchecked([0x6]),
+            RlpNode::word_rlp(&branch_node_hash),
+            false,
+        );
 
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);

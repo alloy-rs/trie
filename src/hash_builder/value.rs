@@ -1,6 +1,8 @@
 use alloc::vec::Vec;
-use alloy_primitives::{hex, B256};
+use alloy_primitives::hex;
 use core::fmt;
+
+use crate::nodes::RlpNode;
 
 /// Hash builder value.
 ///
@@ -33,7 +35,7 @@ impl<'u> arbitrary::Arbitrary<'u> for HashBuilderValue {
         let kind = HashBuilderValueKind::arbitrary(g)?;
         let buf = match kind {
             HashBuilderValueKind::Bytes => Vec::arbitrary(g)?,
-            HashBuilderValueKind::Hash => B256::arbitrary(g)?.to_vec(),
+            HashBuilderValueKind::Hash => alloy_primitives::B256::arbitrary(g)?.to_vec(),
         };
         Ok(Self { buf, kind })
     }
@@ -71,10 +73,9 @@ impl HashBuilderValue {
     pub fn as_ref(&self) -> HashBuilderValueRef<'_> {
         match self.kind {
             HashBuilderValueKind::Bytes => HashBuilderValueRef::Bytes(&self.buf),
-            HashBuilderValueKind::Hash => {
-                debug_assert_eq!(self.buf.len(), 32);
-                HashBuilderValueRef::Hash(unsafe { self.buf[..].try_into().unwrap_unchecked() })
-            }
+            HashBuilderValueKind::Hash => HashBuilderValueRef::Hash(unsafe {
+                RlpNode::from_raw_rlp(&self.buf[..]).unwrap_unchecked()
+            }),
         }
     }
 
@@ -122,13 +123,13 @@ pub enum HashBuilderValueRef<'a> {
     /// Value of the leaf node.
     Bytes(&'a [u8]),
     /// Hash of adjacent nodes.
-    Hash(&'a B256),
+    Hash(RlpNode),
 }
 
-impl<'a> HashBuilderValueRef<'a> {
+impl HashBuilderValueRef<'_> {
     /// Returns the value as a slice.
-    pub const fn as_slice(&self) -> &'a [u8] {
-        match *self {
+    pub fn as_slice(&self) -> &[u8] {
+        match self {
             HashBuilderValueRef::Bytes(bytes) => bytes,
             HashBuilderValueRef::Hash(hash) => hash.as_slice(),
         }
