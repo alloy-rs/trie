@@ -1,5 +1,9 @@
 [advisories]
 yanked = "warn"
+ignore = [
+    # https://rustsec.org/advisories/RUSTSEC-2024-0436
+    "RUSTSEC-2024-0436",
+]
 
 [bans]
 multiple-versions = "warn"
