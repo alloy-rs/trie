@@ -216,7 +216,6 @@ impl HashBuilder {
         let mut build_extensions = false;
         // current / self.key is always the latest added element in the trie
         let mut current = self.key.clone();
-        
 
         debug_assert!(!current.is_empty());
 
@@ -251,12 +250,12 @@ impl HashBuilder {
             let extra_digit = current[len];
 
             let new_len = len + 1;
-            if state_len < new_len {        
+            if state_len < new_len {
                 trace!(target: "trie::hash_builder", new_len, old_len = state_len, "scaling state masks to fit");
                 self.state_masks.resize(new_len, TrieMask::default());
             }
             self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
-            
+
             trace!(
                 target: "trie::hash_builder",
                 ?extra_digit,
@@ -268,8 +267,7 @@ impl HashBuilder {
                 self.resize_masks(current_len);
             }
 
-
-            let len_from =  if s_and_p { new_len } else { len };
+            let len_from = if s_and_p { new_len } else { len };
             trace!(target: "trie::hash_builder", "skipping {len_from} nibbles");
 
             // The key without the common prefix
@@ -296,10 +294,8 @@ impl HashBuilder {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
                         self.stack.push(RlpNode::word_rlp(hash));
 
-            
                         let sub_len = current_len - 1;
                         if self.stored_in_database {
-                            
                             self.tree_masks[sub_len] |=
                                  //Safety: check that the current_len is not 0
                                 TrieMask::from_nibble(*unsafe {current.get_unchecked(sub_len)});
@@ -356,7 +352,6 @@ impl HashBuilder {
             trace!(target: "trie::hash_builder", ?current, "truncated nibbles to {} bytes", preceding_len);
 
             trace!(target: "trie::hash_builder", state_masks = ?self.state_masks, "popping empty state masks");
-
 
             let trie_default = &TrieMask::default();
             while self.state_masks.last() == Some(trie_default) {
