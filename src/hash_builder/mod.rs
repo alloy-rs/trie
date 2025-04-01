@@ -127,11 +127,11 @@ impl HashBuilder {
     pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
         let _key = &self.key;
         assert!(&key > _key, "add_leaf key {:?} self.key {:?}", key, _key);
-        // self.add_leaf_unchecked(key, value);
         if !_key.is_empty() {
             self.update(&key);
         }
         self.set_key_value(key, HashBuilderValueRef::Bytes(value));
+        // self.add_leaf_unchecked(key, value);
     }
 
     /// Adds a new leaf element and its value to the trie hash builder,
@@ -222,6 +222,7 @@ impl HashBuilder {
         trace!(target: "trie::hash_builder", ?current, ?succeeding, "updating merkle tree");
 
         let mut i = 0usize;
+        let trie_default = &TrieMask::default();
         loop {
             let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
 
@@ -252,7 +253,7 @@ impl HashBuilder {
             let new_len = len + 1;
             if state_len < new_len {
                 trace!(target: "trie::hash_builder", new_len, old_len = state_len, "scaling state masks to fit");
-                self.state_masks.resize(new_len, TrieMask::default());
+                self.state_masks.resize(new_len, *trie_default);
             }
             self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
 
@@ -274,6 +275,8 @@ impl HashBuilder {
             let short_node_key = current.slice(len_from..);
             trace!(target: "trie::hash_builder", ?short_node_key);
 
+            let current_slice = &current.slice(..len_from);
+
             // Concatenate the 2 nodes together
             if !build_extensions {
                 match self.value.as_ref() {
@@ -288,7 +291,7 @@ impl HashBuilder {
                             "pushing leaf node",
                         );
                         self.stack.push(rlp);
-                        self.retain_proof_from_buf(&current.slice(..len_from));
+                        self.retain_proof_from_buf(current_slice);
                     }
                     HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
@@ -323,7 +326,7 @@ impl HashBuilder {
                     "pushing extension node",
                 );
                 self.stack.push(rlp);
-                self.retain_proof_from_buf(&current.slice(..len_from));
+                self.retain_proof_from_buf(current_slice);
                 self.resize_masks(len_from);
             }
 
@@ -340,7 +343,7 @@ impl HashBuilder {
                 self.store_branch_node(&current, len, children);
             }
 
-            self.state_masks.resize(len, TrieMask::default());
+            self.state_masks.resize(len, *trie_default);
             self.resize_masks(len);
 
             if preceding_len == 0 {
@@ -353,7 +356,6 @@ impl HashBuilder {
 
             trace!(target: "trie::hash_builder", state_masks = ?self.state_masks, "popping empty state masks");
 
-            let trie_default = &TrieMask::default();
             while self.state_masks.last() == Some(trie_default) {
                 self.state_masks.pop();
             }
