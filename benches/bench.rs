@@ -1,9 +1,10 @@
 #![allow(missing_docs)]
 
-use alloy_trie::nodes::encode_path_leaf;
+use alloy_trie::{nodes::encode_path_leaf, HashBuilder};
 use criterion::{
     criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion,
 };
+use alloy_primitives::hex;
 use nybbles::Nibbles;
 use proptest::{prelude::*, strategy::ValueTree};
 use std::{hint::black_box, time::Duration};
@@ -30,6 +31,23 @@ fn group<'c>(c: &'c mut Criterion, name: &str) -> BenchmarkGroup<'c, WallTime> {
     g
 }
 
+pub fn bench_add_leaf(c: &mut Criterion) {
+    let raw_input = vec![
+        (hex!("646f").to_vec(), hex!("76657262").to_vec()),
+        (hex!("676f6f64").to_vec(), hex!("7075707079").to_vec()),
+    ];
+
+    c.bench_function("hash_builder_leaves", |b| {
+        b.iter(|| {
+            let mut hb = HashBuilder::default();
+            for (key, val) in &raw_input {
+                hb.add_leaf(Nibbles::unpack(key), val.as_slice());
+            }
+            black_box(hb.root())
+        })
+    });
+}
+
 fn get_nibbles(len: usize) -> Nibbles {
     proptest::arbitrary::any_with::<Nibbles>(len.into())
         .new_tree(&mut Default::default())
@@ -37,5 +55,5 @@ fn get_nibbles(len: usize) -> Nibbles {
         .current()
 }
 
-criterion_group!(benches, nibbles_path_encoding);
+criterion_group!(benches, bench_add_leaf);
 criterion_main!(benches);
