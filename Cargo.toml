@@ -35,6 +35,7 @@ all = { level = "warn", priority = -1 }
 missing-const-for-fn = "allow" # TODO: https://github.com/rust-lang/rust-clippy/issues/14020
 use-self = "warn"
 redundant-clone = "warn"
+result_large_err = "allow"
 
 [dependencies]
 alloy-primitives = { version = "0.8.14", default-features = false, features = [

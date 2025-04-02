@@ -1,5 +1,12 @@
+# This section is considered when running `cargo deny check advisories`
+# More documentation for the advisories section can be found here:
+# https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
 [advisories]
 yanked = "warn"
+ignore = [
+    # https://rustsec.org/advisories/RUSTSEC-2024-0436 paste! is unmaintained
+    "RUSTSEC-2024-0436",
+]
 
 [bans]
 multiple-versions = "warn"
