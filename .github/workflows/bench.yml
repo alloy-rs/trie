@@ -1,0 +1,42 @@
+# Runs benchmarks.
+
+on:
+  pull_request:
+  # TODO: Disabled temporarily for https://github.com/CodSpeedHQ/runner/issues/55
+  # merge_group:
+  push:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+  BASELINE: base
+  SEED: alloy-trie
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+name: bench
+jobs:
+  codspeed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: rui314/setup-mold@v1
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+      - name: Install cargo-codspeed
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-codspeed
+      - name: Build the benchmark target(s)
+        run: cargo codspeed build --profile profiling --features="arbitrary"
+      - name: Run the benchmarks
+        uses: CodSpeedHQ/action@v3
+        with:
+          run: cargo codspeed run --workspace
+          token: ${{ secrets.CODSPEED_TOKEN }}
