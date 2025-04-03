@@ -38,7 +38,7 @@ redundant-clone = "warn"
 result_large_err = "allow"
 
 [dependencies]
-alloy-primitives = { version = "0.8.14", default-features = false, features = [
+alloy-primitives = { version = "1.0", default-features = false, features = [
     "rlp",
     "map",
 ] }
