@@ -84,7 +84,7 @@ proptest-derive = { version = "0.5", optional = true }
 hash-db = "0.15"
 plain_hasher = "0.2"
 triehash = "0.8.4"
-criterion = "0.5"
+criterion = { version = "2.10", package = "codspeed-criterion-compat" }
 
 [features]
 default = ["std", "alloy-primitives/default"]
