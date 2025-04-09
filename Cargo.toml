@@ -37,6 +37,13 @@ use-self = "warn"
 redundant-clone = "warn"
 result_large_err = "allow"
 
+# Use the `--profile profiling` flag to show symbols in release mode.
+# e.g. `cargo build --profile profiling`
+[profile.profiling]
+inherits = "release"
+debug = "full"
+strip = "none"
+
 [dependencies]
 alloy-primitives = { version = "1.0", default-features = false, features = [
     "rlp",
