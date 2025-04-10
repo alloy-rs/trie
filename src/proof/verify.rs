@@ -103,7 +103,7 @@ fn process_trie_node(
     key: &Nibbles,
 ) -> Result<Option<NodeDecodingResult>, ProofVerificationError> {
     let node = match node {
-        TrieNode::Branch(branch) => process_branch(branch, walked_path, &key)?,
+        TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
         TrieNode::Extension(extension) => {
             walked_path.extend_from_slice(&extension.key);
             if extension.child.len() == B256::len_bytes() + 1 {
@@ -261,8 +261,8 @@ mod tests {
         assert_eq!(
             verify_proof(root, first_key.clone(), None, &proof),
             Err(ProofVerificationError::ValueMismatch {
-                path: first_key.clone(),
-                got: Some(first_value.clone().into()),
+                path: first_key,
+                got: Some(first_value.into()),
                 expected: None,
             })
         );
