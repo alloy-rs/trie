@@ -55,7 +55,7 @@ alloy-rlp = { version = "0.3.9", default-features = false, features = [
 ] }
 
 arrayvec = { version = "0.7", default-features = false }
-derive_more = { version = "1", default-features = false, features = [
+derive_more = { version = "2", default-features = false, features = [
     "add",
     "add_assign",
     "deref",
