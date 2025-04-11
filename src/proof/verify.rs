@@ -106,7 +106,7 @@ fn process_trie_node(
         TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
         TrieNode::Extension(extension) => {
             walked_path.extend_from_slice(&extension.key);
-            if extension.child.as_hash().is_some() {
+            if extension.child.is_hash() {
                 Some(NodeDecodingResult::Node(extension.child))
             } else {
                 process_trie_node(TrieNode::decode(&mut &extension.child[..])?, walked_path, key)?
