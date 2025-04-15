@@ -1,4 +1,4 @@
-use crate::{proof::DecodedProofNodes, Nibbles};
+use crate::{proof::{DecodedProofNodes, ProofVerificationError}, Nibbles};
 use alloy_primitives::Bytes;
 
 use alloc::vec::Vec;
@@ -38,7 +38,7 @@ impl DecodedProofRetainer {
     /// Retain the proof if the key matches any of the targets.
     ///
     /// Returns an error if the proof could not be decoded from the given proof bytes.
-    pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8]) -> Result<(), alloy_rlp::Error> {
+    pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8]) -> Result<(), ProofVerificationError> {
         if prefix.is_empty() || self.matches(prefix) {
             self.proof_nodes.insert_encoded(prefix.clone(), Bytes::from(proof.to_vec()))?;
         }

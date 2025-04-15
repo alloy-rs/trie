@@ -2,6 +2,7 @@ use alloy_primitives::{hex, keccak256, B256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use arrayvec::ArrayVec;
 use core::fmt;
+use crate::error::TrieError;
 
 const MAX: usize = 33;
 
@@ -13,7 +14,12 @@ pub struct RlpNode(ArrayVec<u8, MAX>);
 impl alloy_rlp::Decodable for RlpNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let bytes = alloy_rlp::Header::decode_bytes(buf, false)?;
-        Self::from_raw_rlp(bytes)
+        Self::from_raw_rlp(bytes).map_err(|e| match e {
+            TrieError::RlpNodeTooLarge { size, max } => {
+                alloy_rlp::Error::Custom("RLP node too large")
+            }
+            _ => alloy_rlp::Error::Custom("unexpected error decoding RLP node"),
+        })
     }
 }
 
@@ -59,8 +65,11 @@ impl RlpNode {
 
     /// Creates a new RLP-encoded node from the given data.
     #[inline]
-    pub fn from_raw_rlp(data: &[u8]) -> alloy_rlp::Result<Self> {
-        Self::from_raw(data).ok_or(alloy_rlp::Error::Custom("RLP node too large"))
+    pub fn from_raw_rlp(data: &[u8]) -> Result<Self, TrieError> {
+        Self::from_raw(data).ok_or_else(|| TrieError::RlpNodeTooLarge {
+            size: data.len(),
+            max: MAX,
+        })
     }
 
     /// Given an RLP-encoded node, returns it either as `rlp(node)` or `rlp(keccak(rlp(node)))`.

@@ -1,4 +1,4 @@
-use crate::{nodes::TrieNode, proof::ProofNodes, HashMap, Nibbles};
+use crate::{nodes::TrieNode, proof::{ProofNodes, ProofVerificationError}, HashMap, Nibbles};
 use alloy_primitives::Bytes;
 use alloy_rlp::Decodable;
 use core::ops::Deref;
@@ -31,13 +31,13 @@ impl Extend<(Nibbles, TrieNode)> for DecodedProofNodes {
 }
 
 impl TryFrom<ProofNodes> for DecodedProofNodes {
-    type Error = alloy_rlp::Error;
+    type Error = ProofVerificationError;
 
     fn try_from(proof_nodes: ProofNodes) -> Result<Self, Self::Error> {
         let mut decoded_proof_nodes =
             HashMap::with_capacity_and_hasher(proof_nodes.len(), Default::default());
         for (key, node) in proof_nodes.into_inner() {
-            decoded_proof_nodes.insert(key, TrieNode::decode(&mut &node[..])?);
+            decoded_proof_nodes.insert(key, TrieNode::decode(&mut &node[..]).map_err(|e| ProofVerificationError::Rlp(e))?);
         }
         Ok(Self(decoded_proof_nodes))
     }
@@ -69,13 +69,13 @@ impl DecodedProofNodes {
         self.0.insert(key, node)
     }
 
-    /// Insert the RLP encoded trie nodoe at key
+    /// Insert the RLP encoded trie node at key
     pub fn insert_encoded(
         &mut self,
         key: Nibbles,
         node: Bytes,
-    ) -> Result<Option<TrieNode>, alloy_rlp::Error> {
-        Ok(self.0.insert(key, TrieNode::decode(&mut &node[..])?))
+    ) -> Result<Option<TrieNode>, ProofVerificationError> {
+        Ok(self.0.insert(key, TrieNode::decode(&mut &node[..]).map_err(|e| ProofVerificationError::Rlp(e))?))
     }
 
     /// Return the sorted vec of all proof nodes.

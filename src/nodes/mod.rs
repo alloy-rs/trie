@@ -5,6 +5,7 @@ use alloy_rlp::{Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::ops::Range;
 use nybbles::Nibbles;
 use smallvec::SmallVec;
+use crate::error::TrieError;
 
 #[allow(unused_imports)]
 use alloc::vec::Vec;
@@ -70,7 +71,7 @@ impl Decodable for TrieNode {
                 return if val.is_empty() {
                     Ok(Self::EmptyRoot)
                 } else {
-                    Err(alloy_rlp::Error::UnexpectedString)
+                    Err(TrieError::InvalidNodeType.into())
                 }
             }
         };
@@ -83,9 +84,7 @@ impl Decodable for TrieNode {
                 for (idx, item) in items.into_iter().enumerate() {
                     if idx == 16 {
                         if item != [EMPTY_STRING_CODE] {
-                            return Err(alloy_rlp::Error::Custom(
-                                "branch node values are not supported",
-                            ));
+                            return Err(TrieError::BranchNodeValues.into());
                         }
                     } else if item != [EMPTY_STRING_CODE] {
                         branch.stack.push(RlpNode::from_raw_rlp(item)?);
@@ -99,7 +98,7 @@ impl Decodable for TrieNode {
 
                 let encoded_key = Header::decode_bytes(&mut key, false)?;
                 if encoded_key.is_empty() {
-                    return Err(alloy_rlp::Error::Custom("trie node key empty"));
+                    return Err(TrieError::EmptyNodeKey.into());
                 }
 
                 // extract the high order part of the nibble to then pick the odd nibble out
@@ -108,7 +107,7 @@ impl Decodable for TrieNode {
                 let first = match key_flag {
                     ExtensionNode::ODD_FLAG | LeafNode::ODD_FLAG => Some(encoded_key[0] & 0x0f),
                     ExtensionNode::EVEN_FLAG | LeafNode::EVEN_FLAG => None,
-                    _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf")),
+                    _ => return Err(TrieError::InvalidNodeType.into()),
                 };
 
                 let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
@@ -124,7 +123,7 @@ impl Decodable for TrieNode {
                 };
                 Ok(node)
             }
-            _ => Err(alloy_rlp::Error::Custom("invalid number of items in the list")),
+            count => Err(TrieError::InvalidItemCount(count).into()),
         }
     }
 }
@@ -307,7 +306,7 @@ mod tests {
             rlp_node[..],
             hex!("a0bed74980bbe29d9c4439c10e9c451e29b306fe74bcf9795ecf0ebbd92a220513")
         );
-        assert_eq!(rlp, hex!("f90211a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a0171717171717171717171717171717171717171717171717171717171717171780"));
+        assert_eq!(rlp, hex!("f90211a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a01717171717171717171717171717171717171717171717171717171717171717a0171717171717171717171717171717171717171717171717171717171717171780"));
         assert_eq!(TrieNode::decode(&mut &rlp[..]).unwrap(), branch);
     }
 

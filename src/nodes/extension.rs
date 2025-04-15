@@ -2,6 +2,7 @@ use super::{super::Nibbles, encode_path_leaf, unpack_path_to_nibbles, RlpNode};
 use alloy_primitives::{hex, Bytes};
 use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable, Header};
 use core::fmt;
+use crate::error::TrieError;
 
 #[allow(unused_imports)]
 use alloc::vec::Vec;
@@ -61,7 +62,10 @@ impl Decodable for ExtensionNode {
         };
 
         let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
-        let child = RlpNode::from_raw_rlp(bytes)?;
+        let child = RlpNode::from_raw_rlp(&bytes).map_err(|e| match e {
+            TrieError::RlpNodeTooLarge { .. } => alloy_rlp::Error::Custom("RLP node too large"),
+            _ => alloy_rlp::Error::Custom("unexpected error decoding RLP node"),
+        })?;
         Ok(Self { key, child })
     }
 }
