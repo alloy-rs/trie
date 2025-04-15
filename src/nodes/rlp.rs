@@ -15,7 +15,7 @@ impl alloy_rlp::Decodable for RlpNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let bytes = alloy_rlp::Header::decode_bytes(buf, false)?;
         Self::from_raw_rlp(bytes).map_err(|e| match e {
-            TrieError::RlpNodeTooLarge { size, max } => {
+            TrieError::RlpNodeTooLarge { size: _, max: _ } => {
                 alloy_rlp::Error::Custom("RLP node too large")
             }
             _ => alloy_rlp::Error::Custom("unexpected error decoding RLP node"),
