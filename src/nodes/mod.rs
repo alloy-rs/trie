@@ -105,16 +105,20 @@ impl Decodable for TrieNode {
                 // extract the high order part of the nibble to then pick the odd nibble out
                 let key_flag = encoded_key[0] & 0xf0;
                 // Retrieve first byte. If it's [Some], then the nibbles are odd.
-                let first = match key_flag {
-                    ExtensionNode::ODD_FLAG | LeafNode::PUB_ODD_FLAG => Some(encoded_key[0] & 0x0f),
-                    ExtensionNode::EVEN_FLAG | LeafNode::PUB_EVEN_FLAG => None,
-                    _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf. Seismic stuff is messed up?")),
+                let (first, is_private_opt) = match key_flag {
+                    LeafNode::PUB_EVEN_FLAG => (None, Some(false)),
+                    LeafNode::PRIV_EVEN_FLAG => (None, Some(true)),
+                    LeafNode::PUB_ODD_FLAG => (Some(encoded_key[0] & 0x0f), Some(false)),
+                    LeafNode::PRIV_ODD_FLAG => (Some(encoded_key[0] & 0x0f), Some(true)),
+                    ExtensionNode::ODD_FLAG => (Some(encoded_key[0] & 0x0f), None),
+                    ExtensionNode::EVEN_FLAG => (None, None),
+                    _ => return Err(alloy_rlp::Error::Custom("node is not leaf or extension node")),
                 };
 
                 let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
                 let node = if key_flag == LeafNode::PUB_EVEN_FLAG || key_flag == LeafNode::PUB_ODD_FLAG {
                     let value = Bytes::decode(&mut items.remove(0))?.into();
-                    Self::Leaf(LeafNode::new(key, value))
+                    Self::Leaf(LeafNode::new(key, value, is_private_opt.unwrap()))
                 } else {
                     // We don't decode value because it is expected to be RLP encoded.
                     Self::Extension(ExtensionNode::new(
@@ -271,6 +275,7 @@ mod tests {
         let leaf = TrieNode::Leaf(LeafNode::new(
             Nibbles::from_nibbles_unchecked(hex!("0604060f")),
             alloy_rlp::encode(alloy_primitives::U256::ZERO),
+            false,
         ));
         let rlp = leaf.rlp(&mut vec![]);
         assert_eq!(rlp[..], hex!("c68320646f8180"));
@@ -283,6 +288,7 @@ mod tests {
         let leaf = TrieNode::Leaf(LeafNode::new(
             Nibbles::from_nibbles_unchecked(hex!("0604060f")),
             hex!("76657262").to_vec(),
+            false,
         ));
         let rlp = leaf.rlp(&mut vec![]);
         assert_eq!(rlp[..], hex!("c98320646f8476657262"));

@@ -618,8 +618,8 @@ mod tests {
         // Manually create the branch node that should be there after the first 2 leaves are added.
         // Skip the 0th element given in this example they have a common prefix and will
         // collapse to a Branch node.
-        let leaf1 = LeafNode::new(Nibbles::unpack(&raw_input[0].0[1..]), raw_input[0].1.clone());
-        let leaf2 = LeafNode::new(Nibbles::unpack(&raw_input[1].0[1..]), raw_input[1].1.clone());
+        let leaf1 = LeafNode::new(Nibbles::unpack(&raw_input[0].0[1..]), raw_input[0].1.clone(), false);
+        let leaf2 = LeafNode::new(Nibbles::unpack(&raw_input[1].0[1..]), raw_input[1].1.clone(), false);
         let mut branch: [&dyn Encodable; 17] = [b""; 17];
         // We set this to `4` and `7` because that matches the 2nd element of the corresponding
         // leaves. We set this to `7` because the 2nd element of Leaf 1 is `7`.

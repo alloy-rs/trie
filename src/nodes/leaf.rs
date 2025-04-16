@@ -20,7 +20,6 @@ pub struct LeafNode {
     pub key: Nibbles,
     /// The node value.
     pub value: Vec<u8>,
-
     /// Whether the node holds private state
     pub is_private: bool,
 }
@@ -55,10 +54,10 @@ impl Decodable for LeafNode {
             return Err(alloy_rlp::Error::Custom("leaf node key empty"));
         }
 
-        let flags = encoded_key[0] & 0xf0; // flags encoded in the first nibble
+        let key_flag = encoded_key[0] & 0xf0; // flags encoded in the first nibble
         
         // Retrieve first byte. If it's [Some], then the nibbles are odd. TODO fix docs here
-        let (first, is_private) = match flags {
+        let (first, is_private) = match key_flag {
             Self::PUB_EVEN_FLAG => (None, false),
             Self::PRIV_EVEN_FLAG => (None, true),
             Self::PUB_ODD_FLAG => (Some(encoded_key[0] & 0x0f), false),
@@ -87,8 +86,7 @@ impl LeafNode {
     pub const PRIV_ODD_FLAG: u8 = 0x70;
 
     /// Creates a new leaf node with the given key and value.
-    pub const fn new(key: Nibbles, value: Vec<u8> ) -> Self {
-        let is_private = false;
+    pub const fn new(key: Nibbles, value: Vec<u8>, is_private: bool) -> Self {
         Self { key, value, is_private }
     }
 
@@ -179,8 +177,7 @@ mod tests {
     fn priv_leaf_node_encode_decode() {
         // public case
         let nibbles = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
-        let mut leaf_node = LeafNode::new(nibbles.clone(), vec![1, 2, 3]);
-        leaf_node.is_private = false;
+        let mut leaf_node = LeafNode::new(nibbles.clone(), vec![1, 2, 3], false);
         let mut out = vec![];
         LeafNode::encode(&leaf_node, &mut out);
         let decoded = LeafNode::decode(&mut &out[..]).unwrap();
@@ -202,7 +199,7 @@ mod tests {
     fn rlp_leaf_node_roundtrip() {
         let nibble = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
         let val = hex!("76657262");
-        let leaf = LeafNode::new(nibble, val.to_vec());
+        let leaf = LeafNode::new(nibble, val.to_vec(), false);
         let rlp = leaf.as_ref().rlp(&mut vec![]);
         assert_eq!(rlp.as_ref(), hex!("c98320646f8476657262"));
         assert_eq!(LeafNode::decode(&mut &rlp[..]).unwrap(), leaf);

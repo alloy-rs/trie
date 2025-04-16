@@ -560,18 +560,18 @@ mod tests {
         let mut buffer = vec![];
 
         let value = vec![0x64];
-        let child_leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone()));
+        let child_leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone(), false));
 
         let child_branch = TrieNode::Branch(BranchNode::new(
             vec![
                 {
                     buffer.clear();
-                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone()))
+                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xa]), value.clone(), false))
                         .rlp(&mut buffer)
                 },
                 {
                     buffer.clear();
-                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xb]), value))
+                    TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0xb]), value, false))
                         .rlp(&mut buffer)
                 },
             ],
