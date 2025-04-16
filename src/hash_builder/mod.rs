@@ -258,7 +258,8 @@ impl HashBuilder {
             if !build_extensions {
                 match self.value.as_ref() {
                     HashBuilderValueRef::Bytes(leaf_value) => {
-                        let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
+                        let is_private = false; // TODO: fix
+                        let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value, &is_private);
                         self.rlp_buf.clear();
                         let rlp = leaf_node.rlp(&mut self.rlp_buf);
                         trace!(

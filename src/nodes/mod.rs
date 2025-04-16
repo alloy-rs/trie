@@ -323,6 +323,14 @@ mod tests {
     }
 
     #[test]
+    fn encode_leaf_node_uses_private_flag() {
+        let nibbles = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
+        let encoded_pub = encode_path_leaf(&nibbles, true, false);
+        let encoded_priv = encode_path_leaf(&nibbles, true, true);
+        assert_ne!(encoded_pub[..], encoded_priv[..]);
+    }
+
+    #[test]
     #[cfg(feature = "arbitrary")]
     #[cfg_attr(miri, ignore = "no proptest")]
     fn encode_path_first_byte() {
