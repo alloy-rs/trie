@@ -105,7 +105,7 @@ impl Encodable for ExtensionNodeRef<'_> {
     #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
-        encode_path_leaf(self.key, false).as_slice().encode(out);
+        encode_path_leaf(self.key, false, false).as_slice().encode(out);
         // Pointer to the child is already RLP encoded.
         out.put_slice(self.child);
     }

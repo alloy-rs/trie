@@ -20,6 +20,9 @@ pub struct LeafNode {
     pub key: Nibbles,
     /// The node value.
     pub value: Vec<u8>,
+
+    // /// Whether the node holds private state
+    // pub is_private: bool,
 }
 
 impl fmt::Debug for LeafNode {
@@ -27,6 +30,7 @@ impl fmt::Debug for LeafNode {
         f.debug_struct("LeafNode")
             .field("key", &self.key)
             .field("value", &hex::encode(&self.value))
+            // .field("is_priv", &self.is_private)
             .finish()
     }
 }
@@ -57,9 +61,11 @@ impl Decodable for LeafNode {
             Self::EVEN_FLAG => None,
             _ => return Err(alloy_rlp::Error::Custom("node is not leaf")),
         };
+        // let is_private = false; // TODO: recover from first nibble
 
         let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
         let value = Bytes::decode(&mut bytes)?.into();
+        
         Ok(Self { key, value })
     }
 }
@@ -72,13 +78,19 @@ impl LeafNode {
     pub const ODD_FLAG: u8 = 0x30;
 
     /// Creates a new leaf node with the given key and value.
-    pub const fn new(key: Nibbles, value: Vec<u8>) -> Self {
+    pub const fn new(key: Nibbles, value: Vec<u8>,) -> Self {
         Self { key, value }
     }
 
     /// Return leaf node as [LeafNodeRef].
     pub fn as_ref(&self) -> LeafNodeRef<'_> {
         LeafNodeRef { key: &self.key, value: &self.value }
+    }
+
+    /// Whether the node holds private state
+    /// Should recover this based on the key (aka path)
+    pub fn is_private(&self) -> bool {
+        false
     }
 }
 
@@ -104,7 +116,7 @@ impl Encodable for LeafNodeRef<'_> {
     #[inline]
     fn encode(&self, out: &mut dyn BufMut) {
         Header { list: true, payload_length: self.rlp_payload_length() }.encode(out);
-        encode_path_leaf(self.key, true).as_slice().encode(out);
+        encode_path_leaf(self.key, true, self.is_private()).as_slice().encode(out);
         self.value.encode(out);
     }
 
@@ -119,6 +131,13 @@ impl<'a> LeafNodeRef<'a> {
     /// Creates a new leaf node with the given key and value.
     pub const fn new(key: &'a Nibbles, value: &'a [u8]) -> Self {
         Self { key, value }
+    }
+
+    /// Whether the node holds private state
+    /// Should recover this based on the key (aka path)
+    /// Todo: make sure not to duplicate logic with LeafNode
+    pub fn is_private(&self) -> bool {
+        false
     }
 
     /// RLP-encodes the node and returns either `rlp(node)` or `rlp(keccak(rlp(node)))`.
@@ -148,7 +167,7 @@ mod tests {
     #[test]
     fn encode_leaf_node_nibble() {
         let nibbles = Nibbles::from_nibbles_unchecked(hex!("0604060f"));
-        let encoded = encode_path_leaf(&nibbles, true);
+        let encoded = encode_path_leaf(&nibbles, true, false);
         assert_eq!(encoded[..], hex!("20646f"));
     }
 

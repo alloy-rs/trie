@@ -212,22 +212,22 @@ pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles 
 ///
 /// // Extension node with an even path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C, 0x0D]);
-/// assert_eq!(encode_path_leaf(&nibbles, false)[..], [0x00, 0xAB, 0xCD]);
+/// assert_eq!(encode_path_leaf(&nibbles, false, false)[..], [0x00, 0xAB, 0xCD]);
 ///
 /// // Extension node with an odd path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C]);
-/// assert_eq!(encode_path_leaf(&nibbles, false)[..], [0x1A, 0xBC]);
+/// assert_eq!(encode_path_leaf(&nibbles, false, false)[..], [0x1A, 0xBC]);
 ///
 /// // Leaf node with an even path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C, 0x0D]);
-/// assert_eq!(encode_path_leaf(&nibbles, true)[..], [0x20, 0xAB, 0xCD]);
+/// assert_eq!(encode_path_leaf(&nibbles, true, false)[..], [0x20, 0xAB, 0xCD]);
 ///
 /// // Leaf node with an odd path length:
 /// let nibbles = Nibbles::from_nibbles(&[0x0A, 0x0B, 0x0C]);
-/// assert_eq!(encode_path_leaf(&nibbles, true)[..], [0x3A, 0xBC]);
+/// assert_eq!(encode_path_leaf(&nibbles, true, false)[..], [0x3A, 0xBC]);
 /// ```
 #[inline]
-pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> {
+pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool, is_private: bool) -> SmallVec<[u8; 36]> {
     let mut nibbles = nibbles.as_slice();
     let encoded_len = nibbles.len() / 2 + 1;
     let odd_nibbles = nibbles.len() % 2 != 0;
@@ -314,7 +314,7 @@ mod tests {
     #[test]
     fn hashed_encode_path_regression() {
         let nibbles = Nibbles::from_nibbles(hex!("05010406040a040203030f010805020b050c04070003070e0909070f010b0a0805020301070c0a0902040b0f000f0006040a04050f020b090701000a0a040b"));
-        let path = encode_path_leaf(&nibbles, true);
+        let path = encode_path_leaf(&nibbles, true, false);
         let expected = hex!("351464a4233f1852b5c47037e997f1ba852317ca924bf0f064a45f2b9710aa4b");
         assert_eq!(path[..], expected);
     }
