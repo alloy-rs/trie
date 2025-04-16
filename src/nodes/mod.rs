@@ -106,13 +106,13 @@ impl Decodable for TrieNode {
                 let key_flag = encoded_key[0] & 0xf0;
                 // Retrieve first byte. If it's [Some], then the nibbles are odd.
                 let first = match key_flag {
-                    ExtensionNode::ODD_FLAG | LeafNode::ODD_FLAG => Some(encoded_key[0] & 0x0f),
-                    ExtensionNode::EVEN_FLAG | LeafNode::EVEN_FLAG => None,
-                    _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf")),
+                    ExtensionNode::ODD_FLAG | LeafNode::PUB_ODD_FLAG => Some(encoded_key[0] & 0x0f),
+                    ExtensionNode::EVEN_FLAG | LeafNode::PUB_EVEN_FLAG => None,
+                    _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf. Seismic stuff is messed up?")),
                 };
 
                 let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
-                let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
+                let node = if key_flag == LeafNode::PUB_EVEN_FLAG || key_flag == LeafNode::PUB_ODD_FLAG {
                     let value = Bytes::decode(&mut items.remove(0))?.into();
                     Self::Leaf(LeafNode::new(key, value))
                 } else {
@@ -235,11 +235,14 @@ pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool, is_private: bool) -> S
     unsafe {
         nybbles::smallvec_with(encoded_len, |buf| {
             let (first, rest) = buf.split_first_mut().unwrap_unchecked();
-            first.write(match (is_leaf, odd_nibbles) {
-                (true, true) => LeafNode::ODD_FLAG | *nibbles.get_unchecked(0),
-                (true, false) => LeafNode::EVEN_FLAG,
-                (false, true) => ExtensionNode::ODD_FLAG | *nibbles.get_unchecked(0),
-                (false, false) => ExtensionNode::EVEN_FLAG,
+            first.write(match (is_private, is_leaf, odd_nibbles) {
+                (false, true, true) => LeafNode::PUB_ODD_FLAG | *nibbles.get_unchecked(0),
+                (false, true, false) => LeafNode::PUB_EVEN_FLAG,
+                (false, false, true) => ExtensionNode::ODD_FLAG | *nibbles.get_unchecked(0),
+                (false, false, false) => ExtensionNode::EVEN_FLAG,
+                (true, true, true) => LeafNode::PRIV_ODD_FLAG | *nibbles.get_unchecked(0),
+                (true, true, false) => LeafNode::PRIV_EVEN_FLAG,
+                (true, false, _) => panic!("extension node cannot be private"),
             });
             if odd_nibbles {
                 nibbles = nibbles.get_unchecked(1..);

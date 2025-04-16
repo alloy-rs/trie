@@ -57,8 +57,10 @@ impl Decodable for LeafNode {
 
         // Retrieve first byte. If it's [Some], then the nibbles are odd.
         let first = match encoded_key[0] & 0xf0 {
-            Self::ODD_FLAG => Some(encoded_key[0] & 0x0f),
-            Self::EVEN_FLAG => None,
+            Self::PUB_EVEN_FLAG => None,
+            Self::PRIV_EVEN_FLAG => None,
+            Self::PUB_ODD_FLAG => Some(encoded_key[0] & 0x0f),
+            Self::PRIV_ODD_FLAG => Some(encoded_key[0] & 0x0f),
             _ => return Err(alloy_rlp::Error::Custom("node is not leaf")),
         };
         // let is_private = false; // TODO: recover from first nibble
@@ -71,11 +73,17 @@ impl Decodable for LeafNode {
 }
 
 impl LeafNode {
-    /// The flag representing the even number of nibbles in the leaf key.
-    pub const EVEN_FLAG: u8 = 0x20;
+    /// The flag representing the even number of nibbles in the public leaf key.
+    pub const PUB_EVEN_FLAG: u8 = 0x20;
 
-    /// The flag representing the odd number of nibbles in the leaf key.
-    pub const ODD_FLAG: u8 = 0x30;
+    /// The flag representing the odd number of nibbles in the public leaf key.
+    pub const PUB_ODD_FLAG: u8 = 0x30;
+
+    /// The flag representing the even number of nibbles in the private leaf key.
+    pub const PRIV_EVEN_FLAG: u8 = 0x60;
+
+    /// The flag representing the odd number of nibbles in the private leaf key.
+    pub const PRIV_ODD_FLAG: u8 = 0x70;
 
     /// Creates a new leaf node with the given key and value.
     pub const fn new(key: Nibbles, value: Vec<u8>,) -> Self {
