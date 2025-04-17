@@ -639,4 +639,44 @@ mod tests {
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);
     }
+
+
+    #[test]
+    fn test_test_root_raw_data_prv_leaves() {
+        let mut data = [
+            (hex!("646f").to_vec(), hex!("76657262").to_vec()),
+            (hex!("676f6f64").to_vec(), hex!("7075707079").to_vec()),
+            (hex!("676f6b32").to_vec(), hex!("7075707079").to_vec()),
+            (hex!("676f6b34").to_vec(), hex!("7075707079").to_vec()),
+        ];
+        data.sort();
+
+        let mut hb_pub = HashBuilder::default();
+        let mut hb_priv = HashBuilder::default();
+
+        data.iter().for_each(|(key, val)| {
+            hb_pub.add_leaf(Nibbles::unpack(key), val.as_slice(), false);
+            hb_priv.add_leaf(Nibbles::unpack(key), val.as_slice(), true);
+        });
+
+        assert_ne!(hb_pub.root(), hb_priv.root());
+    }
+    
+    #[test]
+    fn test_root_rlp_hashed_prv_leaves() {
+        let mut data = [
+            (B256::with_last_byte(1), U256::from(2)),
+        ];
+        data.sort();
+
+        let mut hb_pub = HashBuilder::default();
+        let mut hb_priv = HashBuilder::default();
+
+        data.iter().for_each(|(key, val)| {
+            hb_pub.add_leaf(Nibbles::unpack(key), &val.to_be_bytes_vec(), false);
+            hb_priv.add_leaf(Nibbles::unpack(key), &val.to_be_bytes_vec(), true);
+        });
+
+        assert_ne!(hb_pub.root(), hb_priv.root());
+    }
 }
