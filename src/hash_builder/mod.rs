@@ -261,7 +261,7 @@ impl HashBuilder {
             if !build_extensions {
                 match self.value.as_ref() {
                     HashBuilderValueRef::Bytes(leaf_value) => {
-                        let is_private = self.is_private.unwrap(); // TODO: test
+                        let is_private = self.is_private.unwrap();
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value, &is_private);
                         self.rlp_buf.clear();
                         let rlp = leaf_node.rlp(&mut self.rlp_buf);
@@ -451,6 +451,7 @@ mod tests {
     use alloy_rlp::Encodable;
 
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.
+    // is_private is hardcoded to false because this helper is only used for testing with public state
     fn assert_hashed_trie_root<'a, I, K>(iter: I)
     where
         I: Iterator<Item = (K, &'a U256)>,
@@ -472,6 +473,7 @@ mod tests {
     }
 
     // No hashing involved
+    // is_private is hardcoded to false because this helper is only used for testing with public state
     fn assert_trie_root<I, K, V>(iter: I)
     where
         I: IntoIterator<Item = (K, V)>,
