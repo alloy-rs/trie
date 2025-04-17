@@ -59,15 +59,16 @@ mod ethereum {
 
     /// Hashes storage keys, sorts them and them calculates the root hash of the storage trie.
     /// See [`storage_root_unsorted`] for more info.
-    pub fn storage_root_unhashed(storage: impl IntoIterator<Item = (B256, U256)>) -> B256 {
-        storage_root_unsorted(storage.into_iter().map(|(slot, value)| (keccak256(slot), value)))
+    pub fn storage_root_unhashed(storage: impl IntoIterator<Item = (B256, U256, bool)>) -> B256 {
+        storage_root_unsorted(storage.into_iter().map(|(slot, value, is_private)| (keccak256(slot), value, is_private)))
     }
 
     /// Sorts and calculates the root hash of account storage trie.
     /// See [`storage_root`] for more info.
-    pub fn storage_root_unsorted(storage: impl IntoIterator<Item = (B256, U256)>) -> B256 {
+    pub fn storage_root_unsorted(storage: impl IntoIterator<Item = (B256, U256, bool)>) -> B256 {
+        // transform the storage keys 
         let mut v = Vec::from_iter(storage);
-        v.sort_unstable_by_key(|(key, _)| *key);
+        v.sort_unstable_by_key(|(key, _, _)| *key);
         storage_root(v)
     }
 
@@ -76,12 +77,13 @@ mod ethereum {
     /// # Panics
     ///
     /// If the items are not in sorted order.
-    pub fn storage_root(storage: impl IntoIterator<Item = (B256, U256)>) -> B256 {
+    pub fn storage_root(storage: impl IntoIterator<Item = (B256, U256, bool)>) -> B256 {
         let mut hb = HashBuilder::default();
-        for (hashed_slot, value) in storage {
+        for (hashed_slot, value, is_private) in storage {
             hb.add_leaf(
                 Nibbles::unpack(hashed_slot),
                 alloy_rlp::encode_fixed_size(&value).as_ref(),
+                is_private,
             );
         }
         hb.root()
@@ -129,10 +131,11 @@ mod ethereum {
     pub fn state_root<A: Into<TrieAccount>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
         let mut hb = HashBuilder::default();
         let mut account_rlp_buf = Vec::new();
+        let is_private = false; // account nodes are always public
         for (hashed_key, account) in state {
             account_rlp_buf.clear();
             account.into().encode(&mut account_rlp_buf);
-            hb.add_leaf(Nibbles::unpack(hashed_key), &account_rlp_buf);
+            hb.add_leaf(Nibbles::unpack(hashed_key), &account_rlp_buf, is_private);
         }
         hb.root()
     }
