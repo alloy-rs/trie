@@ -289,7 +289,7 @@ mod tests {
 
         let retainer = ProofRetainer::from_iter([target.clone(), non_existent_target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
-        hash_builder.add_leaf(target.clone(), &target_value[..]);
+        hash_builder.add_leaf(target.clone(), &target_value[..], false);
         let root = hash_builder.root();
         assert_eq!(root, triehash_trie_root([(target.pack(), target.pack())]));
 
@@ -314,7 +314,7 @@ mod tests {
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::with_last_byte(key);
-            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..], false);
         }
         let root = hash_builder.root();
         assert_eq!(
@@ -343,7 +343,7 @@ mod tests {
         let retainer = ProofRetainer::from_iter([target.clone()]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in &existing_keys {
-            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
+            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..], false);
         }
         let root = hash_builder.root();
         assert_eq!(
@@ -369,9 +369,9 @@ mod tests {
         let retainer = ProofRetainer::from_iter([target.clone()]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in &existing_keys {
-            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
+            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..], false);
         }
-        hash_builder.add_leaf(target.clone(), &value[..]);
+        hash_builder.add_leaf(target.clone(), &value[..], false);
         let root = hash_builder.root();
         assert_eq!(
             root,
@@ -411,7 +411,7 @@ mod tests {
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::with_last_byte(key);
-            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..], false);
         }
         let root = hash_builder.root();
         assert_eq!(
@@ -443,7 +443,7 @@ mod tests {
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::repeat_byte(key);
-            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..], false);
         }
         let root = hash_builder.root();
         assert_eq!(

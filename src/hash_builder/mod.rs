@@ -44,6 +44,7 @@ pub use value::{HashBuilderValue, HashBuilderValueRef};
 pub struct HashBuilder {
     pub key: Nibbles,
     pub value: HashBuilderValue,
+    pub is_private: Option<bool>,
     pub stack: Vec<RlpNode>,
 
     pub state_masks: Vec<TrieMask>,
@@ -114,21 +115,21 @@ impl HashBuilder {
     /// # Panics
     ///
     /// Panics if the new key does not come after the current key.
-    pub fn add_leaf(&mut self, key: Nibbles, value: &[u8]) {
+    pub fn add_leaf(&mut self, key: Nibbles, value: &[u8], is_private: bool) {
         assert!(key > self.key, "add_leaf key {:?} self.key {:?}", key, self.key);
-        self.add_leaf_unchecked(key, value);
+        self.add_leaf_unchecked(key, value, is_private);
     }
 
     /// Adds a new leaf element and its value to the trie hash builder,
     /// without checking the order of the new key. This is only for
     /// performance-critical usage that guarantees keys are inserted
     /// in sorted order.
-    pub fn add_leaf_unchecked(&mut self, key: Nibbles, value: &[u8]) {
+    pub fn add_leaf_unchecked(&mut self, key: Nibbles, value: &[u8], is_private: bool) {
         debug_assert!(key > self.key, "add_leaf_unchecked key {:?} self.key {:?}", key, self.key);
         if !self.key.is_empty() {
             self.update(&key);
         }
-        self.set_key_value(key, HashBuilderValueRef::Bytes(value));
+        self.set_key_value(key, HashBuilderValueRef::Bytes(value), Some(is_private));
     }
 
     /// Adds a new branch element and its hash to the trie hash builder.
@@ -144,7 +145,7 @@ impl HashBuilder {
         } else if key.is_empty() {
             self.stack.push(RlpNode::word_rlp(&value));
         }
-        self.set_key_value(key, HashBuilderValueRef::Hash(&value));
+        self.set_key_value(key, HashBuilderValueRef::Hash(&value), None);
         self.stored_in_database = stored_in_database;
     }
 
@@ -166,10 +167,11 @@ impl HashBuilder {
     }
 
     #[inline]
-    fn set_key_value(&mut self, key: Nibbles, value: HashBuilderValueRef<'_>) {
+    fn set_key_value(&mut self, key: Nibbles, value: HashBuilderValueRef<'_>, is_private: Option<bool>) {
         self.log_key_value("old value");
         self.key = key;
         self.value.set_from_ref(value);
+        self.is_private = is_private;
         self.log_key_value("new value");
     }
 
@@ -177,6 +179,7 @@ impl HashBuilder {
         trace!(target: "trie::hash_builder",
             key = ?self.key,
             value = ?self.value,
+            is_private = self.is_private,
             "{msg}",
         );
     }
@@ -258,7 +261,7 @@ impl HashBuilder {
             if !build_extensions {
                 match self.value.as_ref() {
                     HashBuilderValueRef::Bytes(leaf_value) => {
-                        let is_private = false; // TODO: fix
+                        let is_private = self.is_private.unwrap(); // TODO: test
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value, &is_private);
                         self.rlp_buf.clear();
                         let rlp = leaf_node.rlp(&mut self.rlp_buf);
@@ -462,7 +465,7 @@ mod tests {
 
         hashed.iter().for_each(|(key, val)| {
             let nibbles = Nibbles::unpack(key);
-            hb.add_leaf(nibbles, val);
+            hb.add_leaf(nibbles, val, false);
         });
 
         assert_eq!(hb.root(), triehash_trie_root(&hashed));
@@ -480,7 +483,7 @@ mod tests {
         let data = iter.into_iter().collect::<BTreeMap<_, _>>();
         data.iter().for_each(|(key, val)| {
             let nibbles = Nibbles::unpack(key);
-            hb.add_leaf(nibbles, val.as_ref());
+            hb.add_leaf(nibbles, val.as_ref(), false);
         });
 
         assert_eq!(hb.root(), triehash_trie_root(data));
@@ -554,7 +557,7 @@ mod tests {
         ]);
         data.iter().for_each(|(key, val)| {
             let nibbles = Nibbles::unpack(key);
-            hb.add_leaf(nibbles, val.as_ref());
+            hb.add_leaf(nibbles, val.as_ref(), false);
         });
         let _root = hb.root();
 
@@ -612,7 +615,7 @@ mod tests {
         // We create the hash builder and add the leaves
         let mut hb = HashBuilder::default();
         for (key, val) in &raw_input {
-            hb.add_leaf(Nibbles::unpack(key), val.as_slice());
+            hb.add_leaf(Nibbles::unpack(key), val.as_slice(), false);
         }
 
         // Manually create the branch node that should be there after the first 2 leaves are added.

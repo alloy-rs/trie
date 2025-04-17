@@ -41,7 +41,8 @@ where
         value_buffer.clear();
         encode(&items[index], &mut value_buffer);
 
-        hb.add_leaf(Nibbles::unpack(&index_buffer), &value_buffer);
+        let is_private = false; // TODO: fix
+        hb.add_leaf(Nibbles::unpack(&index_buffer), &value_buffer, is_private);
     }
 
     hb.root()

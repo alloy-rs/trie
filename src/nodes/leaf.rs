@@ -56,7 +56,9 @@ impl Decodable for LeafNode {
 
         let key_flag = encoded_key[0] & 0xf0; // flags encoded in the first nibble
         
-        // Retrieve first byte. If it's [Some], then the nibbles are odd. TODO fix docs here
+        // Retrieve first byte. 
+        // If it's [Some], then the nibbles are odd,
+        // also determines if the leaf is public or private state.
         let (first, is_private) = match key_flag {
             Self::PUB_EVEN_FLAG => (None, false),
             Self::PRIV_EVEN_FLAG => (None, true),
