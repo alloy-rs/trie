@@ -1,6 +1,6 @@
 [package]
 name = "alloy-trie"
-version = "0.7.9"
+version = "0.8.1"
 authors = [
     "rkrasiuk <rokrassyuk@gmail.com>",
     "gakonst <me@gakonst.com>",
@@ -35,9 +35,17 @@ all = { level = "warn", priority = -1 }
 missing-const-for-fn = "allow" # TODO: https://github.com/rust-lang/rust-clippy/issues/14020
 use-self = "warn"
 redundant-clone = "warn"
+result_large_err = "allow"
+
+# Use the `--profile profiling` flag to show symbols in release mode.
+# e.g. `cargo build --profile profiling`
+[profile.profiling]
+inherits = "release"
+debug = "full"
+strip = "none"
 
 [dependencies]
-alloy-primitives = { version = "0.8.14", default-features = false, features = [
+alloy-primitives = { version = "1.0", default-features = false, features = [
     "rlp",
     "map",
 ] }
@@ -47,7 +55,7 @@ alloy-rlp = { version = "0.3.9", default-features = false, features = [
 ] }
 
 arrayvec = { version = "0.7", default-features = false }
-derive_more = { version = "1", default-features = false, features = [
+derive_more = { version = "2", default-features = false, features = [
     "add",
     "add_assign",
     "deref",
@@ -76,7 +84,7 @@ proptest-derive = { version = "0.5", optional = true }
 hash-db = "0.15"
 plain_hasher = "0.2"
 triehash = "0.8.4"
-criterion = "0.5"
+criterion = { version = "2.10", package = "codspeed-criterion-compat" }
 
 [features]
 default = ["std", "alloy-primitives/default"]

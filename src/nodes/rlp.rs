@@ -84,6 +84,12 @@ impl RlpNode {
         Self(ArrayVec::from(arr))
     }
 
+    /// Returns true if this is an RLP-encoded hash.
+    #[inline]
+    pub fn is_hash(&self) -> bool {
+        self.len() == B256::len_bytes() + 1
+    }
+
     /// Returns the RLP-encoded node as a slice.
     #[inline]
     pub fn as_slice(&self) -> &[u8] {
@@ -93,7 +99,7 @@ impl RlpNode {
     /// Returns hash if this is an RLP-encoded hash
     #[inline]
     pub fn as_hash(&self) -> Option<B256> {
-        if self.len() == B256::len_bytes() + 1 {
+        if self.is_hash() {
             Some(B256::from_slice(&self.0[1..]))
         } else {
             None

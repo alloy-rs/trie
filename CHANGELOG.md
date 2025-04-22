@@ -5,11 +5,52 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.1](https://github.com/alloy-rs/trie/releases/tag/v0.8.1) - 2025-04-14
+
+### Bug Fixes
+
+- [verify] Inlined trie leaves ([#97](https://github.com/alloy-rs/trie/issues/97))
+
+### Dependencies
+
+- Bump derive more ([#98](https://github.com/alloy-rs/trie/issues/98))
+
+### Miscellaneous Tasks
+
+- [benches] Use criterion codspeed compat ([#96](https://github.com/alloy-rs/trie/issues/96))
+
+## [0.8.0](https://github.com/alloy-rs/trie/releases/tag/v0.8.0) - 2025-04-09
+
+### Features
+
+- Add DecodedProofRetainer ([#84](https://github.com/alloy-rs/trie/issues/84))
+
+### Miscellaneous Tasks
+
+- Release 0.8.0
+- Add codspeed and profiling profile ([#94](https://github.com/alloy-rs/trie/issues/94))
+- Primitives 1.0 ([#92](https://github.com/alloy-rs/trie/issues/92))
+- Make clippy happy ([#95](https://github.com/alloy-rs/trie/issues/95))
+- Simplify word_rlp ([#87](https://github.com/alloy-rs/trie/issues/87))
+- Rename groups to state_masks in hash builder ([#86](https://github.com/alloy-rs/trie/issues/86))
+
+### Other
+
+- Expose Serde support for `ProofNodes` and `DecodedProofNodes` ([#85](https://github.com/alloy-rs/trie/issues/85))
+
+### Performance
+
+- Arc `BranchNodeCompact::hashes` ([#88](https://github.com/alloy-rs/trie/issues/88))
+
 ## [0.7.9](https://github.com/alloy-rs/trie/releases/tag/v0.7.9) - 2025-02-07
 
 ### Features
 
 - Add DecodedProofNodes struct ([#81](https://github.com/alloy-rs/trie/issues/81))
+
+### Miscellaneous Tasks
+
+- Release 0.7.9 ([#83](https://github.com/alloy-rs/trie/issues/83))
 
 ## [0.7.8](https://github.com/alloy-rs/trie/releases/tag/v0.7.8) - 2024-12-31
 
@@ -19,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.7.8
 - Add tests for `TrieAccount` ([#73](https://github.com/alloy-rs/trie/issues/73))
 
 ## [0.7.7](https://github.com/alloy-rs/trie/releases/tag/v0.7.7) - 2024-12-22

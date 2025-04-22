@@ -1,7 +1,5 @@
 //! Proof verification logic.
 
-use core::ops::Deref;
-
 use crate::{
     nodes::{BranchNode, RlpNode, TrieNode, CHILD_INDEX_RANGE},
     proof::ProofVerificationError,
@@ -10,6 +8,7 @@ use crate::{
 use alloc::vec::Vec;
 use alloy_primitives::{Bytes, B256};
 use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
+use core::ops::Deref;
 use nybbles::Nibbles;
 
 /// Verify the proof for given key value pair against the provided state root.
@@ -56,18 +55,8 @@ where
         }
 
         // Decode the next node from the proof.
-        last_decoded_node = match TrieNode::decode(&mut &node[..])? {
-            TrieNode::Branch(branch) => process_branch(branch, &mut walked_path, &key)?,
-            TrieNode::Extension(extension) => {
-                walked_path.extend_from_slice(&extension.key);
-                Some(NodeDecodingResult::Node(extension.child))
-            }
-            TrieNode::Leaf(leaf) => {
-                walked_path.extend_from_slice(&leaf.key);
-                Some(NodeDecodingResult::Value(leaf.value))
-            }
-            TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
-        };
+        last_decoded_node =
+            process_trie_node(TrieNode::decode(&mut &node[..])?, &mut walked_path, &key)?;
     }
 
     // Last decoded node should have the key that we are looking for.
@@ -105,6 +94,31 @@ impl Deref for NodeDecodingResult {
             Self::Value(value) => value,
         }
     }
+}
+
+#[inline]
+fn process_trie_node(
+    node: TrieNode,
+    walked_path: &mut Nibbles,
+    key: &Nibbles,
+) -> Result<Option<NodeDecodingResult>, ProofVerificationError> {
+    let node = match node {
+        TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
+        TrieNode::Extension(extension) => {
+            walked_path.extend_from_slice(&extension.key);
+            if extension.child.is_hash() {
+                Some(NodeDecodingResult::Node(extension.child))
+            } else {
+                process_trie_node(TrieNode::decode(&mut &extension.child[..])?, walked_path, key)?
+            }
+        }
+        TrieNode::Leaf(leaf) => {
+            walked_path.extend_from_slice(&leaf.key);
+            Some(NodeDecodingResult::Value(leaf.value))
+        }
+        TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
+    };
+    Ok(node)
 }
 
 #[inline]
@@ -216,6 +230,53 @@ mod tests {
                 path: Nibbles::default(),
                 got: Some(Bytes::from(dummy_proof)),
                 expected: Some(Bytes::from(RlpNode::word_rlp(&EMPTY_ROOT_HASH)[..].to_vec()))
+            })
+        );
+    }
+
+    #[test]
+    fn inlined_trie_leaves() {
+        // root: ext(a7)
+        // a7: branch(children: 1, 7, f)
+        // a77: ext(d3)
+        // a77d3: branch(children: 3 (key: 70, value: 0x31), 9 (key: 70, value: 0x312e32))
+        let root =
+            B256::from_str("8523a13fdb0aa86480a61e34443a951e85e618b5c9b23b9e74cf2754941ce061")
+                .unwrap();
+        let proof = [
+            Bytes::from_str("e48200a7a080389e2b58154f1b8756223ec9ac277b6a166417b4279f016cb86582afb5ae6c").unwrap(),
+            Bytes::from_str("f84080c7833135508234358080808080a0d03438e4f6601da47dab30f52e4325509012ebc1a1c8901fd10d37e05db48bf180808080808080c88339365083312e3180").unwrap(),
+            Bytes::from_str("e08200d3dc808080c4822070318080808080c782207083312e3280808080808080").unwrap()
+        ];
+
+        let first_key = Nibbles::unpack(hex!("a77d3370"));
+        let first_value = vec![0x31];
+        let second_key = Nibbles::unpack(hex!("a77d3970"));
+        let second_value = hex!("0x312e32").to_vec();
+
+        assert_eq!(
+            verify_proof(root, first_key.clone(), Some(first_value.clone()), &proof),
+            Ok(())
+        );
+        assert_eq!(
+            verify_proof(root, first_key.clone(), None, &proof),
+            Err(ProofVerificationError::ValueMismatch {
+                path: first_key,
+                got: Some(first_value.into()),
+                expected: None,
+            })
+        );
+
+        assert_eq!(
+            verify_proof(root, second_key.clone(), Some(second_value.clone()), &proof),
+            Ok(())
+        );
+        assert_eq!(
+            verify_proof(root, second_key.clone(), None, &proof),
+            Err(ProofVerificationError::ValueMismatch {
+                path: second_key,
+                got: Some(second_value.into()),
+                expected: None,
             })
         );
     }
