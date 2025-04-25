@@ -54,6 +54,7 @@ pub struct HashBuilder {
 
     pub updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
     pub proof_retainer: Option<ProofRetainer>,
+    pub all_branch_nodes_in_database: bool,
 
     pub rlp_buf: Vec<u8>,
 }
@@ -70,6 +71,12 @@ impl HashBuilder {
     /// Enable specified proof retainer.
     pub fn with_proof_retainer(mut self, retainer: ProofRetainer) -> Self {
         self.proof_retainer = Some(retainer);
+        self
+    }
+
+    /// Store all branch nodes in the database.
+    pub fn with_all_branch_nodes_in_database(mut self, all_branch_nodes_in_database: bool) -> Self {
+        self.all_branch_nodes_in_database = all_branch_nodes_in_database;
         self
     }
 
@@ -225,30 +232,31 @@ impl HashBuilder {
                 "prefix lengths after comparing keys"
             );
 
-            // Resize masks if needed
             if self.state_masks.len() <= len {
                 let new_len = len + 1;
                 trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
                 self.state_masks.resize(new_len, TrieMask::default());
             }
-            if self.stored_in_database && self.tree_masks.len() <= len {
-                let new_len = len + 1;
-                trace!(target: "trie::hash_builder", new_len, old_len = self.tree_masks.len(), "scaling tree masks to fit");
-                self.tree_masks.resize(new_len, TrieMask::default());
-            }
-            if self.hash_masks.len() <= len {
-                let new_len = len + 1;
-                trace!(target: "trie::hash_builder", new_len, old_len = self.hash_masks.len(), "scaling hash masks to fit");
-                self.hash_masks.resize(new_len, TrieMask::default());
-            }
-
-            // Adjust the masks for branch calculation
             let extra_digit = current[len];
             self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
-            if self.stored_in_database {
-                self.tree_masks[len] |= TrieMask::from_nibble(extra_digit);
+
+            if self.all_branch_nodes_in_database {
+                if self.stored_in_database && self.tree_masks.len() <= len {
+                    let new_len = len + 1;
+                    trace!(target: "trie::hash_builder", new_len, old_len = self.tree_masks.len(), "scaling tree masks to fit");
+                    self.tree_masks.resize(new_len, TrieMask::default());
+                }
+                if self.hash_masks.len() <= len {
+                    let new_len = len + 1;
+                    trace!(target: "trie::hash_builder", new_len, old_len = self.hash_masks.len(), "scaling hash masks to fit");
+                    self.hash_masks.resize(new_len, TrieMask::default());
+                }
+
+                if self.stored_in_database {
+                    self.tree_masks[len] |= TrieMask::from_nibble(extra_digit);
+                }
+                self.hash_masks[len] |= TrieMask::from_nibble(extra_digit);
             }
-            self.hash_masks[len] |= TrieMask::from_nibble(extra_digit);
 
             trace!(
                 target: "trie::hash_builder",
@@ -294,6 +302,15 @@ impl HashBuilder {
                     HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
                         self.stack.push(hash.clone());
+
+                        if !self.all_branch_nodes_in_database {
+                            if self.stored_in_database {
+                                self.tree_masks[current.len() - 1] |=
+                                    TrieMask::from_nibble(current.last().unwrap());
+                            }
+                            self.hash_masks[current.len() - 1] |=
+                                TrieMask::from_nibble(current.last().unwrap());
+                        }
 
                         build_extensions = true;
                     }
@@ -407,17 +424,25 @@ impl HashBuilder {
             self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
-        if self.updated_branch_nodes.is_some() {
-            let common_prefix = current.slice(..len);
-            let node = BranchNodeCompact::new(
-                self.state_masks[len],
-                self.tree_masks[len],
-                self.hash_masks[len],
-                children,
-                (len == 0).then(|| self.current_root()),
-            );
-            trace!(target: "trie::hash_builder", ?node, "intermediate node");
-            self.updated_branch_nodes.as_mut().unwrap().insert(common_prefix, node);
+        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
+        if store_in_db_trie || self.all_branch_nodes_in_database {
+            if len > 0 {
+                let parent_index = len - 1;
+                self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
+            }
+
+            if self.updated_branch_nodes.is_some() {
+                let common_prefix = current.slice(..len);
+                let node = BranchNodeCompact::new(
+                    self.state_masks[len],
+                    self.tree_masks[len],
+                    self.hash_masks[len],
+                    children,
+                    (len == 0).then(|| self.current_root()),
+                );
+                trace!(target: "trie::hash_builder", ?node, "intermediate node");
+                self.updated_branch_nodes.as_mut().unwrap().insert(common_prefix, node);
+            }
         }
     }
 
