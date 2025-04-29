@@ -422,7 +422,6 @@ impl HashBuilder {
         if len > 0 {
             let parent_index = len - 1;
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
-            self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
         let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
