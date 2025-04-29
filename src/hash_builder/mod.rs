@@ -136,6 +136,7 @@ impl HashBuilder {
             self.update(&key);
         }
         self.set_key_value(key, HashBuilderValueRef::Bytes(value));
+        self.stored_in_database = false;
     }
 
     /// Adds a new branch element and its hash to the trie hash builder.
@@ -262,9 +263,9 @@ impl HashBuilder {
                 target: "trie::hash_builder",
                 len,
                 extra_digit,
-                state_mask = ?self.state_masks[len],
-                tree_mask = ?self.stored_in_database.then(|| self.tree_masks[len]),
-                hash_mask = ?self.hash_masks[len],
+                state_mask = ?self.state_masks.get(len),
+                tree_mask = ?self.stored_in_database.then(|| self.tree_masks.get(len)),
+                hash_mask = ?self.hash_masks.get(len),
                 "adjusted branch node masks"
             );
 
