@@ -140,7 +140,7 @@ impl HashBuilder {
     }
 
     /// Adds a new branch element and its hash to the trie hash builder.
-    pub fn add_branch(&mut self, key: Nibbles, value: RlpNode, stored_in_database: bool) {
+    pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
         assert!(
             key > self.key || (self.key.is_empty() && key.is_empty()),
             "add_branch key {:?} self.key {:?}",
@@ -150,9 +150,9 @@ impl HashBuilder {
         if !self.key.is_empty() {
             self.update(&key);
         } else if key.is_empty() {
-            self.stack.push(value.clone());
+            self.stack.push(RlpNode::word_rlp(&value));
         }
-        self.set_key_value(key, HashBuilderValueRef::Hash(value));
+        self.set_key_value(key, HashBuilderValueRef::Hash(&value));
         self.stored_in_database = stored_in_database;
     }
 
@@ -302,7 +302,7 @@ impl HashBuilder {
                     }
                     HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
-                        self.stack.push(hash.clone());
+                        self.stack.push(RlpNode::word_rlp(hash));
 
                         if !self.all_branch_nodes_in_database {
                             if self.stored_in_database {
@@ -377,7 +377,7 @@ impl HashBuilder {
     ///
     /// Returns the hashes of the children of the branch node, only if `updated_branch_nodes` is
     /// enabled.
-    fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<RlpNode> {
+    fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
         let state_mask = self.state_masks[len];
         let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(&self.stack, state_mask);
@@ -418,7 +418,7 @@ impl HashBuilder {
     /// to update the masks for the next level and store the branch node and the
     /// masks in the database. We will use that when consuming the intermediate nodes
     /// from the database to efficiently build the trie.
-    fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<RlpNode>) {
+    fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
         if len > 0 {
             let parent_index = len - 1;
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
@@ -637,7 +637,7 @@ mod tests {
     fn test_root_known_hash() {
         let root_hash = b256!("45596e474b536a6b4d64764e4f75514d544577646c414e684271706871446456");
         let mut hb = HashBuilder::default();
-        hb.add_branch(Nibbles::default(), RlpNode::word_rlp(&root_hash), false);
+        hb.add_branch(Nibbles::default(), root_hash, false);
         assert_eq!(hb.root(), root_hash);
     }
 
@@ -671,11 +671,7 @@ mod tests {
 
         let mut hb2 = HashBuilder::default();
         // Insert the branch with the `0x6` shared prefix.
-        hb2.add_branch(
-            Nibbles::from_nibbles_unchecked([0x6]),
-            RlpNode::word_rlp(&branch_node_hash),
-            false,
-        );
+        hb2.add_branch(Nibbles::from_nibbles_unchecked([0x6]), branch_node_hash, false);
 
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);

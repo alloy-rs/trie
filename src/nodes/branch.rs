@@ -169,11 +169,11 @@ impl<'a> BranchNodeRef<'a> {
     /// Given the hash mask of children, return an iterator over stack items
     /// that match the mask.
     #[inline]
-    pub fn child_hashes(&self, hash_mask: TrieMask) -> impl Iterator<Item = RlpNode> + '_ {
+    pub fn child_hashes(&self, hash_mask: TrieMask) -> impl Iterator<Item = B256> + '_ {
         self.children()
             .filter_map(|(i, c)| c.map(|c| (i, c)))
             .filter(move |(index, _)| hash_mask.is_bit_set(*index))
-            .map(|(_, child)| child.clone())
+            .map(|(_, child)| B256::from_slice(&child[1..]))
     }
 
     /// RLP-encodes the node and returns either `rlp(node)` or `rlp(keccak(rlp(node)))`.
@@ -279,7 +279,7 @@ pub struct BranchNodeCompact {
     pub hash_mask: TrieMask,
     /// Collection of hashes associated with the children of the branch node.
     /// Each child hash is calculated by hashing two consecutive sub-branch roots.
-    pub hashes: Arc<Vec<RlpNode>>,
+    pub hashes: Arc<Vec<B256>>,
     /// An optional root hash of the subtree rooted at this branch node.
     pub root_hash: Option<B256>,
 }
@@ -290,7 +290,7 @@ impl BranchNodeCompact {
         state_mask: impl Into<TrieMask>,
         tree_mask: impl Into<TrieMask>,
         hash_mask: impl Into<TrieMask>,
-        hashes: Vec<RlpNode>,
+        hashes: Vec<B256>,
         root_hash: Option<B256>,
     ) -> Self {
         let (state_mask, tree_mask, hash_mask) =
@@ -308,10 +308,10 @@ impl BranchNodeCompact {
     }
 
     /// Returns the hash associated with the given nibble.
-    pub fn hash_for_nibble(&self, nibble: u8) -> RlpNode {
+    pub fn hash_for_nibble(&self, nibble: u8) -> B256 {
         let mask = *TrieMask::from_nibble(nibble) - 1;
         let index = (*self.hash_mask & mask).count_ones();
-        self.hashes[index as usize].clone()
+        self.hashes[index as usize]
     }
 }
 
