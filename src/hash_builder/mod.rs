@@ -456,9 +456,7 @@ impl HashBuilder {
         if len_from > 0 {
             let flag = TrieMask::from_nibble(current[len_from - 1]);
 
-            if !self.hash_masks[current.len() - 1].is_empty() {
-                self.hash_masks[len_from - 1] |= flag;
-            }
+            self.hash_masks[len_from - 1] &= !flag;
 
             if !self.tree_masks[current.len() - 1].is_empty() {
                 self.tree_masks[len_from - 1] |= flag;
