@@ -456,6 +456,8 @@ impl HashBuilder {
         if len_from > 0 {
             let flag = TrieMask::from_nibble(current[len_from - 1]);
 
+            // TODO: This resets the hash mask for the extension node. Doing just the same as we do
+            // below for the tree masks doesn't work.
             self.hash_masks[len_from - 1] &= !flag;
 
             if !self.tree_masks[current.len() - 1].is_empty() {
