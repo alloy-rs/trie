@@ -51,6 +51,7 @@ pub struct HashBuilder {
     pub hash_masks: Vec<TrieMask>,
 
     pub stored_in_database: bool,
+    pub is_leaf_node_hash: bool,
 
     pub updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
     pub proof_retainer: Option<ProofRetainer>,
@@ -139,6 +140,16 @@ impl HashBuilder {
         self.stored_in_database = false;
     }
 
+    pub fn add_leaf_hash(&mut self, key: Nibbles, value: B256) {
+        assert!(key > self.key, "add_leaf_hash key {:?} self.key {:?}", key, self.key);
+        if !self.key.is_empty() {
+            self.update(&key);
+        }
+        self.set_key_value(key, HashBuilderValueRef::Hash(&value));
+        self.stored_in_database = false;
+        self.is_leaf_node_hash = true;
+    }
+
     /// Adds a new branch element and its hash to the trie hash builder.
     pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
         assert!(
@@ -154,6 +165,7 @@ impl HashBuilder {
         }
         self.set_key_value(key, HashBuilderValueRef::Hash(&value));
         self.stored_in_database = stored_in_database;
+        self.is_leaf_node_hash = false;
     }
 
     /// Returns the current root hash of the trie builder.
@@ -301,19 +313,24 @@ impl HashBuilder {
                         self.retain_proof_from_buf(&current.slice(..len_from));
                     }
                     HashBuilderValueRef::Hash(hash) => {
-                        trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
-                        self.stack.push(RlpNode::word_rlp(hash));
+                        if self.is_leaf_node_hash {
+                            trace!(target: "trie::hash_builder", ?hash, "pushing leaf node hash");
+                            self.stack.push(RlpNode::word_rlp(hash));
+                        } else {
+                            trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
+                            self.stack.push(RlpNode::word_rlp(hash));
 
-                        if !self.all_branch_nodes_in_database {
-                            if self.stored_in_database {
-                                self.tree_masks[current.len() - 1] |=
+                            if !self.all_branch_nodes_in_database {
+                                if self.stored_in_database {
+                                    self.tree_masks[current.len() - 1] |=
+                                        TrieMask::from_nibble(current.last().unwrap());
+                                }
+                                self.hash_masks[current.len() - 1] |=
                                     TrieMask::from_nibble(current.last().unwrap());
                             }
-                            self.hash_masks[current.len() - 1] |=
-                                TrieMask::from_nibble(current.last().unwrap());
-                        }
 
-                        build_extensions = true;
+                            build_extensions = true;
+                        }
                     }
                 }
             }
