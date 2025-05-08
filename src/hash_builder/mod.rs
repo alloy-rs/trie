@@ -227,7 +227,15 @@ impl HashBuilder {
 
         let mut i = 0usize;
         loop {
-            let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
+            let _span = tracing::trace_span!(
+                target: "trie::hash_builder",
+                "loop",
+                i,
+                ?current,
+                build_extensions,
+                all_branch_nodes_in_database = self.all_branch_nodes_in_database,
+            )
+            .entered();
 
             let preceding_exists = !self.state_masks.is_empty();
             let preceding_len = self.state_masks.len().saturating_sub(1);
