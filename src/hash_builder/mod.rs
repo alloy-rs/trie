@@ -261,14 +261,17 @@ impl HashBuilder {
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
                         self.rlp_buf.clear();
                         let rlp = leaf_node.rlp(&mut self.rlp_buf);
+
+                        let path = current.slice(..len_from);
                         trace!(
                             target: "trie::hash_builder",
+                            ?path,
                             ?leaf_node,
                             ?rlp,
                             "pushing leaf node",
                         );
                         self.stack.push(rlp);
-                        self.retain_proof_from_buf(&current.slice(..len_from));
+                        self.retain_proof_from_buf(&path);
                     }
                     HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
@@ -293,14 +296,17 @@ impl HashBuilder {
 
                 self.rlp_buf.clear();
                 let rlp = extension_node.rlp(&mut self.rlp_buf);
+
+                let path = current.slice(..len_from);
                 trace!(
                     target: "trie::hash_builder",
+                    ?path,
                     ?extension_node,
                     ?rlp,
                     "pushing extension node",
                 );
                 self.stack.push(rlp);
-                self.retain_proof_from_buf(&current.slice(..len_from));
+                self.retain_proof_from_buf(&path);
                 self.resize_masks(len_from);
             }
 
@@ -358,7 +364,15 @@ impl HashBuilder {
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);
-        self.retain_proof_from_buf(&current.slice(..len));
+        let path = current.slice(..len);
+        trace!(
+            target: "trie::hash_builder",
+            ?path,
+            ?branch_node,
+            ?rlp,
+            "pushing branch node",
+        );
+        self.retain_proof_from_buf(&path);
 
         // Clears the stack from the branch node elements
         let first_child_idx = self.stack.len() - state_mask.count_ones() as usize;
@@ -370,7 +384,6 @@ impl HashBuilder {
         );
         self.stack.resize_with(first_child_idx, Default::default);
 
-        trace!(target: "trie::hash_builder", ?rlp, "pushing branch node with {state_mask:?} mask from stack");
         self.stack.push(rlp);
         children
     }
@@ -401,7 +414,6 @@ impl HashBuilder {
                     children,
                     (len == 0).then(|| self.current_root()),
                 );
-                trace!(target: "trie::hash_builder", ?node, "intermediate node");
                 self.updated_branch_nodes.as_mut().unwrap().insert(common_prefix, node);
             }
         }
