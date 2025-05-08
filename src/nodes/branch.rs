@@ -2,7 +2,7 @@ use super::{super::TrieMask, RlpNode, CHILD_INDEX_RANGE};
 use alloy_primitives::{hex, B256};
 use alloy_rlp::{length_of_length, Buf, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
 use core::{fmt, ops::Range, slice::Iter};
-
+use crate::error::TrieError;
 use alloc::sync::Arc;
 #[allow(unused_imports)]
 use alloc::vec::Vec;
@@ -63,7 +63,10 @@ impl Decodable for BranchNode {
             // Decode without advancing
             let Header { payload_length, .. } = Header::decode(&mut &bytes[..])?;
             let len = payload_length + length_of_length(payload_length);
-            stack.push(RlpNode::from_raw_rlp(&bytes[..len])?);
+            stack.push(RlpNode::from_raw_rlp(&bytes[..len]).map_err(|e| match e {
+                TrieError::RlpNodeTooLarge { .. } => alloy_rlp::Error::Custom("RLP node too large"),
+                _ => alloy_rlp::Error::Custom("unexpected error decoding RLP node"),
+            })?);
             bytes.advance(len);
             state_mask.set_bit(index);
         }
