@@ -125,10 +125,10 @@ pub enum HashBuilderValueRef<'a> {
     Hash(&'a B256),
 }
 
-impl<'a> HashBuilderValueRef<'a> {
+impl HashBuilderValueRef<'_> {
     /// Returns the value as a slice.
-    pub const fn as_slice(&self) -> &'a [u8] {
-        match *self {
+    pub const fn as_slice(&self) -> &[u8] {
+        match self {
             HashBuilderValueRef::Bytes(bytes) => bytes,
             HashBuilderValueRef::Hash(hash) => hash.as_slice(),
         }

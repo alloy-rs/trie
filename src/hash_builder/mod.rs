@@ -51,9 +51,11 @@ pub struct HashBuilder {
     pub hash_masks: Vec<TrieMask>,
 
     pub stored_in_database: bool,
+    pub is_leaf_node_hash: bool,
 
     pub updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
     pub proof_retainer: Option<ProofRetainer>,
+    pub all_branch_nodes_in_database: bool,
 
     pub rlp_buf: Vec<u8>,
 }
@@ -70,6 +72,16 @@ impl HashBuilder {
     /// Enable specified proof retainer.
     pub fn with_proof_retainer(mut self, retainer: ProofRetainer) -> Self {
         self.proof_retainer = Some(retainer);
+        self
+    }
+
+    /// Store all branch nodes along with all children node hashes in the database.
+    ///
+    /// When enabled, every branch node, no matter how small it is, will be stored in the database.
+    /// Additionally, if a branch node has leaf nodes as children, their hashes will be stored in
+    /// the branch node as well.
+    pub fn with_all_branch_nodes_in_database(mut self, all_branch_nodes_in_database: bool) -> Self {
+        self.all_branch_nodes_in_database = all_branch_nodes_in_database;
         self
     }
 
@@ -129,9 +141,29 @@ impl HashBuilder {
             self.update(&key);
         }
         self.set_key_value(key, HashBuilderValueRef::Bytes(value));
+        self.stored_in_database = false;
+    }
+
+    /// Adds a new leaf element and its hash to the trie hash builder.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new key does not come after the current key.
+    pub fn add_leaf_hash(&mut self, key: Nibbles, value: B256) {
+        assert!(key > self.key, "add_leaf_hash key {:?} self.key {:?}", key, self.key);
+        if !self.key.is_empty() {
+            self.update(&key);
+        }
+        self.set_key_value(key, HashBuilderValueRef::Hash(&value));
+        self.stored_in_database = false;
+        self.is_leaf_node_hash = true;
     }
 
     /// Adds a new branch element and its hash to the trie hash builder.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the new key does not come after the current key.
     pub fn add_branch(&mut self, key: Nibbles, value: B256, stored_in_database: bool) {
         assert!(
             key > self.key || (self.key.is_empty() && key.is_empty()),
@@ -146,6 +178,7 @@ impl HashBuilder {
         }
         self.set_key_value(key, HashBuilderValueRef::Hash(&value));
         self.stored_in_database = stored_in_database;
+        self.is_leaf_node_hash = false;
     }
 
     /// Returns the current root hash of the trie builder.
@@ -207,7 +240,15 @@ impl HashBuilder {
 
         let mut i = 0usize;
         loop {
-            let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
+            let _span = tracing::trace_span!(
+                target: "trie::hash_builder",
+                "loop",
+                i,
+                ?current,
+                build_extensions,
+                all_branch_nodes_in_database = self.all_branch_nodes_in_database,
+            )
+            .entered();
 
             let preceding_exists = !self.state_masks.is_empty();
             let preceding_len = self.state_masks.len().saturating_sub(1);
@@ -225,18 +266,35 @@ impl HashBuilder {
                 "prefix lengths after comparing keys"
             );
 
-            // Adjust the state masks for branch calculation
             let extra_digit = current[len];
+
+            // Set the state mask for the new node.
             if self.state_masks.len() <= len {
                 let new_len = len + 1;
                 trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
                 self.state_masks.resize(new_len, TrieMask::default());
             }
             self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
+
+            // If we are storing all branch nodes and all children hashes, we need to set the hash
+            // mask for any new node, no matter if it's a branch node or a leaf node.
+            if self.all_branch_nodes_in_database {
+                if self.hash_masks.len() <= len {
+                    let new_len = len + 1;
+                    trace!(target: "trie::hash_builder", new_len, old_len = self.hash_masks.len(), "scaling hash masks to fit");
+                    self.hash_masks.resize(new_len, TrieMask::default());
+                }
+                self.hash_masks[len] |= TrieMask::from_nibble(extra_digit);
+            }
+
             trace!(
                 target: "trie::hash_builder",
-                ?extra_digit,
-                state_masks = ?self.state_masks,
+                len,
+                extra_digit,
+                state_mask = ?self.state_masks.get(len),
+                tree_mask = ?self.stored_in_database.then(|| self.tree_masks.get(len)),
+                hash_mask = ?self.hash_masks.get(len),
+                "branch node masks"
             );
 
             // Adjust the tree masks for exporting to the DB
@@ -274,17 +332,22 @@ impl HashBuilder {
                         self.retain_proof_from_buf(&path);
                     }
                     HashBuilderValueRef::Hash(hash) => {
-                        trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
-                        self.stack.push(RlpNode::word_rlp(hash));
+                        if self.is_leaf_node_hash {
+                            trace!(target: "trie::hash_builder", ?hash, "pushing leaf node hash");
+                            self.stack.push(RlpNode::word_rlp(hash));
+                        } else {
+                            trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
+                            self.stack.push(RlpNode::word_rlp(hash));
 
-                        if self.stored_in_database {
-                            self.tree_masks[current.len() - 1] |=
+                            if self.stored_in_database {
+                                self.tree_masks[current.len() - 1] |=
+                                    TrieMask::from_nibble(current.last().unwrap());
+                            }
+                            self.hash_masks[current.len() - 1] |=
                                 TrieMask::from_nibble(current.last().unwrap());
-                        }
-                        self.hash_masks[current.len() - 1] |=
-                            TrieMask::from_nibble(current.last().unwrap());
 
-                        build_extensions = true;
+                            build_extensions = true;
+                        }
                     }
                 }
             }
@@ -398,8 +461,11 @@ impl HashBuilder {
             self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
+        // Store the branch node in the database if either:
+        // - It has a non-empty tree mask or a non-empty hash mask.
+        // - We are storing all branch nodes in the database.
         let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
-        if store_in_db_trie {
+        if store_in_db_trie || self.all_branch_nodes_in_database {
             if len > 0 {
                 let parent_index = len - 1;
                 self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
@@ -575,11 +641,11 @@ mod tests {
         // Nibbles 0, 1, 2, 3 have children
         assert_eq!(update.state_mask, TrieMask::new(0b1111));
         // None of the children are stored in the database
-        assert_eq!(update.tree_mask, TrieMask::new(0b0000));
+        assert_eq!(update.tree_mask, TrieMask::new(0b0110));
         // Children under nibbles `1` and `2` are branch nodes with `hashes`
-        assert_eq!(update.hash_mask, TrieMask::new(0b0110));
+        assert_eq!(update.hash_mask, TrieMask::new(0b1111));
         // Calculated when running the hash builder
-        assert_eq!(update.hashes.len(), 2);
+        assert_eq!(update.hashes.len(), 4);
 
         assert_eq!(_root, triehash_trie_root(data));
     }
