@@ -22,9 +22,15 @@ extern crate alloc;
 pub mod nodes;
 pub use nodes::BranchNodeCompact;
 
+/// Error types and handling for trie operations.
+pub mod error;
+pub use error::TrieError;
+
+/// Hash builder for trie operations.
 pub mod hash_builder;
 pub use hash_builder::HashBuilder;
 
+/// Proof verification logic.
 pub mod proof;
 
 #[cfg(feature = "ethereum")]
