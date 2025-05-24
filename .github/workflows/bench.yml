@@ -2,8 +2,6 @@
 
 on:
   pull_request:
-  # TODO: Disabled temporarily for https://github.com/CodSpeedHQ/runner/issues/55
-  # merge_group:
   push:
     branches: [main]
 
@@ -11,10 +9,6 @@ env:
   CARGO_TERM_COLOR: always
   BASELINE: base
   SEED: alloy-trie
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
 
 name: bench
 jobs:
