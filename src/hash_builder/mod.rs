@@ -745,6 +745,8 @@ mod tests {
 
     #[test]
     fn test_updated_branches() {
+        use alloc::sync::Arc;
+
         struct TestCase<I, U, K>
         where
             I: IntoIterator<Item = K>,
@@ -771,7 +773,7 @@ mod tests {
                             state_mask: 0b1000010.into(),
                             hash_mask: 0b1000000.into(),
                             tree_mask: 0b1000000.into(),
-                            hashes: std::sync::Arc::new(vec![b256!(
+                            hashes: Arc::new(vec![b256!(
                                 "0x15838525b335e53d4e72bf39d3092bad7c71f6b6b8e8e043b8ee579feb40a006"
                             )]),
                             ..Default::default()
@@ -782,7 +784,7 @@ mod tests {
                         BranchNodeCompact {
                             state_mask: 0b101.into(),
                             hash_mask: 0b100.into(),
-                            hashes: std::sync::Arc::new(vec![b256!(
+                            hashes: Arc::new(vec![b256!(
                                 "0x6c51badda0fcff78960af0b926394e7d2c5990f9440a11bd9cdccb40386443f3"
                             )]),
                             ..Default::default()
@@ -810,7 +812,7 @@ mod tests {
                         BranchNodeCompact {
                             state_mask: 0b101.into(),
                             hash_mask: 0b100.into(),
-                            hashes: std::sync::Arc::new(vec![b256!(
+                            hashes: Arc::new(vec![b256!(
                                 "0x9c5edb7001f44e65e02aa6ff495dfd1a2805370a383974962522d55b2f13f4f1"
                             )]),
                             ..Default::default()
@@ -838,7 +840,7 @@ mod tests {
                             // because that key is an extension.
                             tree_mask: 0b1000.into(),
                             hash_mask: 0b1000.into(),
-                            hashes: std::sync::Arc::new(vec![b256!(
+                            hashes: Arc::new(vec![b256!(
                                 "0x4711fabfbb5e0a6649e7ba0cc245f7fa91dabf519834ad565caf750801fd6d9d"
                             )]),
                             ..Default::default()
@@ -849,7 +851,7 @@ mod tests {
                         BranchNodeCompact {
                             state_mask: 0b101.into(),
                             hash_mask: 0b1.into(),
-                            hashes: std::sync::Arc::new(vec![b256!(
+                            hashes: Arc::new(vec![b256!(
                                 "0xdbd62ee8064df09b1a2bc7145eca3e2567b8d010bbcd1aa81b1d38fea2032d34"
                             )]),
                             ..Default::default()
@@ -860,7 +862,7 @@ mod tests {
                         BranchNodeCompact {
                             state_mask: 0b101000.into(),
                             hash_mask: 0b1000.into(),
-                            hashes: std::sync::Arc::new(vec![b256!(
+                            hashes: Arc::new(vec![b256!(
                                 "0xa58cc5f13589f5f57e0aaf9b09e560f26f6bd81cf6ee3a979e2cb90cc90980c8"
                             )]),
                             ..Default::default()
