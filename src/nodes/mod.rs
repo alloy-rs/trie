@@ -228,9 +228,9 @@ pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> 
         nybbles::smallvec_with(encoded_len, |buf| {
             let (first, rest) = buf.split_first_mut().unwrap_unchecked();
             first.write(match (is_leaf, odd_nibbles) {
-                (true, true) => LeafNode::ODD_FLAG | nibbles[0],
+                (true, true) => LeafNode::ODD_FLAG | nibbles.get_unchecked(0),
                 (true, false) => LeafNode::EVEN_FLAG,
-                (false, true) => ExtensionNode::ODD_FLAG | nibbles[0],
+                (false, true) => ExtensionNode::ODD_FLAG | nibbles.get_unchecked(0),
                 (false, false) => ExtensionNode::EVEN_FLAG,
             });
             if odd_nibbles {
