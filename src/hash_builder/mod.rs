@@ -212,7 +212,7 @@ impl HashBuilder {
             let preceding_exists = !self.state_masks.is_empty();
             let preceding_len = self.state_masks.len().saturating_sub(1);
 
-            let common_prefix_len = succeeding.common_prefix_length(current.as_slice());
+            let common_prefix_len = succeeding.common_prefix_length(&current);
             let len = cmp::max(preceding_len, common_prefix_len);
             assert!(len < current.len(), "len {} current.len {}", len, current.len());
 

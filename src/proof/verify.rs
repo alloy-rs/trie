@@ -43,7 +43,7 @@ where
         };
     }
 
-    let mut walked_path = Nibbles::with_capacity(key.len());
+    let mut walked_path = Nibbles::new();
     let mut last_decoded_node = Some(NodeDecodingResult::Node(RlpNode::word_rlp(&root)));
     for node in proof {
         // Check if the node that we just decoded (or root node, if we just started) matches
@@ -131,8 +131,8 @@ fn process_branch(
         let mut stack_ptr = branch.as_ref().first_child_index();
         for index in CHILD_INDEX_RANGE {
             if branch.state_mask.is_bit_set(index) {
-                if index == *next {
-                    walked_path.push(*next);
+                if index == next {
+                    walked_path.push(next);
 
                     let child = branch.stack.remove(stack_ptr);
                     if child.len() == B256::len_bytes() + 1 {
