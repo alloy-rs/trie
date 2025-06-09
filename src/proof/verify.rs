@@ -105,7 +105,7 @@ fn process_trie_node(
     let node = match node {
         TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
         TrieNode::Extension(extension) => {
-            walked_path.extend_from_slice(&extension.key);
+            walked_path.extend(&extension.key);
             if extension.child.is_hash() {
                 Some(NodeDecodingResult::Node(extension.child))
             } else {
@@ -113,7 +113,7 @@ fn process_trie_node(
             }
         }
         TrieNode::Leaf(leaf) => {
-            walked_path.extend_from_slice(&leaf.key);
+            walked_path.extend(&leaf.key);
             Some(NodeDecodingResult::Value(leaf.value))
         }
         TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
@@ -148,7 +148,7 @@ fn process_branch(
                                 return process_branch(child_branch, walked_path, key);
                             }
                             TrieNode::Extension(child_extension) => {
-                                walked_path.extend_from_slice(&child_extension.key);
+                                walked_path.extend(&child_extension.key);
 
                                 // If the extension node's child is a hash, the encoded extension
                                 // node itself wouldn't fit for encoding in-place. So this extension
@@ -173,7 +173,7 @@ fn process_branch(
                                 }
                             }
                             TrieNode::Leaf(child_leaf) => {
-                                walked_path.extend_from_slice(&child_leaf.key);
+                                walked_path.extend(&child_leaf.key);
                                 return Ok(Some(NodeDecodingResult::Value(child_leaf.value)));
                             }
                             TrieNode::EmptyRoot => {
