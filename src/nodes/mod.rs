@@ -238,7 +238,7 @@ pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> 
             if odd_nibbles {
                 nibbles = nibbles.slice(1..);
             }
-            nibbles.pack_to_unchecked(rest);
+            nibbles.pack_to_slice_unchecked(rest);
         })
     }
 }
