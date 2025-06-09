@@ -164,9 +164,11 @@ pub fn word_rlp(word: &B256) -> RlpNode {
 /// `rest` - rest of the nibbles packed
 #[inline]
 pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles {
-    let Some(first) = first else { return Nibbles::unpack(rest) };
+    let rest = Nibbles::unpack(rest);
+    let Some(first) = first else { return rest };
     debug_assert!(first <= 0xf);
-    Nibbles::from_iter_unchecked(std::iter::once(first).chain(rest.iter().copied()))
+    // TODO: optimize
+    Nibbles::from_nibbles_unchecked([first]).join(&rest)
 }
 
 /// Encodes a given path leaf as a compact array of bytes.
