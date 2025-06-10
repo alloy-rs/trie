@@ -321,7 +321,7 @@ mod tests {
 
         proptest::proptest!(|(input in vec(any::<u8>(), 0..128))| {
             let input = Nibbles::unpack(input);
-            prop_assert!(input.iter().all(|&nibble| nibble <= 0xf));
+            prop_assert!(input.to_vec().iter().all(|&nibble| nibble <= 0xf));
             let input_is_odd = input.len() % 2 == 1;
 
             let compact_leaf = encode_path_leaf(&input, true);
