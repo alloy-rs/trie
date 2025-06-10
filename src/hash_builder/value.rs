@@ -1,5 +1,5 @@
 use alloc::vec::Vec;
-use alloy_primitives::{hex, B256};
+use alloy_primitives::{B256, hex};
 use core::fmt;
 
 /// Hash builder value.

@@ -1,13 +1,13 @@
 //! The implementation of the hash builder.
 
 use super::{
+    BranchNodeCompact, EMPTY_ROOT_HASH, Nibbles, TrieMask,
     nodes::{BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
     proof::ProofRetainer,
-    BranchNodeCompact, Nibbles, TrieMask, EMPTY_ROOT_HASH,
 };
-use crate::{nodes::RlpNode, proof::ProofNodes, HashMap};
+use crate::{HashMap, nodes::RlpNode, proof::ProofNodes};
 use alloc::vec::Vec;
-use alloy_primitives::{keccak256, B256};
+use alloy_primitives::{B256, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
@@ -183,11 +183,7 @@ impl HashBuilder {
 
     fn current_root(&self) -> B256 {
         if let Some(node_ref) = self.stack.last() {
-            if let Some(hash) = node_ref.as_hash() {
-                hash
-            } else {
-                keccak256(node_ref)
-            }
+            if let Some(hash) = node_ref.as_hash() { hash } else { keccak256(node_ref) }
         } else {
             EMPTY_ROOT_HASH
         }
@@ -455,7 +451,7 @@ mod tests {
     use super::*;
     use crate::{nodes::LeafNode, triehash_trie_root};
     use alloc::collections::BTreeMap;
-    use alloy_primitives::{b256, hex, U256};
+    use alloy_primitives::{U256, b256, hex};
     use alloy_rlp::Encodable;
 
     // Hashes the keys, RLP encodes the values, compares the trie builder with the upstream root.

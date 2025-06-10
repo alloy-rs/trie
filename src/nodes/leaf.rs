@@ -1,6 +1,6 @@
-use super::{super::Nibbles, encode_path_leaf, unpack_path_to_nibbles, RlpNode};
-use alloy_primitives::{hex, Bytes};
-use alloy_rlp::{length_of_length, BufMut, Decodable, Encodable, Header};
+use super::{super::Nibbles, RlpNode, encode_path_leaf, unpack_path_to_nibbles};
+use alloy_primitives::{Bytes, hex};
+use alloy_rlp::{BufMut, Decodable, Encodable, Header, length_of_length};
 use core::fmt;
 
 #[allow(unused_imports)]

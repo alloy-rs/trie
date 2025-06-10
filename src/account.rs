@@ -1,5 +1,5 @@
 use crate::{EMPTY_ROOT_HASH, KECCAK_EMPTY};
-use alloy_primitives::{keccak256, B256, U256};
+use alloy_primitives::{B256, U256, keccak256};
 use alloy_rlp::{RlpDecodable, RlpEncodable};
 
 /// Represents an TrieAccount in the account trie.
@@ -62,7 +62,7 @@ mod quantity {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloy_primitives::{hex, U256};
+    use alloy_primitives::{U256, hex};
     use alloy_rlp::Decodable;
 
     #[test]
