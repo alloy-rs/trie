@@ -298,7 +298,7 @@ mod tests {
 
         // branch
         let branch = TrieNode::Branch(BranchNode::new(
-            core::iter::repeat(RlpNode::word_rlp(&B256::repeat_byte(23))).take(16).collect(),
+            core::iter::repeat_n(RlpNode::word_rlp(&B256::repeat_byte(23)), 16).collect(),
             TrieMask::new(u16::MAX),
         ));
         let mut rlp = vec![];
