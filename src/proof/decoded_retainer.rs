@@ -1,4 +1,4 @@
-use crate::{proof::DecodedProofNodes, Nibbles};
+use crate::{Nibbles, proof::DecodedProofNodes};
 use alloy_primitives::Bytes;
 
 use alloc::vec::Vec;

@@ -2,7 +2,7 @@
 
 use alloy_trie::nodes::encode_path_leaf;
 use criterion::{
-    criterion_group, criterion_main, measurement::WallTime, BenchmarkGroup, Criterion,
+    BenchmarkGroup, Criterion, criterion_group, criterion_main, measurement::WallTime,
 };
 use nybbles::Nibbles;
 use proptest::{prelude::*, strategy::ValueTree};

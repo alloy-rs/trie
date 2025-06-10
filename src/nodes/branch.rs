@@ -1,6 +1,6 @@
-use super::{super::TrieMask, RlpNode, CHILD_INDEX_RANGE};
-use alloy_primitives::{hex, B256};
-use alloy_rlp::{length_of_length, Buf, BufMut, Decodable, Encodable, Header, EMPTY_STRING_CODE};
+use super::{super::TrieMask, CHILD_INDEX_RANGE, RlpNode};
+use alloy_primitives::{B256, hex};
+use alloy_rlp::{Buf, BufMut, Decodable, EMPTY_STRING_CODE, Encodable, Header, length_of_length};
 use core::{fmt, ops::Range, slice::Iter};
 
 use alloc::sync::Arc;
@@ -352,7 +352,7 @@ mod tests {
         assert_eq!(BranchNode::decode(&mut &encoded[..]).unwrap(), branch_with_ext);
 
         let full = BranchNode::new(
-            core::iter::repeat(RlpNode::word_rlp(&B256::repeat_byte(23))).take(16).collect(),
+            core::iter::repeat_n(RlpNode::word_rlp(&B256::repeat_byte(23)), 16).collect(),
             TrieMask::new(u16::MAX),
         );
         let encoded = alloy_rlp::encode(&full);
