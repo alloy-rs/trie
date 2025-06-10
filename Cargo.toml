@@ -10,8 +10,8 @@ description = """
 Fast Merkle-Patricia Trie (MPT) state root calculator
 and proof generator for prefix-sorted nibbles
 """
-edition = "2021"
-rust-version = "1.81"
+edition = "2024"
+rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 categories = ["data-structures", "no-std"]
 keywords = ["nibbles", "trie", "mpt", "merkle", "ethereum"]
@@ -32,7 +32,7 @@ all = "warn"
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
-missing-const-for-fn = "allow" # TODO: https://github.com/rust-lang/rust-clippy/issues/14020
+missing-const-for-fn = "allow"          # TODO: https://github.com/rust-lang/rust-clippy/issues/14020
 use-self = "warn"
 redundant-clone = "warn"
 result_large_err = "allow"

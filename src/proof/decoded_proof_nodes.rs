@@ -1,4 +1,4 @@
-use crate::{nodes::TrieNode, proof::ProofNodes, HashMap, Nibbles};
+use crate::{HashMap, Nibbles, nodes::TrieNode, proof::ProofNodes};
 use alloy_primitives::Bytes;
 use alloy_rlp::Decodable;
 use core::ops::Deref;
