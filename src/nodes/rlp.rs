@@ -1,4 +1,4 @@
-use alloy_primitives::{hex, keccak256, B256};
+use alloy_primitives::{B256, hex, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use arrayvec::ArrayVec;
 use core::fmt;
@@ -99,11 +99,7 @@ impl RlpNode {
     /// Returns hash if this is an RLP-encoded hash
     #[inline]
     pub fn as_hash(&self) -> Option<B256> {
-        if self.is_hash() {
-            Some(B256::from_slice(&self.0[1..]))
-        } else {
-            None
-        }
+        if self.is_hash() { Some(B256::from_slice(&self.0[1..])) } else { None }
     }
 }
 

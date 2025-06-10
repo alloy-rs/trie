@@ -44,7 +44,7 @@ pub use alloy_primitives::map::HashMap;
 #[doc(no_inline)]
 pub use nybbles::{self, Nibbles};
 
-use alloy_primitives::{b256, B256};
+use alloy_primitives::{B256, b256};
 
 /// Root hash of an empty trie.
 pub const EMPTY_ROOT_HASH: B256 =

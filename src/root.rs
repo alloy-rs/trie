@@ -1,4 +1,4 @@
-use crate::{HashBuilder, EMPTY_ROOT_HASH};
+use crate::{EMPTY_ROOT_HASH, HashBuilder};
 use alloc::vec::Vec;
 use alloy_primitives::B256;
 use alloy_rlp::Encodable;
@@ -54,7 +54,7 @@ pub use ethereum::*;
 mod ethereum {
     use super::*;
     use crate::TrieAccount;
-    use alloy_primitives::{keccak256, Address, U256};
+    use alloy_primitives::{Address, U256, keccak256};
 
     /// Hashes storage keys, sorts them and them calculates the root hash of the storage trie.
     /// See [`storage_root_unsorted`] for more info.

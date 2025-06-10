@@ -1,12 +1,12 @@
 //! Proof verification logic.
 
 use crate::{
-    nodes::{BranchNode, RlpNode, TrieNode, CHILD_INDEX_RANGE},
-    proof::ProofVerificationError,
     EMPTY_ROOT_HASH,
+    nodes::{BranchNode, CHILD_INDEX_RANGE, RlpNode, TrieNode},
+    proof::ProofVerificationError,
 };
 use alloc::vec::Vec;
-use alloy_primitives::{Bytes, B256};
+use alloy_primitives::{B256, Bytes};
 use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
 use core::ops::Deref;
 use nybbles::Nibbles;
@@ -177,7 +177,7 @@ fn process_branch(
                                 return Ok(Some(NodeDecodingResult::Value(child_leaf.value)));
                             }
                             TrieNode::EmptyRoot => {
-                                return Err(ProofVerificationError::UnexpectedEmptyRoot)
+                                return Err(ProofVerificationError::UnexpectedEmptyRoot);
                             }
                         }
                     };
@@ -194,12 +194,13 @@ fn process_branch(
 mod tests {
     use super::*;
     use crate::{
+        HashBuilder, TrieMask,
         nodes::{BranchNode, ExtensionNode, LeafNode},
         proof::{ProofNodes, ProofRetainer},
-        triehash_trie_root, HashBuilder, TrieMask,
+        triehash_trie_root,
     };
     use alloy_primitives::hex;
-    use alloy_rlp::{Encodable, EMPTY_STRING_CODE};
+    use alloy_rlp::{EMPTY_STRING_CODE, Encodable};
     use core::str::FromStr;
 
     #[test]
