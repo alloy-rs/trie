@@ -10,7 +10,7 @@ use std::{hint::black_box, time::Duration};
 
 /// Benchmarks the nibble path encoding.
 pub fn nibbles_path_encoding(c: &mut Criterion) {
-    let lengths = [16u64, 32, 256, 2048];
+    let lengths = [8u64, 16, 32, 64];
 
     let mut g = group(c, "encode_path_leaf");
     for len in lengths {
