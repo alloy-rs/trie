@@ -67,6 +67,7 @@ smallvec = { version = "1.0", default-features = false, features = [
     "const_new",
 ] }
 tracing = { version = "0.1", default-features = false }
+dashmap = "*"
 
 # serde
 serde = { version = "1.0", default-features = false, features = [

@@ -10,6 +10,8 @@ use alloc::vec::Vec;
 use alloy_primitives::{B256, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
+use dashmap::DashMap;
+use std::sync::Arc;
 use tracing::trace;
 
 mod value;
@@ -56,6 +58,7 @@ pub struct HashBuilder {
     pub proof_retainer: Option<ProofRetainer>,
 
     pub rlp_buf: Vec<u8>,
+    pub rlp_node_cache: Arc<DashMap<Nibbles, RlpNode>>,
 }
 
 impl HashBuilder {
@@ -70,6 +73,12 @@ impl HashBuilder {
     /// Enable specified proof retainer.
     pub fn with_proof_retainer(mut self, retainer: ProofRetainer) -> Self {
         self.proof_retainer = Some(retainer);
+        self
+    }
+
+    /// Set the RLP node cache.
+    pub fn with_rlp_node_cache(mut self, cache: Arc<DashMap<Nibbles, RlpNode>>) -> Self {
+        self.rlp_node_cache = cache;
         self
     }
 
@@ -254,11 +263,15 @@ impl HashBuilder {
             if !build_extensions {
                 match self.value.as_ref() {
                     HashBuilderValueRef::Bytes(leaf_value) => {
-                        let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
-                        self.rlp_buf.clear();
-                        let rlp = leaf_node.rlp(&mut self.rlp_buf);
-
                         let path = current.slice(..len_from);
+                        let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
+                        let rlp = if let Some(rlp_node) = self.rlp_node_cache.get(&path) {
+                            rlp_node.clone()
+                        } else {
+                            self.rlp_buf.clear();
+                            leaf_node.rlp(&mut self.rlp_buf)
+                        };
+
                         trace!(
                             target: "trie::hash_builder",
                             ?path,
@@ -290,10 +303,15 @@ impl HashBuilder {
                 let stack_last = self.stack.pop().expect("there should be at least one stack item");
                 let extension_node = ExtensionNodeRef::new(&short_node_key, &stack_last);
 
-                self.rlp_buf.clear();
-                let rlp = extension_node.rlp(&mut self.rlp_buf);
-
                 let path = current.slice(..len_from);
+
+                let rlp = if let Some(rlp_node) = self.rlp_node_cache.get(&path) {
+                    rlp_node.clone()
+                } else {
+                    self.rlp_buf.clear();
+                    extension_node.rlp(&mut self.rlp_buf)
+                };
+
                 trace!(
                     target: "trie::hash_builder",
                     ?path,
@@ -358,9 +376,14 @@ impl HashBuilder {
             vec![]
         };
 
-        self.rlp_buf.clear();
-        let rlp = branch_node.rlp(&mut self.rlp_buf);
         let path = current.slice(..len);
+        let rlp = if let Some(rlp_node) = self.rlp_node_cache.get(&path) {
+            rlp_node.clone()
+        } else {
+            self.rlp_buf.clear();
+            branch_node.rlp(&mut self.rlp_buf)
+        };
+
         trace!(
             target: "trie::hash_builder",
             ?path,
