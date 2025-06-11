@@ -5,7 +5,7 @@ use super::{
     nodes::{BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
     proof::ProofRetainer,
 };
-use crate::{HashMap, nodes::RlpNode, proof::ProofNodes};
+use crate::{HashMap, nodes::RlpNode, proof::ProofNodes, ArenaStack};
 use alloc::vec::Vec;
 use alloy_primitives::{B256, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
@@ -44,7 +44,8 @@ pub use value::{HashBuilderValue, HashBuilderValueRef};
 pub struct HashBuilder {
     pub key: Nibbles,
     pub value: HashBuilderValue,
-    pub stack: Vec<RlpNode>,
+    /// Arena-allocated stack for efficient memory management
+    pub stack: ArenaStack<RlpNode>,
 
     /// Unified mask storage for better cache locality
     pub masks: Vec<MaskSet>,
@@ -65,7 +66,7 @@ impl Default for HashBuilder {
         Self {
             key: Nibbles::default(),
             value: HashBuilderValue::default(),
-            stack: Vec::new(),
+            stack: ArenaStack::new(),
             masks: Vec::new(),
             stored_in_database: false,
             updated_branch_nodes: None,
@@ -367,7 +368,7 @@ impl HashBuilder {
     fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
         let state_mask = self.masks[len].state;
         let hash_mask = self.masks[len].hash;
-        let branch_node = BranchNodeRef::new(&self.stack, state_mask);
+        let branch_node = BranchNodeRef::new(self.stack.as_slice(), state_mask);
         // Avoid calculating this value if it's not needed.
         let children = if self.updated_branch_nodes.is_some() {
             branch_node.child_hashes(hash_mask).collect()
