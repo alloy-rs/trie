@@ -54,7 +54,7 @@ impl DecodedProofNodes {
 
     /// Return the vec of proof nodes that match the target.
     pub fn matching_nodes(&self, target: &Nibbles) -> Vec<(Nibbles, TrieNode)> {
-        self.matching_nodes_iter(target).map(|(key, node)| (key.clone(), node.clone())).collect()
+        self.matching_nodes_iter(target).map(|(key, node)| (*key, node.clone())).collect()
     }
 
     /// Return the sorted vec of proof nodes that match the target.
@@ -80,7 +80,7 @@ impl DecodedProofNodes {
 
     /// Return the sorted vec of all proof nodes.
     pub fn nodes_sorted(&self) -> Vec<(Nibbles, TrieNode)> {
-        let mut nodes = Vec::from_iter(self.0.iter().map(|(k, v)| (k.clone(), v.clone())));
+        let mut nodes = Vec::from_iter(self.0.iter().map(|(k, v)| (*k, v.clone())));
         nodes.sort_unstable_by(|a, b| a.0.cmp(&b.0));
         nodes
     }

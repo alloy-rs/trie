@@ -214,12 +214,7 @@ mod tests {
             ProofNodes::from_iter([(Nibbles::default(), Bytes::from([EMPTY_STRING_CODE]))])
         );
         assert_eq!(
-            verify_proof(
-                root,
-                key.clone(),
-                None,
-                proof.into_nodes_sorted().iter().map(|(_, node)| node)
-            ),
+            verify_proof(root, key, None, proof.into_nodes_sorted().iter().map(|(_, node)| node)),
             Ok(())
         );
 
@@ -255,12 +250,9 @@ mod tests {
         let second_key = Nibbles::unpack(hex!("a77d3970"));
         let second_value = hex!("0x312e32").to_vec();
 
+        assert_eq!(verify_proof(root, first_key, Some(first_value.clone()), &proof), Ok(()));
         assert_eq!(
-            verify_proof(root, first_key.clone(), Some(first_value.clone()), &proof),
-            Ok(())
-        );
-        assert_eq!(
-            verify_proof(root, first_key.clone(), None, &proof),
+            verify_proof(root, first_key, None, &proof),
             Err(ProofVerificationError::ValueMismatch {
                 path: first_key,
                 got: Some(first_value.into()),
@@ -268,12 +260,9 @@ mod tests {
             })
         );
 
+        assert_eq!(verify_proof(root, second_key, Some(second_value.clone()), &proof), Ok(()));
         assert_eq!(
-            verify_proof(root, second_key.clone(), Some(second_value.clone()), &proof),
-            Ok(())
-        );
-        assert_eq!(
-            verify_proof(root, second_key.clone(), None, &proof),
+            verify_proof(root, second_key, None, &proof),
             Err(ProofVerificationError::ValueMismatch {
                 path: second_key,
                 got: Some(second_value.into()),
@@ -288,9 +277,9 @@ mod tests {
         let target_value = B256::with_last_byte(0x2);
         let non_existent_target = Nibbles::unpack(B256::with_last_byte(0x3));
 
-        let retainer = ProofRetainer::from_iter([target.clone(), non_existent_target]);
+        let retainer = ProofRetainer::from_iter([target, non_existent_target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
-        hash_builder.add_leaf(target.clone(), &target_value[..]);
+        hash_builder.add_leaf(target, &target_value[..]);
         let root = hash_builder.root();
         assert_eq!(root, triehash_trie_root([(target.pack(), target.pack())]));
 
@@ -311,7 +300,7 @@ mod tests {
         let range = 0..=0xf;
         let target = Nibbles::unpack(B256::with_last_byte(0xff));
 
-        let retainer = ProofRetainer::from_iter([target.clone()]);
+        let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::with_last_byte(key);
@@ -341,7 +330,7 @@ mod tests {
         let value = B256::with_last_byte(1);
 
         // Build trie without a target and retain proof first.
-        let retainer = ProofRetainer::from_iter([target.clone()]);
+        let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in &existing_keys {
             hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
@@ -360,19 +349,19 @@ mod tests {
         assert_eq!(
             verify_proof(
                 root,
-                target.clone(),
+                target,
                 None,
                 proof.into_nodes_sorted().iter().map(|(_, node)| node)
             ),
             Ok(())
         );
 
-        let retainer = ProofRetainer::from_iter([target.clone()]);
+        let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in &existing_keys {
             hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
         }
-        hash_builder.add_leaf(target.clone(), &value[..]);
+        hash_builder.add_leaf(target, &value[..]);
         let root = hash_builder.root();
         assert_eq!(
             root,
@@ -408,7 +397,7 @@ mod tests {
         let target = Nibbles::unpack(B256::with_last_byte(0x42));
         let target_value = B256::with_last_byte(0x42);
 
-        let retainer = ProofRetainer::from_iter([target.clone()]);
+        let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::with_last_byte(key);
@@ -440,7 +429,7 @@ mod tests {
         let target2 = Nibbles::unpack(B256::repeat_byte(0xff));
         let target2_value = B256::repeat_byte(0xff);
 
-        let retainer = ProofRetainer::from_iter([target1.clone(), target2.clone()]);
+        let retainer = ProofRetainer::from_iter([target1, target2]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::repeat_byte(key);
@@ -457,7 +446,7 @@ mod tests {
         assert_eq!(
             verify_proof(
                 root,
-                target1.clone(),
+                target1,
                 Some(target1_value.to_vec()),
                 proof.matching_nodes_sorted(&target1).iter().map(|(_, node)| node)
             ),
@@ -467,7 +456,7 @@ mod tests {
         assert_eq!(
             verify_proof(
                 root,
-                target2.clone(),
+                target2,
                 Some(target2_value.to_vec()),
                 proof.matching_nodes_sorted(&target2).iter().map(|(_, node)| node)
             ),
@@ -685,7 +674,7 @@ mod tests {
             let proofs = hash_builder.take_proof_nodes();
             for (key, value) in hashed {
                 let nibbles = Nibbles::unpack(key);
-                assert_eq!(verify_proof(root, nibbles.clone(), Some(value), proofs.matching_nodes_sorted(&nibbles).iter().map(|(_, node)| node)), Ok(()));
+                assert_eq!(verify_proof(root, nibbles, Some(value), proofs.matching_nodes_sorted(&nibbles).iter().map(|(_, node)| node)), Ok(()));
             }
         });
     }

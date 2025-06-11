@@ -196,7 +196,7 @@ impl HashBuilder {
     fn update(&mut self, succeeding: &Nibbles) {
         let mut build_extensions = false;
         // current / self.key is always the latest added element in the trie
-        let mut current = self.key.clone();
+        let mut current = self.key;
         debug_assert!(!current.is_empty());
 
         trace!(target: "trie::hash_builder", ?current, ?succeeding, "updating merkle tree");
