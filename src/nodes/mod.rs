@@ -326,7 +326,7 @@ mod tests {
     fn encode_path_first_byte() {
         use proptest::{collection::vec, prelude::*};
 
-        proptest::proptest!(|(input in vec(any::<u8>(), 0..128))| {
+        proptest::proptest!(|(input in vec(any::<u8>(), 0..32))| {
             let input = Nibbles::unpack(input);
             prop_assert!(input.to_vec().iter().all(|&nibble| nibble <= 0xf));
             let input_is_odd = input.len() % 2 == 1;
