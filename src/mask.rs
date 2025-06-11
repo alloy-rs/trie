@@ -94,3 +94,52 @@ impl TrieMask {
         self.0 &= !(1u16 << index);
     }
 }
+
+/// A unified mask set that groups state, tree, and hash masks together for better cache locality.
+/// 
+/// This structure replaces the separate `Vec<TrieMask>` for each mask type in HashBuilder,
+/// ensuring that when masks are accessed together at the same depth, they are loaded
+/// in the same cache line, reducing cache misses in the hot update loop.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "arbitrary", derive(derive_arbitrary::Arbitrary, proptest_derive::Arbitrary))]
+pub struct MaskSet {
+    /// Mask indicating which children are present in the trie node
+    pub state: TrieMask,
+    /// Mask indicating which children are stored in the database
+    pub tree: TrieMask,
+    /// Mask indicating which children are represented by hashes (not inline data)
+    pub hash: TrieMask,
+}
+
+impl MaskSet {
+    /// Creates a new empty mask set.
+    #[inline]
+    pub const fn new() -> Self {
+        Self {
+            state: TrieMask::new(0),
+            tree: TrieMask::new(0),
+            hash: TrieMask::new(0),
+        }
+    }
+
+    /// Creates a mask set with the given values.
+    #[inline]
+    pub const fn from_masks(state: TrieMask, tree: TrieMask, hash: TrieMask) -> Self {
+        Self { state, tree, hash }
+    }
+
+    /// Returns true if all masks are empty.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.state.is_empty() && self.tree.is_empty() && self.hash.is_empty()
+    }
+
+    /// Clears all masks.
+    #[inline]
+    pub fn clear(&mut self) {
+        self.state = TrieMask::new(0);
+        self.tree = TrieMask::new(0);
+        self.hash = TrieMask::new(0);
+    }
+}
