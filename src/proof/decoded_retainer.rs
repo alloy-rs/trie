@@ -40,7 +40,7 @@ impl DecodedProofRetainer {
     /// Returns an error if the proof could not be decoded from the given proof bytes.
     pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8]) -> Result<(), alloy_rlp::Error> {
         if prefix.is_empty() || self.matches(prefix) {
-            self.proof_nodes.insert_encoded(prefix.clone(), Bytes::from(proof.to_vec()))?;
+            self.proof_nodes.insert_encoded(*prefix, Bytes::from(proof.to_vec()))?;
         }
 
         Ok(())

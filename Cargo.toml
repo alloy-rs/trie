@@ -118,3 +118,6 @@ ethereum = []
 name = "bench"
 harness = false
 required-features = ["arbitrary"]
+
+[patch.crates-io]
+nybbles = { git = "https://github.com/alloy-rs/nybbles", branch = "alexey/uint-repr" }
