@@ -6,9 +6,8 @@ use criterion::{
 };
 use nybbles::Nibbles;
 use proptest::{prelude::*, strategy::ValueTree};
-use std::{hint::black_box, time::Duration, collections::BTreeMap};
+use std::{hint::black_box, time::Duration};
 use alloy_primitives::{B256, keccak256};
-use alloy_rlp::Encodable;
 
 /// Benchmarks the nibble path encoding.
 pub fn nibbles_path_encoding(c: &mut Criterion) {
@@ -140,19 +139,33 @@ pub fn hash_builder_mixed_operations(c: &mut Criterion) {
         b.iter(|| {
             let mut hb = HashBuilder::default();
             
-            // Add some leaves
+            // Generate and sort all operations to maintain order requirement
+            let mut operations = Vec::new();
+            
+            // Add leaves
             for i in 0..100 {
-                let key = format!("leaf_{:04}", i).into_bytes();
-                let nibbles = Nibbles::unpack(&key);
-                hb.add_leaf(nibbles, black_box(&key));
+                let key = format!("entry_{:08}", i).into_bytes();
+                operations.push((key, false)); // false = leaf
             }
             
-            // Add some branches (simulate intermediate trie state)
+            // Add branches with keys that will be sorted after leaves
             for i in 0..10 {
-                let key = format!("branch_{:02}", i).into_bytes();
+                let key = format!("zzz_branch_{:04}", i).into_bytes();
+                operations.push((key, true)); // true = branch
+            }
+            
+            // Sort by key to maintain ordering requirement
+            operations.sort_by(|a, b| a.0.cmp(&b.0));
+            
+            // Execute operations in sorted order
+            for (key, is_branch) in operations {
                 let nibbles = Nibbles::unpack(&key);
-                let hash = keccak256(&key);
-                hb.add_branch(nibbles, hash, black_box(i % 2 == 0));
+                if is_branch {
+                    let hash = keccak256(&key);
+                    hb.add_branch(nibbles, hash, black_box(false));
+                } else {
+                    hb.add_leaf(nibbles, black_box(&key));
+                }
             }
             
             black_box(hb.root())
@@ -172,7 +185,7 @@ pub fn hash_builder_individual_ops(c: &mut Criterion) {
         
         b.iter(|| {
             let mut hb = HashBuilder::default();
-            hb.add_leaf(black_box(nibbles), black_box(value));
+            hb.add_leaf(black_box(nibbles.clone()), black_box(value));
         })
     });
     
@@ -184,7 +197,7 @@ pub fn hash_builder_individual_ops(c: &mut Criterion) {
         
         b.iter(|| {
             let mut hb = HashBuilder::default();
-            hb.add_branch(black_box(nibbles), black_box(hash), black_box(false));
+            hb.add_branch(black_box(nibbles.clone()), black_box(hash), black_box(false));
         })
     });
     
