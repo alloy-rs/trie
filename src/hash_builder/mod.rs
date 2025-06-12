@@ -74,6 +74,8 @@ pub struct RlpNodeCache {
 impl RlpNodeCache {
     pub fn clear(&self) {
         self.cache.clear();
+        self.hits.store(0, Ordering::Relaxed);
+        self.misses.store(0, Ordering::Relaxed);
     }
 
     pub fn hits(&self) -> u64 {
