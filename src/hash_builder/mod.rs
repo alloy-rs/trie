@@ -1,7 +1,7 @@
 //! The implementation of the hash builder.
 
 use super::{
-    BranchNodeCompact, EMPTY_ROOT_HASH, Nibbles, TrieMask, MaskSet,
+    BranchNodeCompact, EMPTY_ROOT_HASH, Nibbles, TrieMask,
     nodes::{BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
     proof::ProofRetainer,
 };
@@ -47,8 +47,9 @@ pub struct HashBuilder {
     /// Arena-allocated stack for efficient memory management
     pub stack: ArenaStack<RlpNode>,
 
-    /// Unified mask storage for better cache locality
-    pub masks: Vec<MaskSet>,
+    pub state_masks: Vec<TrieMask>,
+    pub tree_masks: Vec<TrieMask>,
+    pub hash_masks: Vec<TrieMask>,
 
     pub stored_in_database: bool,
 
@@ -61,13 +62,16 @@ pub struct HashBuilder {
 /// Maximum depth for a trie (65 levels for 32-byte keys in hexary representation)
 const MAX_TRIE_DEPTH: usize = 65;
 
+
 impl Default for HashBuilder {
     fn default() -> Self {
         Self {
             key: Nibbles::default(),
             value: HashBuilderValue::default(),
             stack: ArenaStack::new(),
-            masks: Vec::new(),
+            state_masks: Vec::new(),
+            tree_masks: Vec::new(),
+            hash_masks: Vec::new(),
             stored_in_database: false,
             updated_branch_nodes: None,
             proof_retainer: None,
@@ -90,6 +94,7 @@ impl HashBuilder {
         self.proof_retainer = Some(retainer);
         self
     }
+
 
     /// Enables the Hash Builder to store updated branch nodes.
     ///
@@ -223,8 +228,8 @@ impl HashBuilder {
         loop {
             let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
 
-            let preceding_exists = !self.masks.is_empty();
-            let preceding_len = self.masks.len().saturating_sub(1);
+            let preceding_exists = !self.state_masks.is_empty();
+            let preceding_len = self.state_masks.len().saturating_sub(1);
 
             let common_prefix_len = succeeding.common_prefix_length(current.as_slice());
             let len = cmp::max(preceding_len, common_prefix_len);
@@ -241,20 +246,22 @@ impl HashBuilder {
 
             // Adjust the state masks for branch calculation
             let extra_digit = current[len];
-            if self.masks.len() <= len {
+            if self.state_masks.len() <= len {
                 let new_len = len + 1;
-                trace!(target: "trie::hash_builder", new_len, old_len = self.masks.len(), "scaling state masks to fit");
-                self.masks.resize(new_len, MaskSet::new());
+                trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
+                self.state_masks.resize(new_len, TrieMask::default());
+                self.tree_masks.resize(new_len, TrieMask::default());
+                self.hash_masks.resize(new_len, TrieMask::default());
             }
-            self.masks[len].state |= TrieMask::from_nibble(extra_digit);
+            self.state_masks[len] |= TrieMask::from_nibble(extra_digit);
             trace!(
                 target: "trie::hash_builder",
                 ?extra_digit,
-                masks = ?self.masks,
+                state_masks = ?self.state_masks,
             );
 
             // Adjust the tree masks for exporting to the DB
-            if self.masks.len() < current.len() {
+            if self.state_masks.len() < current.len() {
                 self.resize_masks(current.len());
             }
 
@@ -292,10 +299,10 @@ impl HashBuilder {
                         self.stack.push(RlpNode::word_rlp(hash));
 
                         if self.stored_in_database {
-                            self.masks[current.len() - 1].tree |=
+                            self.tree_masks[current.len() - 1] |=
                                 TrieMask::from_nibble(current.last().unwrap());
                         }
-                        self.masks[current.len() - 1].hash |=
+                        self.hash_masks[current.len() - 1] |=
                             TrieMask::from_nibble(current.last().unwrap());
 
                         build_extensions = true;
@@ -337,7 +344,9 @@ impl HashBuilder {
                 self.store_branch_node(&current, len, children);
             }
 
-            self.masks.resize(len, MaskSet::new());
+            self.state_masks.resize(len, TrieMask::default());
+            self.tree_masks.resize(len, TrieMask::default());
+            self.hash_masks.resize(len, TrieMask::default());
             self.resize_masks(len);
 
             if preceding_len == 0 {
@@ -348,9 +357,11 @@ impl HashBuilder {
             current.truncate(preceding_len);
             trace!(target: "trie::hash_builder", ?current, "truncated nibbles to {} bytes", preceding_len);
 
-            trace!(target: "trie::hash_builder", masks = ?self.masks, "popping empty state masks");
-            while self.masks.last().map_or(false, |mask| mask.state == TrieMask::default()) {
-                self.masks.pop();
+            trace!(target: "trie::hash_builder", state_masks = ?self.state_masks, "popping empty state masks");
+            while self.state_masks.last().map_or(false, |mask| *mask == TrieMask::default()) {
+                self.state_masks.pop();
+                self.tree_masks.pop();
+                self.hash_masks.pop();
             }
 
             build_extensions = true;
@@ -366,8 +377,8 @@ impl HashBuilder {
     /// Returns the hashes of the children of the branch node, only if `updated_branch_nodes` is
     /// enabled.
     fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
-        let state_mask = self.masks[len].state;
-        let hash_mask = self.masks[len].hash;
+        let state_mask = self.state_masks[len];
+        let hash_mask = self.hash_masks[len];
         let branch_node = BranchNodeRef::new(self.stack.as_slice(), state_mask);
         // Avoid calculating this value if it's not needed.
         let children = if self.updated_branch_nodes.is_some() {
@@ -409,22 +420,22 @@ impl HashBuilder {
     fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
         if len > 0 {
             let parent_index = len - 1;
-            self.masks[parent_index].hash |= TrieMask::from_nibble(current[parent_index]);
+            self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
         }
 
-        let store_in_db_trie = !self.masks[len].tree.is_empty() || !self.masks[len].hash.is_empty();
+        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
-                self.masks[parent_index].tree |= TrieMask::from_nibble(current[parent_index]);
+                self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
             }
 
             if self.updated_branch_nodes.is_some() {
                 let common_prefix = current.slice(..len);
                 let node = BranchNodeCompact::new(
-                    self.masks[len].state,
-                    self.masks[len].tree,
-                    self.masks[len].hash,
+                    self.state_masks[len],
+                    self.tree_masks[len],
+                    self.hash_masks[len],
                     children,
                     (len == 0).then(|| self.current_root()),
                 );
@@ -443,10 +454,10 @@ impl HashBuilder {
         if len_from > 0 {
             let flag = TrieMask::from_nibble(current[len_from - 1]);
 
-            self.masks[len_from - 1].hash &= !flag;
+            self.hash_masks[len_from - 1] &= !flag;
 
-            if !self.masks[current.len() - 1].tree.is_empty() {
-                self.masks[len_from - 1].tree |= flag;
+            if !self.tree_masks[current.len() - 1].is_empty() {
+                self.tree_masks[len_from - 1] |= flag;
             }
         }
     }
@@ -455,10 +466,12 @@ impl HashBuilder {
         trace!(
             target: "trie::hash_builder",
             new_len,
-            old_mask_len = self.masks.len(),
+            old_mask_len = self.state_masks.len(),
             "resizing masks"
         );
-        self.masks.resize(new_len, MaskSet::new());
+        self.state_masks.resize(new_len, TrieMask::default());
+        self.tree_masks.resize(new_len, TrieMask::default());
+        self.hash_masks.resize(new_len, TrieMask::default());
     }
 }
 

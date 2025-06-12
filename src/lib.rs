@@ -33,7 +33,7 @@ mod account;
 pub use account::TrieAccount;
 
 mod mask;
-pub use mask::{TrieMask, MaskSet};
+pub use mask::TrieMask;
 
 mod arena;
 pub use arena::{Arena, ArenaIndex, ArenaStack};
