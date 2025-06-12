@@ -263,10 +263,19 @@ where
     where
         F: FnMut() -> T,
     {
-        if new_len > self.arena.len() {
-            // Need to grow the arena
-            self.arena.items.resize_with(new_len, &mut f);
+        if new_len > self.top {
+            // Growing the stack - fill new positions
+            for i in self.top..new_len {
+                if i < self.arena.items.len() {
+                    // Reuse existing slot
+                    self.arena.items[i] = f();
+                } else {
+                    // Need to grow the arena
+                    self.arena.items.push(f());
+                }
+            }
         }
+        // For shrinking (new_len < self.top), we just update the top pointer
         self.top = new_len;
     }
 
@@ -369,9 +378,14 @@ mod tests {
         stack.resize_with(1, || 0);
         assert_eq!(stack.len(), 1);
         
-        // Resize up
+        // Resize up - should extend with new values
         stack.resize_with(3, || 42);
         assert_eq!(stack.len(), 3);
-        assert_eq!(stack.as_slice(), &[1, 42, 42]);
+        // Note: Unlike Vec, arena may preserve old values between top and capacity
+        // The important thing is that the visible slice has the right length and new values are added
+        assert_eq!(stack.as_slice().len(), 3);
+        assert_eq!(stack.as_slice()[0], 1);
+        assert_eq!(stack.as_slice()[1], 42);
+        assert_eq!(stack.as_slice()[2], 42);
     }
 }
