@@ -58,7 +58,7 @@ pub struct HashBuilder {
     pub proof_retainer: Option<ProofRetainer>,
 
     pub rlp_buf: Vec<u8>,
-    pub rlp_node_cache: Option<Arc<DashMap<Nibbles, RlpNode>>>,
+    pub rlp_node_cache: Option<Arc<DashMap<Nibbles, (RlpNode, Vec<u8>)>>>,
 }
 
 impl HashBuilder {
@@ -77,7 +77,7 @@ impl HashBuilder {
     }
 
     /// Set the RLP node cache.
-    pub fn with_rlp_node_cache(mut self, cache: Arc<DashMap<Nibbles, RlpNode>>) -> Self {
+    pub fn with_rlp_node_cache(mut self, cache: Arc<DashMap<Nibbles, (RlpNode, Vec<u8>)>>) -> Self {
         self.rlp_node_cache = Some(cache);
         self
     }
@@ -109,17 +109,16 @@ impl HashBuilder {
     }
 
     fn get_or_insert_rlp_node(
-        rlp_node_cache: Option<Arc<DashMap<Nibbles, RlpNode>>>,
+        rlp_node_cache: Option<Arc<DashMap<Nibbles, (RlpNode, Vec<u8>)>>>,
         path: &Nibbles,
-        mut rlp: impl FnMut() -> RlpNode,
-    ) -> RlpNode {
+        mut rlp: impl FnMut() -> (RlpNode, Vec<u8>),
+    ) -> (RlpNode, Vec<u8>) {
         if let Some(rlp_node_cache) = &rlp_node_cache {
-            rlp_node_cache.entry(path.clone()).or_insert_with(rlp).value().clone()
+            rlp_node_cache.entry(path.clone()).or_insert_with(rlp).clone()
         } else {
             rlp()
         }
     }
-
     /// Print the current stack of the Hash Builder.
     #[cfg(feature = "std")]
     pub fn print_stack(&self) {
@@ -277,12 +276,13 @@ impl HashBuilder {
                     HashBuilderValueRef::Bytes(leaf_value) => {
                         let path = current.slice(..len_from);
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
-                        let rlp = Self::get_or_insert_rlp_node(
+                        let rlp;
+                        (rlp, self.rlp_buf) = Self::get_or_insert_rlp_node(
                             self.rlp_node_cache.clone(),
                             &path,
                             || {
                                 self.rlp_buf.clear();
-                                leaf_node.rlp(&mut self.rlp_buf)
+                                (leaf_node.rlp(&mut self.rlp_buf), self.rlp_buf.clone())
                             },
                         );
 
@@ -319,10 +319,12 @@ impl HashBuilder {
 
                 let path = current.slice(..len_from);
 
-                let rlp = Self::get_or_insert_rlp_node(self.rlp_node_cache.clone(), &path, || {
-                    self.rlp_buf.clear();
-                    extension_node.rlp(&mut self.rlp_buf)
-                });
+                let rlp;
+                (rlp, self.rlp_buf) =
+                    Self::get_or_insert_rlp_node(self.rlp_node_cache.clone(), &path, || {
+                        self.rlp_buf.clear();
+                        (extension_node.rlp(&mut self.rlp_buf), self.rlp_buf.clone())
+                    });
 
                 trace!(
                     target: "trie::hash_builder",
@@ -389,10 +391,12 @@ impl HashBuilder {
         };
 
         let path = current.slice(..len);
-        let rlp = Self::get_or_insert_rlp_node(self.rlp_node_cache.clone(), &path, || {
-            self.rlp_buf.clear();
-            branch_node.rlp(&mut self.rlp_buf)
-        });
+        let rlp;
+        (rlp, self.rlp_buf) =
+            Self::get_or_insert_rlp_node(self.rlp_node_cache.clone(), &path, || {
+                self.rlp_buf.clear();
+                (branch_node.rlp(&mut self.rlp_buf), self.rlp_buf.clone())
+            });
 
         trace!(
             target: "trie::hash_builder",
