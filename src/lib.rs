@@ -23,7 +23,7 @@ pub mod nodes;
 pub use nodes::BranchNodeCompact;
 
 pub mod hash_builder;
-pub use hash_builder::HashBuilder;
+pub use hash_builder::{HashBuilder, RlpNodeCache};
 
 pub mod proof;
 

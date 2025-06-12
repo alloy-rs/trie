@@ -9,7 +9,10 @@ use crate::{HashMap, nodes::RlpNode, proof::ProofNodes};
 use alloc::vec::Vec;
 use alloy_primitives::{B256, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
-use core::cmp;
+use core::{
+    cmp,
+    sync::atomic::{AtomicU64, Ordering},
+};
 use dashmap::DashMap;
 use std::sync::Arc;
 use tracing::trace;
@@ -58,7 +61,24 @@ pub struct HashBuilder {
     pub proof_retainer: Option<ProofRetainer>,
 
     pub rlp_buf: Vec<u8>,
-    pub rlp_node_cache: Option<Arc<DashMap<Nibbles, (RlpNode, Vec<u8>)>>>,
+    pub rlp_node_cache: Option<RlpNodeCache>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct RlpNodeCache {
+    cache: Arc<DashMap<Nibbles, (RlpNode, Vec<u8>)>>,
+    hits: Arc<AtomicU64>,
+    misses: Arc<AtomicU64>,
+}
+
+impl RlpNodeCache {
+    pub fn hits(&self) -> u64 {
+        self.hits.load(Ordering::Relaxed)
+    }
+
+    pub fn misses(&self) -> u64 {
+        self.misses.load(Ordering::Relaxed)
+    }
 }
 
 impl HashBuilder {
@@ -77,7 +97,7 @@ impl HashBuilder {
     }
 
     /// Set the RLP node cache.
-    pub fn with_rlp_node_cache(mut self, cache: Arc<DashMap<Nibbles, (RlpNode, Vec<u8>)>>) -> Self {
+    pub fn with_rlp_node_cache(mut self, cache: RlpNodeCache) -> Self {
         self.rlp_node_cache = Some(cache);
         self
     }
@@ -109,12 +129,21 @@ impl HashBuilder {
     }
 
     fn get_or_insert_rlp_node(
-        rlp_node_cache: Option<Arc<DashMap<Nibbles, (RlpNode, Vec<u8>)>>>,
+        rlp_node_cache: Option<RlpNodeCache>,
         path: &Nibbles,
         mut rlp: impl FnMut() -> (RlpNode, Vec<u8>),
     ) -> (RlpNode, Vec<u8>) {
         if let Some(rlp_node_cache) = &rlp_node_cache {
-            rlp_node_cache.entry(path.clone()).or_insert_with(rlp).clone()
+            match rlp_node_cache.cache.entry(path.clone()) {
+                dashmap::Entry::Occupied(entry) => {
+                    rlp_node_cache.hits.fetch_add(1, Ordering::Relaxed);
+                    entry.get().clone()
+                }
+                dashmap::Entry::Vacant(entry) => {
+                    rlp_node_cache.misses.fetch_add(1, Ordering::Relaxed);
+                    entry.insert(rlp()).clone()
+                }
+            }
         } else {
             rlp()
         }
