@@ -135,23 +135,31 @@ impl HashBuilder {
     }
 
     fn get_or_insert_rlp_node(
-        rlp_node_cache: Option<RlpNodeCache>,
+        rlp_node_cache: Option<&RlpNodeCache>,
+        rlp_buf: &mut Vec<u8>,
         path: &Nibbles,
-        mut rlp: impl FnMut() -> (RlpNode, Vec<u8>),
-    ) -> (RlpNode, Vec<u8>) {
-        if let Some(rlp_node_cache) = &rlp_node_cache {
+        rlp: impl Fn(&mut Vec<u8>) -> RlpNode,
+    ) -> RlpNode {
+        rlp_buf.clear();
+
+        if let Some(rlp_node_cache) = rlp_node_cache {
             match rlp_node_cache.cache.entry(path.clone()) {
                 dashmap::Entry::Occupied(entry) => {
                     rlp_node_cache.hits.fetch_add(1, Ordering::Relaxed);
-                    entry.get().clone()
+                    let (rlp_node, rlp) = entry.get().clone();
+                    rlp_buf.copy_from_slice(&rlp);
+                    rlp_node
                 }
                 dashmap::Entry::Vacant(entry) => {
                     rlp_node_cache.misses.fetch_add(1, Ordering::Relaxed);
-                    entry.insert(rlp()).clone()
+                    let rlp_node = rlp(rlp_buf);
+                    let rlp_buf = rlp_buf.clone();
+                    entry.insert((rlp_node.clone(), rlp_buf));
+                    rlp_node
                 }
             }
         } else {
-            rlp()
+            rlp(rlp_buf)
         }
     }
     /// Print the current stack of the Hash Builder.
@@ -311,14 +319,11 @@ impl HashBuilder {
                     HashBuilderValueRef::Bytes(leaf_value) => {
                         let path = current.slice(..len_from);
                         let leaf_node = LeafNodeRef::new(&short_node_key, leaf_value);
-                        let rlp;
-                        (rlp, self.rlp_buf) = Self::get_or_insert_rlp_node(
-                            self.rlp_node_cache.clone(),
+                        let rlp = Self::get_or_insert_rlp_node(
+                            self.rlp_node_cache.as_ref(),
+                            &mut self.rlp_buf,
                             &path,
-                            || {
-                                self.rlp_buf.clear();
-                                (leaf_node.rlp(&mut self.rlp_buf), self.rlp_buf.clone())
-                            },
+                            |buf| leaf_node.rlp(buf),
                         );
 
                         trace!(
@@ -354,12 +359,12 @@ impl HashBuilder {
 
                 let path = current.slice(..len_from);
 
-                let rlp;
-                (rlp, self.rlp_buf) =
-                    Self::get_or_insert_rlp_node(self.rlp_node_cache.clone(), &path, || {
-                        self.rlp_buf.clear();
-                        (extension_node.rlp(&mut self.rlp_buf), self.rlp_buf.clone())
-                    });
+                let rlp = Self::get_or_insert_rlp_node(
+                    self.rlp_node_cache.as_ref(),
+                    &mut self.rlp_buf,
+                    &path,
+                    |buf| extension_node.rlp(buf),
+                );
 
                 trace!(
                     target: "trie::hash_builder",
@@ -426,12 +431,12 @@ impl HashBuilder {
         };
 
         let path = current.slice(..len);
-        let rlp;
-        (rlp, self.rlp_buf) =
-            Self::get_or_insert_rlp_node(self.rlp_node_cache.clone(), &path, || {
-                self.rlp_buf.clear();
-                (branch_node.rlp(&mut self.rlp_buf), self.rlp_buf.clone())
-            });
+        let rlp = Self::get_or_insert_rlp_node(
+            self.rlp_node_cache.as_ref(),
+            &mut self.rlp_buf,
+            &path,
+            |buf| branch_node.rlp(buf),
+        );
 
         trace!(
             target: "trie::hash_builder",
