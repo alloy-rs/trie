@@ -147,7 +147,7 @@ impl HashBuilder {
                 dashmap::Entry::Occupied(entry) => {
                     rlp_node_cache.hits.fetch_add(1, Ordering::Relaxed);
                     let (rlp_node, rlp) = entry.get().clone();
-                    rlp_buf.copy_from_slice(&rlp);
+                    rlp_buf.extend_from_slice(&rlp);
                     rlp_node
                 }
                 dashmap::Entry::Vacant(entry) => {
