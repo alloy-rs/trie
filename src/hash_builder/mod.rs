@@ -326,7 +326,10 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
             }
 
             if build_extensions && !short_node_key.is_empty() {
-                self.update_masks(&current, len_from);
+                // set the hash mask on the parent branch of the extension, so that the extension
+                // ends up as a hashed child.
+                self.hash_masks[len] |= TrieMask::from_nibble(current.get_unchecked(len));
+
                 let stack_last = self.stack.pop().expect("there should be at least one stack item");
                 let extension_node = ExtensionNodeRef::new(&short_node_key, &stack_last);
 
@@ -449,24 +452,25 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
 
         if len > 0 {
             let parent_index = len - 1;
-            self.hash_masks[parent_index] |= TrieMask::from_nibble(
-                TrieMask::from_nibble(current.get_unchecked(parent_index)));
+            self.hash_masks[parent_index] |=
+                TrieMask::from_nibble(current.get_unchecked(parent_index));
 
             trace!(
                 target: "trie::hash_builder store_branch_node",
                 ?current,
                 ?parent_index,
-                bit = ?TrieMask::from_nibble(current[parent_index]),
+                bit = ?TrieMask::from_nibble(current.get_unchecked(parent_index)),
                 new_masks = ?self.hash_masks,
                 "hash_mask bit set",
             );
         }
 
-        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
+        let store_in_db_trie = !self.hash_masks[len].is_empty();
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
-                self.tree_masks[parent_index] |= TrieMask::from_nibble(current.get_unchecked(parent_index));
+                self.tree_masks[parent_index] |=
+                    TrieMask::from_nibble(current.get_unchecked(parent_index));
                 trace!(
                     target: "trie::hash_builder store_branch_node",
                     ?current,
@@ -477,22 +481,11 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                 );
             }
 
-            // HACK: We do this because self.tree_masks is kind of performing double-duty. It
-            // primarily indicates if the children of the branch are themselves intermediate branch
-            // nodes (and therefore stored in the db). Secondarily it is used by the update_masks
-            // method to indicate that branch child is an extension pointing to an intermediate
-            // branch node.
-            //
-            // Because the hash_mask will only be set for children which are themselves direct
-            // branch nodes we can AND it with tree_mask to negate that secondary usage of
-            // tree_mask.
-            let tree_mask = self.tree_masks[len] & self.hash_masks[len];
-
             if self.updated_branch_nodes.is_some() {
                 let common_prefix = current.slice(..len);
                 let node = BranchNodeCompact::new(
                     self.state_masks[len],
-                    tree_mask,
+                    self.tree_masks[len],
                     self.hash_masks[len],
                     children,
                     (len == 0).then(|| self.current_root()),
@@ -505,37 +498,6 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                 );
                 self.updated_branch_nodes.as_mut().unwrap().insert(common_prefix, node);
             }
-        }
-    }
-
-    fn update_masks(&mut self, current: &Nibbles, len_from: usize) {
-        if len_from > 0 {
-            let len = len_from - 1;
-            let flag = TrieMask::from_nibble(current.get_unchecked(len));
-
-            trace!(
-                target: "trie::hash_builder",
-                ?current,
-                current_len = ?current.len(),
-                ?len,
-                ?flag,
-                ?self.tree_masks,
-                ?self.hash_masks,
-                "update_masks called",
-            );
-
-            self.hash_masks[len] &= !flag;
-
-            if !self.tree_masks[current.len() - 1].is_empty() {
-                self.tree_masks[len] |= flag;
-            }
-
-            trace!(
-                target: "trie::hash_builder",
-                new_tree_masks = ?self.tree_masks,
-                new_hash_masks = ?self.hash_masks,
-                "update_masks finished",
-            );
         }
     }
 
@@ -777,30 +739,34 @@ mod tests {
         assert_eq!(hb2.root(), expected);
     }
 
-    #[test]
-    fn test_updated_branches() {
+    #[cfg(test)]
+    mod test_updated_branches {
+        use super::*;
         use alloc::sync::Arc;
 
-        struct TestCase<I, U, K>
+        fn test_case<I, U, K>(given: I, expected_updates: U)
         where
             I: IntoIterator<Item = K>,
             U: IntoIterator<Item = (Nibbles, BranchNodeCompact)>,
-            K: AsRef<[u8]> + Ord,
+            K: AsRef<[u8]> + Ord + Copy,
         {
-            given: I,
-            expected_updates: U,
+            assert_trie_root_and_updates(
+                given.into_iter().map(|key| (key, key)),
+                expected_updates.into_iter(),
+            )
         }
 
-        let cases = vec![
-            // A simple case showing tree_mask and hash_mask getting set correctly
-            TestCase {
-                given: vec![
+        /// A simple case showing tree_mask and hash_mask getting set correctly
+        #[test]
+        fn simple() {
+            test_case(
+                [
                     hex!("0xb100000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0xb600000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0xb620000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0xb62c000000000000000000000000000000000000000000000000000000000000"),
                 ],
-                expected_updates: vec![
+                [
                     (
                         Nibbles::from_nibbles(hex!("0x0b")),
                         BranchNodeCompact {
@@ -825,21 +791,31 @@ mod tests {
                         },
                     ),
                 ],
-            },
-            // This test case is a simplified form of a bug which caused the tree_mask to be
-            // mistakenly set on the 0xb node.
-            // https://github.com/paradigmxyz/reth/pull/12080
-            TestCase {
-                given: vec![
+            )
+        }
+
+        /// This test case is a simplified form of a bug which caused the tree_mask to be
+        /// mistakenly set on the 0xb node. https://github.com/paradigmxyz/reth/pull/12080
+        #[test]
+        fn no_tree_mask_on_extension() {
+            test_case(
+                [
                     hex!("0xb000000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0xb650000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0xb652000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0xb652c00000000000000000000000000000000000000000000000000000000000"),
                 ],
-                expected_updates: vec![
+                [
                     (
                         Nibbles::from_nibbles(hex!("0x0b")),
-                        BranchNodeCompact { state_mask: 0b1000001.into(), ..Default::default() },
+                        BranchNodeCompact {
+                            state_mask: 0b1000001.into(),
+                            hash_mask: 0b1000000.into(),
+                            hashes: Arc::new(vec![b256!(
+                                "0x866ebea10e9ecee880b49b9cd581202a26365234fabe6d684d70e74fadbc2afd"
+                            )]),
+                            ..Default::default()
+                        },
                     ),
                     (
                         Nibbles::from_nibbles(hex!("0x0b0605")),
@@ -853,11 +829,15 @@ mod tests {
                         },
                     ),
                 ],
-            },
-            // This test case is a bit more complex, and contains a case where the tree_mask should
-            // be set but must get masked by the hash_mask in order to be correct.
-            TestCase {
-                given: vec![
+            )
+        }
+
+        /// This test case is a bit more complex, and contains a case where the tree_mask should
+        /// not be set for an extension child (0x03), but the hash_mask should
+        #[test]
+        fn hash_mask_but_no_tree_mask() {
+            test_case(
+                [
                     hex!("0x0000000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0x0000100000000000000000000000000000000000000000000000000000000000"),
                     hex!("0x0002000000000000000000000000000000000000000000000000000000000000"),
@@ -865,18 +845,23 @@ mod tests {
                     hex!("0x0334000000000000000000000000000000000000000000000000000000000000"),
                     hex!("0x0350000000000000000000000000000000000000000000000000000000000000"),
                 ],
-                expected_updates: vec![
+                [
                     (
                         Nibbles::from_nibbles(hex!("0x00")),
                         BranchNodeCompact {
                             state_mask: 0b1001.into(),
-                            // tree_mask should _not_ have bit 0 set, even though 0x000 is a key,
+                            // tree_mask should _not_ have bit 0 set, even though 0x00 is a key,
                             // because that key is an extension.
                             tree_mask: 0b1000.into(),
-                            hash_mask: 0b1000.into(),
-                            hashes: Arc::new(vec![b256!(
-                                "0x4711fabfbb5e0a6649e7ba0cc245f7fa91dabf519834ad565caf750801fd6d9d"
-                            )]),
+                            hash_mask: 0b1001.into(),
+                            hashes: Arc::new(vec![
+                                b256!(
+                                    "0xa3f1c08e34109e2cf897b38bb99fb2a8718853afd384e9ca0a69aca17ca3c3b4"
+                                ),
+                                b256!(
+                                    "0x4711fabfbb5e0a6649e7ba0cc245f7fa91dabf519834ad565caf750801fd6d9d"
+                                ),
+                            ]),
                             ..Default::default()
                         },
                     ),
@@ -903,14 +888,65 @@ mod tests {
                         },
                     ),
                 ],
-            },
-        ];
+            )
+        }
 
-        cases.into_iter().for_each(|case| {
-            assert_trie_root_and_updates(
-                case.given.into_iter().map(|key| (key, key)),
-                case.expected_updates.into_iter(),
-            );
-        })
+        /// Same as the above, but the root node is a branch
+        #[test]
+        fn branch_at_root() {
+            test_case(
+                [
+                    hex!("0x0000000000000000000000000000000000000000000000000000000000000000"),
+                    hex!("0x0001000000000000000000000000000000000000000000000000000000000000"),
+                    hex!("0x0020000000000000000000000000000000000000000000000000000000000000"),
+                    hex!("0x3330000000000000000000000000000000000000000000000000000000000000"),
+                    hex!("0x3340000000000000000000000000000000000000000000000000000000000000"),
+                    hex!("0x3500000000000000000000000000000000000000000000000000000000000000"),
+                ],
+                [
+                    (
+                        Nibbles::from_nibbles(hex!("0x")),
+                        BranchNodeCompact {
+                            state_mask: 0b1001.into(),
+                            tree_mask: 0b1000.into(),
+                            hash_mask: 0b1001.into(),
+                            hashes: Arc::new(vec![
+                                b256!(
+                                    "0x1ef1abc7b0ec66a021f525bd4e109532aebece9948d2acdb0adb60c128c1a275"
+                                ),
+                                b256!(
+                                    "0x835e487a7fb1fcb22fae2f8ecea4432d528897693ab1c5927ad963f81f9e83c3"
+                                ),
+                            ]),
+                            root_hash: Some(b256!(
+                                "0xca6d73466609c335485b4fc03d56f54fbdb4fe118657af682da6bece4ab7e6f3"
+                            )),
+                        },
+                    ),
+                    (
+                        Nibbles::from_nibbles(hex!("0x0000")),
+                        BranchNodeCompact {
+                            state_mask: 0b101.into(),
+                            hash_mask: 0b1.into(),
+                            hashes: Arc::new(vec![b256!(
+                                "0xc372e9d9fd82bb7286bf0e49deed24c11cde03b597d7eb5426194560798f53dd"
+                            )]),
+                            ..Default::default()
+                        },
+                    ),
+                    (
+                        Nibbles::from_nibbles(hex!("0x03")),
+                        BranchNodeCompact {
+                            state_mask: 0b101000.into(),
+                            hash_mask: 0b1000.into(),
+                            hashes: Arc::new(vec![b256!(
+                                "0x5ca61a540903b405ed856df6e191cd4806cf7dd2af92b1c3b7c2e38763e2047e"
+                            )]),
+                            ..Default::default()
+                        },
+                    ),
+                ],
+            )
+        }
     }
 }
