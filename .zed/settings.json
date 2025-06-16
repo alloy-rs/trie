@@ -7,10 +7,10 @@
     "rust-analyzer": {
       "initialization_options": {
         "cargo": {
-          "features": ["default", "arbitrary"]
+          "features": ["default", "arbitrary", "ethereum"]
         },
         "check": {
-          "features": ["default", "arbitrary"]
+          "features": ["default", "arbitrary", "ethereum"]
         }
       }
     }

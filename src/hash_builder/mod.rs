@@ -222,7 +222,7 @@ impl HashBuilder {
             );
 
             // Adjust the state masks for branch calculation
-            let extra_digit = current[len];
+            let extra_digit = current.get_unchecked(len);
             if self.state_masks.len() <= len {
                 let new_len = len + 1;
                 trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
@@ -391,14 +391,16 @@ impl HashBuilder {
     fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
         if len > 0 {
             let parent_index = len - 1;
-            self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
+            self.hash_masks[parent_index] |=
+                TrieMask::from_nibble(current.get_unchecked(parent_index));
         }
 
         let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
-                self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
+                self.tree_masks[parent_index] |=
+                    TrieMask::from_nibble(current.get_unchecked(parent_index));
             }
 
             if self.updated_branch_nodes.is_some() {
@@ -423,7 +425,7 @@ impl HashBuilder {
 
     fn update_masks(&mut self, current: &Nibbles, len_from: usize) {
         if len_from > 0 {
-            let flag = TrieMask::from_nibble(current[len_from - 1]);
+            let flag = TrieMask::from_nibble(current.get_unchecked(len_from - 1));
 
             self.hash_masks[len_from - 1] &= !flag;
 
