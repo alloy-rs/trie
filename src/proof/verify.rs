@@ -325,7 +325,8 @@ mod tests {
         ];
         let target = Nibbles::unpack(
             B256::from_str("0x3c19000000000000000000000000000000000000000000000000000000000000")
-                .unwrap().as_slice(),
+                .unwrap()
+                .as_slice(),
         );
         let value = B256::with_last_byte(1);
 
