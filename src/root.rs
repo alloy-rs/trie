@@ -79,7 +79,7 @@ mod ethereum {
         let mut hb = HashBuilder::default();
         for (hashed_slot, value) in storage {
             hb.add_leaf(
-                Nibbles::unpack(hashed_slot),
+                Nibbles::unpack(hashed_slot.as_slice()),
                 alloy_rlp::encode_fixed_size(&value).as_ref(),
             );
         }

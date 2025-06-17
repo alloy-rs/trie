@@ -470,7 +470,7 @@ mod tests {
         let mut hb = HashBuilder::default();
 
         hashed.iter().for_each(|(key, val)| {
-            let nibbles = Nibbles::unpack(key);
+            let nibbles = Nibbles::unpack(key.as_slice());
             hb.add_leaf(nibbles, val);
         });
 
@@ -488,7 +488,7 @@ mod tests {
 
         let data = iter.into_iter().collect::<BTreeMap<_, _>>();
         data.iter().for_each(|(key, val)| {
-            let nibbles = Nibbles::unpack(key);
+            let nibbles = Nibbles::unpack(key.as_ref());
             hb.add_leaf(nibbles, val.as_ref());
         });
 
@@ -562,7 +562,7 @@ mod tests {
             ),
         ]);
         data.iter().for_each(|(key, val)| {
-            let nibbles = Nibbles::unpack(key);
+            let nibbles = Nibbles::unpack(key.as_slice());
             hb.add_leaf(nibbles, val.as_ref());
         });
         let _root = hb.root();
