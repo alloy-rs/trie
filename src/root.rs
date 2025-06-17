@@ -79,7 +79,7 @@ mod ethereum {
         let mut hb = HashBuilder::default();
         for (hashed_slot, value) in storage {
             hb.add_leaf(
-                Nibbles::unpack(hashed_slot.as_slice()),
+                Nibbles::unpack(hashed_slot),
                 alloy_rlp::encode_fixed_size(&value).as_ref(),
             );
         }
@@ -131,7 +131,7 @@ mod ethereum {
         for (hashed_key, account) in state {
             account_rlp_buf.clear();
             account.into().encode(&mut account_rlp_buf);
-            hb.add_leaf(Nibbles::unpack(hashed_key.as_slice()), &account_rlp_buf);
+            hb.add_leaf(Nibbles::unpack(hashed_key), &account_rlp_buf);
         }
         hb.root()
     }

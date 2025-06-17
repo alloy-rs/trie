@@ -205,7 +205,7 @@ mod tests {
 
     #[test]
     fn empty_trie() {
-        let key = Nibbles::unpack(B256::repeat_byte(42).as_slice());
+        let key = Nibbles::unpack(B256::repeat_byte(42));
         let mut hash_builder = HashBuilder::default().with_proof_retainer(ProofRetainer::default());
         let root = hash_builder.root();
         let proof = hash_builder.take_proof_nodes();
@@ -273,9 +273,9 @@ mod tests {
 
     #[test]
     fn single_leaf_trie_proof_verification() {
-        let target = Nibbles::unpack(B256::with_last_byte(0x2).as_slice());
+        let target = Nibbles::unpack(B256::with_last_byte(0x2));
         let target_value = B256::with_last_byte(0x2);
-        let non_existent_target = Nibbles::unpack(B256::with_last_byte(0x3).as_slice());
+        let non_existent_target = Nibbles::unpack(B256::with_last_byte(0x3));
 
         let retainer = ProofRetainer::from_iter([target, non_existent_target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
@@ -298,13 +298,13 @@ mod tests {
     #[test]
     fn non_existent_proof_verification() {
         let range = 0..=0xf;
-        let target = Nibbles::unpack(B256::with_last_byte(0xff).as_slice());
+        let target = Nibbles::unpack(B256::with_last_byte(0xff));
 
         let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::with_last_byte(key);
-            hash_builder.add_leaf(Nibbles::unpack(hash.as_slice()), &hash[..]);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
         }
         let root = hash_builder.root();
         assert_eq!(
@@ -334,7 +334,7 @@ mod tests {
         let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in &existing_keys {
-            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key).as_slice()), &value[..]);
+            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
         }
         let root = hash_builder.root();
         assert_eq!(
@@ -360,7 +360,7 @@ mod tests {
         let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in &existing_keys {
-            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key).as_slice()), &value[..]);
+            hash_builder.add_leaf(Nibbles::unpack(B256::from_slice(key)), &value[..]);
         }
         hash_builder.add_leaf(target, &value[..]);
         let root = hash_builder.root();
@@ -395,14 +395,14 @@ mod tests {
     #[test]
     fn extension_root_trie_proof_verification() {
         let range = 0..=0xff;
-        let target = Nibbles::unpack(B256::with_last_byte(0x42).as_slice());
+        let target = Nibbles::unpack(B256::with_last_byte(0x42));
         let target_value = B256::with_last_byte(0x42);
 
         let retainer = ProofRetainer::from_iter([target]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::with_last_byte(key);
-            hash_builder.add_leaf(Nibbles::unpack(hash.as_slice()), &hash[..]);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
         }
         let root = hash_builder.root();
         assert_eq!(
@@ -425,16 +425,16 @@ mod tests {
     #[test]
     fn wide_trie_proof_verification() {
         let range = 0..=0xff;
-        let target1 = Nibbles::unpack(B256::repeat_byte(0x42).as_slice());
+        let target1 = Nibbles::unpack(B256::repeat_byte(0x42));
         let target1_value = B256::repeat_byte(0x42);
-        let target2 = Nibbles::unpack(B256::repeat_byte(0xff).as_slice());
+        let target2 = Nibbles::unpack(B256::repeat_byte(0xff));
         let target2_value = B256::repeat_byte(0xff);
 
         let retainer = ProofRetainer::from_iter([target1, target2]);
         let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
         for key in range.clone() {
             let hash = B256::repeat_byte(key);
-            hash_builder.add_leaf(Nibbles::unpack(hash.as_slice()), &hash[..]);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
         }
         let root = hash_builder.root();
         assert_eq!(
@@ -663,10 +663,10 @@ mod tests {
                 // Collect into a btree map to sort the data
                 .collect::<std::collections::BTreeMap<_, _>>();
 
-            let retainer = ProofRetainer::from_iter(hashed.clone().into_keys().map(|key| Nibbles::unpack(key.as_slice())));
+            let retainer = ProofRetainer::from_iter(hashed.clone().into_keys().map(|key| Nibbles::unpack(key)));
             let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
             for (key, value) in hashed.clone() {
-                hash_builder.add_leaf(Nibbles::unpack(key.as_slice()), &value);
+                hash_builder.add_leaf(Nibbles::unpack(key), &value);
             }
 
             let root = hash_builder.root();
@@ -674,7 +674,7 @@ mod tests {
 
             let proofs = hash_builder.take_proof_nodes();
             for (key, value) in hashed {
-                let nibbles = Nibbles::unpack(key.as_slice());
+                let nibbles = Nibbles::unpack(key);
                 assert_eq!(verify_proof(root, nibbles, Some(value), proofs.matching_nodes_sorted(&nibbles).iter().map(|(_, node)| node)), Ok(()));
             }
         });

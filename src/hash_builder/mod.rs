@@ -470,7 +470,7 @@ mod tests {
         let mut hb = HashBuilder::default();
 
         hashed.iter().for_each(|(key, val)| {
-            let nibbles = Nibbles::unpack(key.as_slice());
+            let nibbles = Nibbles::unpack(key);
             hb.add_leaf(nibbles, val);
         });
 
@@ -562,7 +562,7 @@ mod tests {
             ),
         ]);
         data.iter().for_each(|(key, val)| {
-            let nibbles = Nibbles::unpack(key.as_slice());
+            let nibbles = Nibbles::unpack(key);
             hb.add_leaf(nibbles, val.as_ref());
         });
         let _root = hb.root();
@@ -621,7 +621,7 @@ mod tests {
         // We create the hash builder and add the leaves
         let mut hb = HashBuilder::default();
         for (key, val) in &raw_input {
-            hb.add_leaf(Nibbles::unpack(key), val.as_slice());
+            hb.add_leaf(Nibbles::unpack(key), val);
         }
 
         // Manually create the branch node that should be there after the first 2 leaves are added.
