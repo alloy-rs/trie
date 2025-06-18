@@ -245,9 +245,9 @@ mod tests {
             Bytes::from_str("e08200d3dc808080c4822070318080808080c782207083312e3280808080808080").unwrap()
         ];
 
-        let first_key = Nibbles::unpack(&hex!("a77d3370"));
+        let first_key = Nibbles::unpack(hex!("a77d3370"));
         let first_value = vec![0x31];
-        let second_key = Nibbles::unpack(&hex!("a77d3970"));
+        let second_key = Nibbles::unpack(hex!("a77d3970"));
         let second_value = hex!("0x312e32").to_vec();
 
         assert_eq!(verify_proof(root, first_key, Some(first_value.clone()), &proof), Ok(()));
@@ -663,7 +663,7 @@ mod tests {
                 // Collect into a btree map to sort the data
                 .collect::<std::collections::BTreeMap<_, _>>();
 
-            let retainer = ProofRetainer::from_iter(hashed.clone().into_keys().map(|key| Nibbles::unpack(key)));
+            let retainer = ProofRetainer::from_iter(hashed.clone().into_keys().map(Nibbles::unpack));
             let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
             for (key, value) in hashed.clone() {
                 hash_builder.add_leaf(Nibbles::unpack(key), &value);
