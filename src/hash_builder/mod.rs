@@ -196,7 +196,7 @@ impl HashBuilder {
     fn update(&mut self, succeeding: &Nibbles) {
         let mut build_extensions = false;
         // current / self.key is always the latest added element in the trie
-        let mut current = self.key.clone();
+        let mut current = self.key;
         debug_assert!(!current.is_empty());
 
         trace!(target: "trie::hash_builder", ?current, ?succeeding, "updating merkle tree");
@@ -208,7 +208,7 @@ impl HashBuilder {
             let preceding_exists = !self.state_masks.is_empty();
             let preceding_len = self.state_masks.len().saturating_sub(1);
 
-            let common_prefix_len = succeeding.common_prefix_length(current.as_slice());
+            let common_prefix_len = succeeding.common_prefix_length(&current);
             let len = cmp::max(preceding_len, common_prefix_len);
             assert!(len < current.len(), "len {} current.len {}", len, current.len());
 
@@ -222,7 +222,7 @@ impl HashBuilder {
             );
 
             // Adjust the state masks for branch calculation
-            let extra_digit = current[len];
+            let extra_digit = current.get_unchecked(len);
             if self.state_masks.len() <= len {
                 let new_len = len + 1;
                 trace!(target: "trie::hash_builder", new_len, old_len = self.state_masks.len(), "scaling state masks to fit");
@@ -391,14 +391,16 @@ impl HashBuilder {
     fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
         if len > 0 {
             let parent_index = len - 1;
-            self.hash_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
+            self.hash_masks[parent_index] |=
+                TrieMask::from_nibble(current.get_unchecked(parent_index));
         }
 
         let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
-                self.tree_masks[parent_index] |= TrieMask::from_nibble(current[parent_index]);
+                self.tree_masks[parent_index] |=
+                    TrieMask::from_nibble(current.get_unchecked(parent_index));
             }
 
             if self.updated_branch_nodes.is_some() {
@@ -423,7 +425,7 @@ impl HashBuilder {
 
     fn update_masks(&mut self, current: &Nibbles, len_from: usize) {
         if len_from > 0 {
-            let flag = TrieMask::from_nibble(current[len_from - 1]);
+            let flag = TrieMask::from_nibble(current.get_unchecked(len_from - 1));
 
             self.hash_masks[len_from - 1] &= !flag;
 
@@ -486,7 +488,7 @@ mod tests {
 
         let data = iter.into_iter().collect::<BTreeMap<_, _>>();
         data.iter().for_each(|(key, val)| {
-            let nibbles = Nibbles::unpack(key);
+            let nibbles = Nibbles::unpack(key.as_ref());
             hb.add_leaf(nibbles, val.as_ref());
         });
 
@@ -619,7 +621,7 @@ mod tests {
         // We create the hash builder and add the leaves
         let mut hb = HashBuilder::default();
         for (key, val) in &raw_input {
-            hb.add_leaf(Nibbles::unpack(key), val.as_slice());
+            hb.add_leaf(Nibbles::unpack(key), val);
         }
 
         // Manually create the branch node that should be there after the first 2 leaves are added.
