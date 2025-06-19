@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.0](https://github.com/alloy-rs/trie/releases/tag/v0.9.0) - 2025-06-19
+
+### Dependencies
+
+- Bump nybbles to 0.4 ([#104](https://github.com/alloy-rs/trie/issues/104))
+- Bump MSRV and edition ([#106](https://github.com/alloy-rs/trie/issues/106))
+
+### Features
+
+- Logs for pushing nodes to the stack ([#101](https://github.com/alloy-rs/trie/issues/101))
+
+### Other
+
+- More realistic nibble lengths ([#105](https://github.com/alloy-rs/trie/issues/105))
+- Remove concurrency from bench ([#102](https://github.com/alloy-rs/trie/issues/102))
+
 ## [0.8.1](https://github.com/alloy-rs/trie/releases/tag/v0.8.1) - 2025-04-14
 
 ### Bug Fixes
@@ -17,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.8.1
 - [benches] Use criterion codspeed compat ([#96](https://github.com/alloy-rs/trie/issues/96))
 
 ## [0.8.0](https://github.com/alloy-rs/trie/releases/tag/v0.8.0) - 2025-04-09
