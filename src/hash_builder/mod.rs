@@ -8,7 +8,6 @@ use super::{
 use crate::{HashMap, nodes::RlpNode, proof::ProofNodes};
 use alloc::vec::Vec;
 use alloy_primitives::{B256, keccak256};
-use alloy_rlp::EMPTY_STRING_CODE;
 use core::cmp;
 use tracing::trace;
 
@@ -159,7 +158,7 @@ impl HashBuilder {
         let root = self.current_root();
         if root == EMPTY_ROOT_HASH {
             if let Some(proof_retainer) = self.proof_retainer.as_mut() {
-                proof_retainer.retain(&Nibbles::default(), &[EMPTY_STRING_CODE])
+                proof_retainer.retain_empty_root_proof();
             }
         }
         root
@@ -267,7 +266,10 @@ impl HashBuilder {
                             "pushing leaf node",
                         );
                         self.stack.push(rlp);
-                        self.retain_proof_from_buf(&path);
+
+                        if let Some(proof_retainer) = self.proof_retainer.as_mut() {
+                            proof_retainer.retain_leaf_proof(&path, &self.rlp_buf)
+                        }
                     }
                     HashBuilderValueRef::Hash(hash) => {
                         trace!(target: "trie::hash_builder", ?hash, "pushing branch node hash");
@@ -302,7 +304,11 @@ impl HashBuilder {
                     "pushing extension node",
                 );
                 self.stack.push(rlp);
-                self.retain_proof_from_buf(&path);
+
+                if let Some(proof_retainer) = self.proof_retainer.as_mut() {
+                    proof_retainer.retain_extension_proof(&path, &short_node_key, &self.rlp_buf)
+                }
+
                 self.resize_masks(len_from);
             }
 
@@ -368,7 +374,10 @@ impl HashBuilder {
             ?rlp,
             "pushing branch node",
         );
-        self.retain_proof_from_buf(&path);
+
+        if let Some(proof_retainer) = self.proof_retainer.as_mut() {
+            proof_retainer.retain_branch_proof(&path, state_mask, &self.rlp_buf);
+        }
 
         // Clears the stack from the branch node elements
         let first_child_idx = self.stack.len() - state_mask.count_ones() as usize;
@@ -414,12 +423,6 @@ impl HashBuilder {
                 );
                 self.updated_branch_nodes.as_mut().unwrap().insert(common_prefix, node);
             }
-        }
-    }
-
-    fn retain_proof_from_buf(&mut self, prefix: &Nibbles) {
-        if let Some(proof_retainer) = self.proof_retainer.as_mut() {
-            proof_retainer.retain(prefix, &self.rlp_buf)
         }
     }
 
