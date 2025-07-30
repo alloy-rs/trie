@@ -31,9 +31,8 @@ impl SeenProofs {
 
     /// Checks if a branch node is parent to both last target leaf and last non-target node.
     fn branch_is_parent(&self, path: &Nibbles) -> bool {
-        let l = path.len();
-        self.last_target_leaf_path.len() == l + 1
-            && self.last_nontarget_path.len() == l + 1
+        self.last_target_leaf_path.len() == path.len() + 1
+            && self.last_nontarget_path.len() == path.len() + 1
             && self.last_target_leaf_path.starts_with(path)
             && self.last_nontarget_path.starts_with(path)
     }
