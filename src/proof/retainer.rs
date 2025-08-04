@@ -95,7 +95,15 @@ impl<RK> ProofRetainer<RK> {
     /// keys have been added or removed to the trie.
     ///
     /// If None is given then retention of extra proofs is disabled.
-    pub fn with_added_removed_keys<K2>(self, added_removed_keys: Option<K2>) -> ProofRetainer<K2> {
+    pub fn with_added_removed_keys<K2: std::fmt::Debug>(
+        self,
+        added_removed_keys: Option<K2>,
+    ) -> ProofRetainer<K2> {
+        tracing::trace!(
+            target: "trie::proof_retainer",
+            ?added_removed_keys,
+            "with_added_removed_keys",
+        );
         ProofRetainer {
             targets: self.targets,
             proof_nodes: self.proof_nodes,
@@ -209,7 +217,7 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
                     ?short_key,
                     ?is_prefix_added,
                     ?extension_child_is_nontarget,
-                    "Deciding to retain non-target",
+                    "Deciding to retain non-target extension child",
                 );
                 if added_removed_keys.is_prefix_added(path)
                     && self.added_removed_tracking.extension_child_is_nontarget(path, short_key)
@@ -267,12 +275,21 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
                 //
                 let removed_mask = added_removed_keys.get_removed_mask(path);
                 let nonremoved_mask = !removed_mask & state_mask;
+                let branch_child_is_nontarget = self
+                    .added_removed_tracking
+                    .branch_child_is_nontarget(path, nonremoved_mask.trailing_zeros() as u8);
 
-                if nonremoved_mask.count_ones() == 1
-                    && self
-                        .added_removed_tracking
-                        .branch_child_is_nontarget(path, nonremoved_mask.trailing_zeros() as u8)
-                {
+                tracing::trace!(
+                    target: "trie::proof_retainer",
+                    ?path,
+                    ?removed_mask,
+                    ?state_mask,
+                    ?nonremoved_mask,
+                    ?branch_child_is_nontarget,
+                    "Deciding to retain non-target branch child",
+                );
+
+                if nonremoved_mask.count_ones() == 1 && branch_child_is_nontarget {
                     self.retain_last_nontarget();
                 }
             }
