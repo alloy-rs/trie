@@ -206,7 +206,8 @@ mod tests {
     #[test]
     fn empty_trie() {
         let key = Nibbles::unpack(B256::repeat_byte(42));
-        let mut hash_builder = HashBuilder::default().with_proof_retainer(ProofRetainer::default());
+        let mut hash_builder =
+            HashBuilder::default().with_proof_retainer(<ProofRetainer>::default());
         let root = hash_builder.root();
         let proof = hash_builder.take_proof_nodes();
         assert_eq!(

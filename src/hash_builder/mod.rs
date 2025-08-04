@@ -3,9 +3,9 @@
 use super::{
     BranchNodeCompact, EMPTY_ROOT_HASH, Nibbles, TrieMask,
     nodes::{BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
-    proof::ProofRetainer,
+    proof::{AddedRemovedKeys, EmptyAddedRemovedKeys, ProofNodes, ProofRetainer},
 };
-use crate::{HashMap, nodes::RlpNode, proof::ProofNodes};
+use crate::{HashMap, nodes::RlpNode};
 use alloc::vec::Vec;
 use alloy_primitives::{B256, keccak256};
 use core::cmp;
@@ -38,9 +38,9 @@ pub use value::{HashBuilderValue, HashBuilderValueRef};
 /// up, combining the hashes of child nodes and ultimately generating the root hash. The root hash
 /// can then be used to verify the integrity and authenticity of the trie's data by constructing and
 /// verifying Merkle proofs.
-#[derive(Debug, Clone, Default)]
+#[derive(Debug, Clone)]
 #[allow(missing_docs)]
-pub struct HashBuilder {
+pub struct HashBuilder<K = EmptyAddedRemovedKeys> {
     pub key: Nibbles,
     pub value: HashBuilderValue,
     pub stack: Vec<RlpNode>,
@@ -52,12 +52,29 @@ pub struct HashBuilder {
     pub stored_in_database: bool,
 
     pub updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
-    pub proof_retainer: Option<ProofRetainer>,
+    pub proof_retainer: Option<ProofRetainer<K>>,
 
     pub rlp_buf: Vec<u8>,
 }
 
-impl HashBuilder {
+impl Default for HashBuilder {
+    fn default() -> Self {
+        Self {
+            key: Default::default(),
+            value: Default::default(),
+            stack: Default::default(),
+            state_masks: Default::default(),
+            tree_masks: Default::default(),
+            hash_masks: Default::default(),
+            stored_in_database: Default::default(),
+            updated_branch_nodes: None,
+            proof_retainer: None,
+            rlp_buf: Default::default(),
+        }
+    }
+}
+
+impl<K> HashBuilder<K> {
     /// Enables the Hash Builder to store updated branch nodes.
     ///
     /// Call [HashBuilder::split] to get the updates to branch nodes.
@@ -67,9 +84,19 @@ impl HashBuilder {
     }
 
     /// Enable specified proof retainer.
-    pub fn with_proof_retainer(mut self, retainer: ProofRetainer) -> Self {
-        self.proof_retainer = Some(retainer);
-        self
+    pub fn with_proof_retainer<K2>(self, retainer: ProofRetainer<K2>) -> HashBuilder<K2> {
+        HashBuilder {
+            key: self.key,
+            value: self.value,
+            stack: self.stack,
+            state_masks: self.state_masks,
+            tree_masks: self.tree_masks,
+            hash_masks: self.hash_masks,
+            stored_in_database: self.stored_in_database,
+            updated_branch_nodes: self.updated_branch_nodes,
+            proof_retainer: Some(retainer),
+            rlp_buf: self.rlp_buf,
+        }
     }
 
     /// Enables the Hash Builder to store updated branch nodes.
@@ -107,7 +134,9 @@ impl HashBuilder {
         }
         println!("============ END STACK ===============");
     }
+}
 
+impl<K: AddedRemovedKeys> HashBuilder<K> {
     /// Adds a new leaf element and its value to the trie hash builder.
     ///
     /// # Panics
