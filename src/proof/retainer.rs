@@ -7,6 +7,7 @@ use crate::{
 };
 use alloy_primitives::Bytes;
 use alloy_rlp::EMPTY_STRING_CODE;
+use tracing::trace;
 
 use alloc::vec::Vec;
 
@@ -18,27 +19,38 @@ use alloc::vec::Vec;
 /// by its `target` field.
 #[derive(Default, Clone, Debug)]
 struct AddedRemovedKeysTracking {
-    /// Path of the last node which was not found in the `ProofRetainer`'s target set.
+    /// Path of the last branch which was passed to `retain_branch_proof`, regardless of whether it
+    /// was a target or not.
+    last_branch_path: Nibbles,
+    /// Proof of the node at `last_branch_path`.
+    last_branch_proof: Vec<u8>,
+    /// Path of the last node which was not found in the `ProofRetainer`'s target set, and which is
+    /// not potentially removed as given by [`AddedRemovedKeys::get_removed_mask`]
     last_nontarget_path: Nibbles,
-    /// Proof of the last node which was not found in the `ProofRetainer`'s target set.
+    /// Proof of the node at `last_nontarget_path`.
     last_nontarget_proof: Vec<u8>,
 }
 
 impl AddedRemovedKeysTracking {
-    /// Stores the path and proof of the most recently seen path/proof which were not retained.
-    fn retain_nontarget(&mut self, path: &Nibbles, proof: &[u8]) {
-        tracing::trace!(
-            target: "trie::proof_retainer",
-            ?path,
-            "Retaining non-target",
-        );
+    /// Stores the path and proof of the most recently seen path/proof which were not retained and
+    /// are not potentially removed.
+    fn track_nontarget(&mut self, path: &Nibbles, proof: &[u8]) {
+        trace!(target: "trie::proof_retainer", ?path, "Tracking non-target");
         self.last_nontarget_path = *path;
         self.last_nontarget_proof.clear();
         self.last_nontarget_proof.extend(proof);
     }
 
-    /// Checks if an extension node is parent to the last non-target node.
-    fn extension_child_is_nontarget(&self, path: &Nibbles, short_key: &Nibbles) -> bool {
+    /// Stores the path and proof of the most recently seen branch.
+    fn track_branch(&mut self, path: &Nibbles, proof: &[u8]) {
+        trace!(target: "trie::proof_retainer", ?path, "Tracking branch");
+        self.last_branch_path = *path;
+        self.last_branch_proof.clear();
+        self.last_branch_proof.extend(proof);
+    }
+
+    /// Checks if an extension node is parent to the last tracked branch node.
+    fn extension_child_is_branch(&self, path: &Nibbles, short_key: &Nibbles) -> bool {
         path.len() + short_key.len() == self.last_nontarget_path.len()
             && self.last_nontarget_path.starts_with(path)
             && self.last_nontarget_path.ends_with(short_key)
@@ -80,11 +92,7 @@ impl FromIterator<Nibbles> for ProofRetainer {
 impl ProofRetainer {
     /// Create new retainer with target nibbles.
     pub fn new(targets: Vec<Nibbles>) -> Self {
-        tracing::trace!(
-            target: "trie::proof_retainer",
-            ?targets,
-            "Initializing",
-        );
+        trace!(target: "trie::proof_retainer", ?targets, "Initializing");
         Self { targets, ..Default::default() }
     }
 }
@@ -95,25 +103,13 @@ impl<RK> ProofRetainer<RK> {
     /// keys have been added or removed to the trie.
     ///
     /// If None is given then retention of extra proofs is disabled.
-    pub fn with_added_removed_keys<K2: std::fmt::Debug>(
-        self,
-        added_removed_keys: Option<K2>,
-    ) -> ProofRetainer<K2> {
-        tracing::trace!(
-            target: "trie::proof_retainer",
-            ?added_removed_keys,
-            "with_added_removed_keys",
-        );
+    pub fn with_added_removed_keys<K2>(self, added_removed_keys: Option<K2>) -> ProofRetainer<K2> {
         ProofRetainer {
             targets: self.targets,
             proof_nodes: self.proof_nodes,
             added_removed_keys,
             added_removed_tracking: self.added_removed_tracking,
         }
-    }
-
-    fn added_removed_tracking_enabled(&self) -> bool {
-        self.added_removed_keys.is_some()
     }
 
     /// Returns `true` if the given prefix matches the retainer target.
@@ -143,7 +139,7 @@ impl<RK> ProofRetainer<RK> {
 
     /// Retain the proof with no checks being performed.
     fn retain_unchecked(&mut self, path: Nibbles, proof: Bytes) {
-        tracing::trace!(
+        trace!(
             target: "trie::proof_retainer",
             path = ?path,
             proof = alloy_primitives::hex::encode(&proof),
@@ -152,30 +148,44 @@ impl<RK> ProofRetainer<RK> {
         self.proof_nodes.insert(path, proof);
     }
 
-    /// Retain the proof of the last seen node which was not a target node.
-    fn retain_last_nontarget(&mut self) {
-        let last_nontarget_path = self.added_removed_tracking.last_nontarget_path;
-        let last_nontarget_proof =
-            Bytes::copy_from_slice(&self.added_removed_tracking.last_nontarget_proof);
-        self.retain_unchecked(last_nontarget_path, last_nontarget_proof);
-    }
-
     /// Retains a proof for an empty root.
     pub fn retain_empty_root_proof(&mut self) {
         self.retain_unchecked(Nibbles::default(), [EMPTY_STRING_CODE].into())
+    }
+}
+
+impl<K: AddedRemovedKeys> ProofRetainer<K> {
+    /// Tracks the proof in the [`AddedRemovedKeysTracking`] if:
+    /// - Tracking is enabled
+    /// - Path is not root
+    /// - The path is not a removed child as given by [`AddedRemovedKeys`]
+    ///
+    /// Non-target tracking is only used for retaining of extra branch children in cases where the
+    /// branch is getting deleted, hence why root node is not kept.
+    fn maybe_track_nontarget(&mut self, path: &Nibbles, proof: &[u8]) {
+        if let Some(added_removed_keys) = self.added_removed_keys.as_ref() {
+            if path.is_empty() {
+                return;
+            }
+
+            let branch_path = path.slice_unchecked(0, path.len() - 1);
+            let child_bit = path.get_unchecked(path.len() - 1);
+            let removed_mask = added_removed_keys.get_removed_mask(&branch_path);
+            if !removed_mask.is_bit_set(child_bit) {
+                self.added_removed_tracking.track_nontarget(path, proof)
+            }
+        }
     }
 
     /// Retains a proof for a leaf node.
     pub fn retain_leaf_proof(&mut self, path: &Nibbles, proof: &[u8]) {
         if self.matches(path) {
             self.retain_unchecked(*path, Bytes::copy_from_slice(proof));
-        } else if self.added_removed_tracking_enabled() {
-            self.added_removed_tracking.retain_nontarget(path, proof);
-        };
+        } else {
+            self.maybe_track_nontarget(path, proof);
+        }
     }
-}
 
-impl<K: AddedRemovedKeys> ProofRetainer<K> {
     /// Retains a proof for an extension node.
     pub fn retain_extension_proof(&mut self, path: &Nibbles, short_key: &Nibbles, proof: &[u8]) {
         if self.matches(path) {
@@ -209,29 +219,27 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
                 // non-target children of target extensions.
                 //
                 let is_prefix_added = added_removed_keys.is_prefix_added(path);
-                let extension_child_is_nontarget =
-                    self.added_removed_tracking.extension_child_is_nontarget(path, short_key);
-                tracing::trace!(
+                let extension_child_is_branch =
+                    self.added_removed_tracking.extension_child_is_branch(path, short_key);
+                let extension_child_is_nontarget = self.matches(path);
+                trace!(
                     target: "trie::proof_retainer",
                     ?path,
                     ?short_key,
                     ?is_prefix_added,
+                    ?extension_child_is_branch,
                     ?extension_child_is_nontarget,
                     "Deciding to retain non-target extension child",
                 );
-                if added_removed_keys.is_prefix_added(path)
-                    && self.added_removed_tracking.extension_child_is_nontarget(path, short_key)
-                {
-                    self.retain_last_nontarget();
+                if is_prefix_added && extension_child_is_branch && extension_child_is_nontarget {
+                    let last_branch_path = self.added_removed_tracking.last_branch_path;
+                    let last_branch_proof =
+                        Bytes::copy_from_slice(&self.added_removed_tracking.last_branch_proof);
+                    self.retain_unchecked(last_branch_path, last_branch_proof);
                 }
-            } else {
-                tracing::trace!(
-                    target: "trie::proof_retainer",
-                    "added_removed_keys is None???",
-                );
             }
-        } else if self.added_removed_tracking_enabled() {
-            self.added_removed_tracking.retain_nontarget(path, proof);
+        } else {
+            self.maybe_track_nontarget(path, proof);
         }
     }
 
@@ -279,7 +287,7 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
                     .added_removed_tracking
                     .branch_child_is_nontarget(path, nonremoved_mask.trailing_zeros() as u8);
 
-                tracing::trace!(
+                trace!(
                     target: "trie::proof_retainer",
                     ?path,
                     ?removed_mask,
@@ -290,11 +298,18 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
                 );
 
                 if nonremoved_mask.count_ones() == 1 && branch_child_is_nontarget {
-                    self.retain_last_nontarget();
+                    let last_nontarget_path = self.added_removed_tracking.last_nontarget_path;
+                    let last_nontarget_proof =
+                        Bytes::copy_from_slice(&self.added_removed_tracking.last_nontarget_proof);
+                    self.retain_unchecked(last_nontarget_path, last_nontarget_proof);
                 }
             }
-        } else if self.added_removed_tracking_enabled() {
-            self.added_removed_tracking.retain_nontarget(path, proof);
+        } else {
+            self.maybe_track_nontarget(path, proof);
+        }
+
+        if self.added_removed_keys.is_some() {
+            self.added_removed_tracking.track_branch(path, proof)
         }
     }
 }
