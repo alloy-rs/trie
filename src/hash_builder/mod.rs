@@ -3,9 +3,9 @@
 use super::{
     BranchNodeCompact, EMPTY_ROOT_HASH, Nibbles, TrieMask,
     nodes::{BranchNodeRef, ExtensionNodeRef, LeafNodeRef},
-    proof::{AddedRemovedKeys, EmptyAddedRemovedKeys, ProofNodes, ProofRetainer},
+    proof::{ProofNodes, ProofRetainer},
 };
-use crate::{HashMap, nodes::RlpNode};
+use crate::{HashMap, nodes::RlpNode, proof::AddedRemovedKeys};
 use alloc::vec::Vec;
 use alloy_primitives::{B256, keccak256};
 use core::cmp;
@@ -40,7 +40,7 @@ pub use value::{HashBuilderValue, HashBuilderValueRef};
 /// verifying Merkle proofs.
 #[derive(Debug, Clone)]
 #[allow(missing_docs)]
-pub struct HashBuilder<K = EmptyAddedRemovedKeys> {
+pub struct HashBuilder<K = AddedRemovedKeys> {
     pub key: Nibbles,
     pub value: HashBuilderValue,
     pub stack: Vec<RlpNode>,
@@ -107,7 +107,9 @@ impl<K> HashBuilder<K> {
             self.updated_branch_nodes = Some(HashMap::default());
         }
     }
+}
 
+impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
     /// Splits the [HashBuilder] into a [HashBuilder] and hash builder updates.
     pub fn split(mut self) -> (Self, HashMap<Nibbles, BranchNodeCompact>) {
         let updates = self.updated_branch_nodes.take();
@@ -134,9 +136,7 @@ impl<K> HashBuilder<K> {
         }
         println!("============ END STACK ===============");
     }
-}
 
-impl<K: AddedRemovedKeys> HashBuilder<K> {
     /// Adds a new leaf element and its value to the trie hash builder.
     ///
     /// # Panics

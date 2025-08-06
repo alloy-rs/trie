@@ -1,35 +1,87 @@
 use crate::{Nibbles, TrieMask};
+use alloy_primitives::{B256, map::B256Set};
 
+/// Provides added and removed keys for an account or storage trie.
+///
 /// Used by the [`crate::proof::ProofRetainer`] to determine which nodes may be ancestors of newly
 /// added or removed leaves. This information allows for generation of more complete proofs which
 /// include the nodes necessary for adding and removing leaves from the trie.
-pub trait AddedRemovedKeys {
-    /// Returns true if the given path prefix is the prefix of an added key.
-    ///
-    /// True should be returned optimistically; if a prefix only has the possibility of being added
-    /// it is better to return true for it. This may result in more proofs than necessary being
-    /// returned, but that's better than a missing proof.
-    fn is_prefix_added(&self, prefix: &Nibbles) -> bool;
-
-    /// Returns a mask containing a bit set for each child of the branch which may be considered
-    /// removed.
-    ///
-    /// Bits should be set optimistically; if a child only has the possibility of being removed it
-    /// is better to return a bit for it. Extra bits on the mask may result in more proofs than
-    /// necessary being returned, but that's better than a missing proof.
-    fn get_removed_mask(&self, branch_path: &Nibbles) -> TrieMask;
+///
+/// Note: Currently only removed keys are tracked. Added keys tracking is not yet implemented.
+#[derive(Debug, Default, Clone)]
+pub struct AddedRemovedKeys {
+    /// Keys which are known to be removed from the trie.
+    removed_keys: B256Set,
+    /// Keys which are known to be added to the trie.
+    added_keys: B256Set,
+    /// Assume that all keys have been added.
+    assume_added: bool,
 }
 
-/// An implementation of [`AddedRemovedKeys`] which assumes no added or removed keys.
-#[derive(Debug, Copy, Clone, Default)]
-pub struct EmptyAddedRemovedKeys;
+impl AsRef<Self> for AddedRemovedKeys {
+    fn as_ref(&self) -> &Self {
+        self
+    }
+}
 
-impl AddedRemovedKeys for EmptyAddedRemovedKeys {
-    fn is_prefix_added(&self, _prefix: &Nibbles) -> bool {
-        false
+impl AddedRemovedKeys {
+    /// Sets the `assume_added` flag, which can be used instead of `insert_added` if exact
+    /// additions aren't known and you want to optimistically collect all proofs which _might_ be
+    /// necessary.
+    pub fn with_assume_added(mut self, assume_added: bool) -> Self {
+        self.assume_added = assume_added;
+        self
     }
 
-    fn get_removed_mask(&self, _branch_path: &Nibbles) -> TrieMask {
-        TrieMask::default()
+    /// Sets the key as being a removed key. This removes the key from the `added_keys` set if it
+    /// was previously inserted into it.
+    pub fn insert_removed(&mut self, key: B256) {
+        self.added_keys.remove(&key);
+        self.removed_keys.insert(key);
+    }
+
+    /// Unsets the key as being a removed key.
+    pub fn remove_removed(&mut self, key: &B256) {
+        self.removed_keys.remove(key);
+    }
+
+    /// Sets the key as being an added key. This removes the key from the `removed_keys` set if it
+    /// was previously inserted into it.
+    pub fn insert_added(&mut self, key: B256) {
+        self.removed_keys.remove(&key);
+        self.added_keys.insert(key);
+    }
+
+    /// Returns true if the given key path is marked as removed.
+    pub fn is_removed(&self, path: &B256) -> bool {
+        self.removed_keys.contains(path)
+    }
+
+    /// Returns true if the given key path is marked as added.
+    pub fn is_added(&self, path: &B256) -> bool {
+        self.assume_added || self.added_keys.contains(path)
+    }
+
+    /// Returns true if the given path prefix is the prefix of an added key.
+    pub fn is_prefix_added(&self, prefix: &Nibbles) -> bool {
+        self.assume_added
+            || self.added_keys.iter().any(|key| {
+                let key_nibbles = Nibbles::unpack(key);
+                key_nibbles.starts_with(prefix)
+            })
+    }
+
+    /// Returns a mask containing a bit set for each child of the branch which is a prefix of a
+    /// removed leaf.
+    pub fn get_removed_mask(&self, branch_path: &Nibbles) -> TrieMask {
+        let mut mask = TrieMask::default();
+        for key in &self.removed_keys {
+            let key_nibbles = Nibbles::unpack(key);
+            if key_nibbles.starts_with(branch_path) {
+                let child_bit = key_nibbles.get_unchecked(branch_path.len());
+                mask.set_bit(child_bit);
+            }
+        }
+        mask
     }
 }

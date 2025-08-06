@@ -22,4 +22,4 @@ mod retainer;
 pub use retainer::ProofRetainer;
 
 mod added_removed_keys;
-pub use added_removed_keys::{AddedRemovedKeys, EmptyAddedRemovedKeys};
+pub use added_removed_keys::AddedRemovedKeys;

@@ -1,9 +1,6 @@
 use crate::{
     Nibbles, TrieMask,
-    proof::{
-        ProofNodes,
-        added_removed_keys::{AddedRemovedKeys, EmptyAddedRemovedKeys},
-    },
+    proof::{ProofNodes, added_removed_keys::AddedRemovedKeys},
 };
 use alloy_primitives::Bytes;
 use alloy_rlp::EMPTY_STRING_CODE;
@@ -71,7 +68,7 @@ impl AddedRemovedKeysTracking {
 /// methods, it is required that the calls are ordered such that proofs of parent nodes are
 /// retained after their children.
 #[derive(Default, Clone, Debug)]
-pub struct ProofRetainer<K = EmptyAddedRemovedKeys> {
+pub struct ProofRetainer<K = AddedRemovedKeys> {
     /// The nibbles of the target trie keys to retain proofs for.
     targets: Vec<Nibbles>,
     /// The map retained trie node keys to RLP serialized trie nodes.
@@ -97,7 +94,7 @@ impl ProofRetainer {
     }
 }
 
-impl<RK> ProofRetainer<RK> {
+impl<K> ProofRetainer<K> {
     /// Configures the retainer to retain proofs for certain nodes which would otherwise fall
     /// outside the target set, when those nodes might be required to calculate the state root when
     /// keys have been added or removed to the trie.
@@ -111,7 +108,9 @@ impl<RK> ProofRetainer<RK> {
             added_removed_tracking: self.added_removed_tracking,
         }
     }
+}
 
+impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
     /// Returns `true` if the given prefix matches the retainer target.
     pub fn matches(&self, prefix: &Nibbles) -> bool {
         prefix.is_empty() || self.targets.iter().any(|target| target.starts_with(prefix))
@@ -152,9 +151,7 @@ impl<RK> ProofRetainer<RK> {
     pub fn retain_empty_root_proof(&mut self) {
         self.retain_unchecked(Nibbles::default(), [EMPTY_STRING_CODE].into())
     }
-}
 
-impl<K: AddedRemovedKeys> ProofRetainer<K> {
     /// Tracks the proof in the [`AddedRemovedKeysTracking`] if:
     /// - Tracking is enabled
     /// - Path is not root
@@ -170,7 +167,7 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
 
             let branch_path = path.slice_unchecked(0, path.len() - 1);
             let child_bit = path.get_unchecked(path.len() - 1);
-            let removed_mask = added_removed_keys.get_removed_mask(&branch_path);
+            let removed_mask = added_removed_keys.as_ref().get_removed_mask(&branch_path);
             if !removed_mask.is_bit_set(child_bit) {
                 self.added_removed_tracking.track_nontarget(path, proof)
             }
@@ -218,7 +215,7 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
                 // In order to support this case we can optimistically retain the proof for
                 // non-target children of target extensions.
                 //
-                let is_prefix_added = added_removed_keys.is_prefix_added(path);
+                let is_prefix_added = added_removed_keys.as_ref().is_prefix_added(path);
                 let extension_child_is_branch =
                     self.added_removed_tracking.extension_child_is_branch(path, short_key);
                 let extension_child_is_nontarget = self.matches(path);
@@ -281,7 +278,7 @@ impl<K: AddedRemovedKeys> ProofRetainer<K> {
                 // Using `removed_keys` we can discern if there is one remaining child in a branch
                 // which is not a target, and optimistically retain that child if so.
                 //
-                let removed_mask = added_removed_keys.get_removed_mask(path);
+                let removed_mask = added_removed_keys.as_ref().get_removed_mask(path);
                 let nonremoved_mask = !removed_mask & state_mask;
                 let branch_child_is_nontarget = self
                     .added_removed_tracking
