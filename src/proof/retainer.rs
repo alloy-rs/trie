@@ -149,7 +149,7 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
 
     /// Retains a proof for an empty root.
     pub fn retain_empty_root_proof(&mut self) {
-        self.retain_unchecked(Nibbles::default(), [EMPTY_STRING_CODE].into())
+        self.retain_unchecked(Nibbles::default(), Bytes::from_static(&[EMPTY_STRING_CODE]))
     }
 
     /// Tracks the proof in the [`AddedRemovedKeysTracking`] if:
