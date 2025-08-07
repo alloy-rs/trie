@@ -47,7 +47,7 @@ impl AddedRemovedKeysTracking {
     }
 
     /// Checks if an extension node is parent to the last tracked branch node.
-    fn extension_child_is_branch(&self, path: &Nibbles, short_key: &Nibbles) -> bool {
+    fn extension_child_is_nontarget(&self, path: &Nibbles, short_key: &Nibbles) -> bool {
         path.len() + short_key.len() == self.last_nontarget_path.len()
             && self.last_nontarget_path.starts_with(path)
             && self.last_nontarget_path.ends_with(short_key)
@@ -216,19 +216,17 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                 // non-target children of target extensions.
                 //
                 let is_prefix_added = added_removed_keys.as_ref().is_prefix_added(path);
-                let extension_child_is_branch =
-                    self.added_removed_tracking.extension_child_is_branch(path, short_key);
-                let extension_child_is_nontarget = self.matches(path);
+                let extension_child_is_nontarget =
+                    self.added_removed_tracking.extension_child_is_nontarget(path, short_key);
                 trace!(
                     target: "trie::proof_retainer",
                     ?path,
                     ?short_key,
                     ?is_prefix_added,
-                    ?extension_child_is_branch,
                     ?extension_child_is_nontarget,
                     "Deciding to retain non-target extension child",
                 );
-                if is_prefix_added && extension_child_is_branch && extension_child_is_nontarget {
+                if is_prefix_added && extension_child_is_nontarget {
                     let last_branch_path = self.added_removed_tracking.last_branch_path;
                     let last_branch_proof =
                         Bytes::copy_from_slice(&self.added_removed_tracking.last_branch_proof);
