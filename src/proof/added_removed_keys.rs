@@ -6,16 +6,12 @@ use alloy_primitives::{B256, map::B256Set};
 /// Used by the [`crate::proof::ProofRetainer`] to determine which nodes may be ancestors of newly
 /// added or removed leaves. This information allows for generation of more complete proofs which
 /// include the nodes necessary for adding and removing leaves from the trie.
-///
-/// Note: Currently only removed keys are tracked. Added keys tracking is not yet implemented.
 #[derive(Debug, Default, Clone)]
 pub struct AddedRemovedKeys {
     /// Keys which are known to be removed from the trie.
     removed_keys: B256Set,
-    /// Keys which are known to be added to the trie.
+    /// Keys which are known to be newly added to the trie.
     added_keys: B256Set,
-    /// Assume that all keys have been added.
-    assume_added: bool,
 }
 
 impl AsRef<Self> for AddedRemovedKeys {
@@ -25,14 +21,6 @@ impl AsRef<Self> for AddedRemovedKeys {
 }
 
 impl AddedRemovedKeys {
-    /// Sets the `assume_added` flag, which can be used instead of `insert_added` if exact
-    /// additions aren't known and you want to optimistically collect all proofs which _might_ be
-    /// necessary.
-    pub fn with_assume_added(mut self, assume_added: bool) -> Self {
-        self.assume_added = assume_added;
-        self
-    }
-
     /// Sets the key as being a removed key. This removes the key from the `added_keys` set if it
     /// was previously inserted into it.
     pub fn insert_removed(&mut self, key: B256) {
@@ -59,16 +47,15 @@ impl AddedRemovedKeys {
 
     /// Returns true if the given key path is marked as added.
     pub fn is_added(&self, path: &B256) -> bool {
-        self.assume_added || self.added_keys.contains(path)
+        self.added_keys.contains(path)
     }
 
     /// Returns true if the given path prefix is the prefix of an added key.
     pub fn is_prefix_added(&self, prefix: &Nibbles) -> bool {
-        self.assume_added
-            || self.added_keys.iter().any(|key| {
-                let key_nibbles = Nibbles::unpack(key);
-                key_nibbles.starts_with(prefix)
-            })
+        self.added_keys.iter().any(|key| {
+            let key_nibbles = Nibbles::unpack(key);
+            key_nibbles.starts_with(prefix)
+        })
     }
 
     /// Returns a mask containing a bit set for each child of the branch which is a prefix of a
