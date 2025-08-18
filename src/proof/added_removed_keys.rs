@@ -6,8 +6,6 @@ use alloy_primitives::{B256, map::B256Set};
 /// Used by the [`crate::proof::ProofRetainer`] to determine which nodes may be ancestors of newly
 /// added or removed leaves. This information allows for generation of more complete proofs which
 /// include the nodes necessary for adding and removing leaves from the trie.
-///
-/// Note: Currently only removed keys are tracked. Added keys tracking is not yet implemented.
 #[derive(Debug, Default, Clone)]
 pub struct AddedRemovedKeys {
     /// Keys which are known to be removed from the trie.

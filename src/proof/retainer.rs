@@ -89,7 +89,6 @@ impl FromIterator<Nibbles> for ProofRetainer {
 impl ProofRetainer {
     /// Create new retainer with target nibbles.
     pub fn new(targets: Vec<Nibbles>) -> Self {
-        trace!(target: "trie::proof_retainer", ?targets, "Initializing");
         Self { targets, ..Default::default() }
     }
 }
