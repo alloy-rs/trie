@@ -52,6 +52,11 @@ impl AddedRemovedKeys {
         self.added_keys.insert(key);
     }
 
+    /// Clears all keys which have been added via `insert_added`.
+    pub fn clear_added(&mut self) {
+        self.added_keys.clear();
+    }
+
     /// Returns true if the given key path is marked as removed.
     pub fn is_removed(&self, path: &B256) -> bool {
         self.removed_keys.contains(path)
