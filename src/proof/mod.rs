@@ -20,3 +20,6 @@ pub use proof_nodes::ProofNodes;
 
 mod retainer;
 pub use retainer::ProofRetainer;
+
+mod added_removed_keys;
+pub use added_removed_keys::AddedRemovedKeys;
