@@ -5,7 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.0](https://github.com/alloy-rs/trie/releases/tag/v0.9.0) - 2025-06-19
+## [0.9.1](https://github.com/alloy-rs/trie/releases/tag/v0.9.1) - 2025-08-19
+
+### Documentation
+
+- Update Tera documentation link to the correct Introduction section ([#107](https://github.com/alloy-rs/trie/issues/107))
+
+### Features
+
+- Retain proofs of non-target nodes in certain edge-cases. ([#109](https://github.com/alloy-rs/trie/issues/109))
+
+## [0.9.0](https://github.com/alloy-rs/trie/releases/tag/v0.9.0) - 2025-06-20
 
 ### Dependencies
 
@@ -15,6 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Features
 
 - Logs for pushing nodes to the stack ([#101](https://github.com/alloy-rs/trie/issues/101))
+
+### Miscellaneous Tasks
+
+- Release 0.9.0 ([#108](https://github.com/alloy-rs/trie/issues/108))
 
 ### Other
 
