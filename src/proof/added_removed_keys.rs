@@ -26,7 +26,7 @@ impl AddedRemovedKeys {
     /// Sets the `assume_added` flag, which can be used instead of `insert_added` if exact
     /// additions aren't known and you want to optimistically collect all proofs which _might_ be
     /// necessary.
-    pub fn with_assume_added(mut self, assume_added: bool) -> Self {
+    pub const fn with_assume_added(mut self, assume_added: bool) -> Self {
         self.assume_added = assume_added;
         self
     }
