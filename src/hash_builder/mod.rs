@@ -326,9 +326,20 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
             }
 
             if build_extensions && !short_node_key.is_empty() {
+                let flag = TrieMask::from_nibble(current.get_unchecked(len));
+
                 // set the hash mask on the parent branch of the extension, so that the extension
                 // ends up as a hashed child.
-                self.hash_masks[len] |= TrieMask::from_nibble(current.get_unchecked(len));
+                self.hash_masks[len] |= flag;
+
+                // if the child of this extension is intended to be stored in the database then the
+                // tree flag will be set for it on the index prior to it (as if its parent were a
+                // branch node). We want the extension node to inherit that tree mask bit, so that
+                // during traversal it can be known whether or not the extension's child is in the
+                // database.
+                if !self.tree_masks[current.len() - 1].is_empty() {
+                    self.tree_masks[len] |= flag;
+                }
 
                 let stack_last = self.stack.pop().expect("there should be at least one stack item");
                 let extension_node = ExtensionNodeRef::new(&short_node_key, &stack_last);
