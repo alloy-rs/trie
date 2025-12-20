@@ -58,7 +58,7 @@ where
 /// Returns [`EMPTY_ROOT_HASH`] if the collection is empty.
 pub fn ordered_trie_root_encoded<T>(items: &[T]) -> B256
 where
-    T: AsRef<[u8]>
+    T: AsRef<[u8]>,
 {
     if items.is_empty() {
         return EMPTY_ROOT_HASH;
