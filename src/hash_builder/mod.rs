@@ -441,6 +441,7 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                     TrieMask::from_nibble(current.get_unchecked(parent_index));
             }
 
+            #[allow(clippy::unnecessary_unwrap)] // False positive due to `self.current_root()`.
             if self.updated_branch_nodes.is_some() {
                 let common_prefix = current.slice(..len);
                 let node = BranchNodeCompact::new(
