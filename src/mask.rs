@@ -1,5 +1,7 @@
 use core::fmt;
-use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, From, Not};
+use derive_more::{
+    BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, From, Not,
+};
 
 /// A struct representing a mask of 16 bits, used for Ethereum trie operations.
 ///
@@ -17,10 +19,12 @@ use derive_more::{BitAnd, BitAndAssign, BitOr, BitOrAssign, Deref, From, Not};
     Ord,
     Deref,
     From,
-    BitAnd,
     BitAndAssign,
+    BitAnd,
     BitOr,
     BitOrAssign,
+    BitXor,
+    BitXorAssign,
     Not,
 )]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -34,6 +38,9 @@ impl fmt::Debug for TrieMask {
 }
 
 impl TrieMask {
+    /// The size of this mask in bits.
+    pub const BITS: u32 = u16::BITS;
+
     /// Creates a new `TrieMask` from the given inner value.
     #[inline]
     pub const fn new(inner: u16) -> Self {
@@ -79,7 +86,11 @@ impl TrieMask {
     /// Returns the index of the first bit set in the mask, or `None` if the mask is empty.
     #[inline]
     pub const fn first_set_bit_index(self) -> Option<u8> {
-        if self.is_empty() { None } else { Some(self.0.trailing_zeros() as u8) }
+        if self.is_empty() {
+            None
+        } else {
+            Some(self.0.trailing_zeros() as u8)
+        }
     }
 
     /// Set bit at a specified index.
