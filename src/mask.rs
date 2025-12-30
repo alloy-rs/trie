@@ -117,7 +117,7 @@ where
 
     #[inline]
     fn shl(self, rhs: T) -> Self::Output {
-        Self(self.0 << rhs)
+        Self(self.0.shl(rhs))
     }
 }
 
@@ -127,7 +127,7 @@ where
 {
     #[inline]
     fn shl_assign(&mut self, rhs: T) {
-        self.0 <<= rhs;
+        self.0.shl_assign(rhs);
     }
 }
 
@@ -139,7 +139,7 @@ where
 
     #[inline]
     fn shr(self, rhs: T) -> Self::Output {
-        Self(self.0 >> rhs)
+        Self(self.0.shr(rhs))
     }
 }
 
@@ -149,6 +149,6 @@ where
 {
     #[inline]
     fn shr_assign(&mut self, rhs: T) {
-        self.0 >>= rhs;
+        self.0.shr_assign(rhs);
     }
 }
