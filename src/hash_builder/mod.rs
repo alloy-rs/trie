@@ -365,10 +365,11 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
 
             // Insert branch nodes in the stack
             if !succeeding.is_empty() || preceding_exists {
+                // Store branch node before pushing (needs access to current stack state for
+                // children)
+                self.store_branch_node(&current, len);
                 // Pushes the corresponding branch node to the stack
-                let children = self.push_branch_node(&current, len);
-                // Need to store the branch node in an efficient format outside of the hash builder
-                self.store_branch_node(&current, len, children);
+                self.push_branch_node(&current, len);
             }
 
             self.state_masks.resize(len, TrieMask::default());
@@ -396,19 +397,9 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
     /// Given the size of the longest common prefix, it proceeds to create a branch node
     /// from the state mask and existing stack state, and store its RLP to the top of the stack,
     /// after popping all the relevant elements from the stack.
-    ///
-    /// Returns the hashes of the children of the branch node, only if `updated_branch_nodes` is
-    /// enabled.
-    fn push_branch_node(&mut self, current: &Nibbles, len: usize) -> Vec<B256> {
+    fn push_branch_node(&mut self, current: &Nibbles, len: usize) {
         let state_mask = self.state_masks[len];
-        let hash_mask = self.masks[len].hash_mask;
         let branch_node = BranchNodeRef::new(&self.stack, state_mask);
-        // Avoid calculating this value if it's not needed.
-        let children = if self.updated_branch_nodes.is_some() {
-            branch_node.child_hashes(hash_mask).collect()
-        } else {
-            vec![]
-        };
 
         self.rlp_buf.clear();
         let rlp = branch_node.rlp(&mut self.rlp_buf);
@@ -436,14 +427,16 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
         self.stack.resize_with(first_child_idx, Default::default);
 
         self.stack.push(rlp);
-        children
     }
 
     /// Given the current nibble prefix and the highest common prefix length, proceeds
     /// to update the masks for the next level and store the branch node and the
     /// masks in the database. We will use that when consuming the intermediate nodes
     /// from the database to efficiently build the trie.
-    fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
+    ///
+    /// NOTE: This must be called BEFORE `push_branch_node` to access the current stack
+    /// state for computing child hashes.
+    fn store_branch_node(&mut self, current: &Nibbles, len: usize) {
         if len > 0 {
             let parent_index = len - 1;
             self.masks[parent_index].hash_mask |=
@@ -460,13 +453,18 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                     TrieMask::from_nibble(current.get_unchecked(parent_index));
             }
 
-            #[allow(clippy::unnecessary_unwrap)] // False positive due to `self.current_root()`.
             if self.updated_branch_nodes.is_some() {
+                // Collect child hashes directly from stack - avoid Vec allocation when disabled
+                let state_mask = self.state_masks[len];
+                let hash_mask = masks.hash_mask;
+                let branch_node = BranchNodeRef::new(&self.stack, state_mask);
+                let children: Vec<B256> = branch_node.child_hashes(hash_mask).collect();
+
                 let common_prefix = current.slice(..len);
                 let node = BranchNodeCompact::new(
-                    self.state_masks[len],
+                    state_mask,
                     masks.tree_mask,
-                    masks.hash_mask,
+                    hash_mask,
                     children,
                     (len == 0).then(|| self.current_root()),
                 );
