@@ -85,6 +85,7 @@ hash-db = "0.15"
 plain_hasher = "0.2"
 triehash = "0.8.4"
 criterion = { version = "2.10", package = "codspeed-criterion-compat" }
+proptest = "1.5"
 
 [features]
 default = ["std", "alloy-primitives/default"]
@@ -116,5 +117,10 @@ ethereum = []
 
 [[bench]]
 name = "bench"
+harness = false
+required-features = ["arbitrary"]
+
+[[bench]]
+name = "hash_builder_bench"
 harness = false
 required-features = ["arbitrary"]
