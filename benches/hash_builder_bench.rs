@@ -129,12 +129,21 @@ fn proof_retainer_match(c: &mut Criterion) {
 
         let retainer = ProofRetainer::from_iter(targets.clone());
 
-        // Use a prefix that might match
-        let test_prefix = targets[0].slice(..4);
-
+        // Test matching prefix (first target's prefix)
+        let matching_prefix = targets[0].slice(..4);
         group.bench_with_input(
-            BenchmarkId::new("targets", target_count),
-            &(retainer, test_prefix),
+            BenchmarkId::new("match", target_count),
+            &(retainer.clone(), matching_prefix),
+            |b, (retainer, prefix)| {
+                b.iter(|| black_box(retainer.matches(prefix)));
+            },
+        );
+
+        // Test non-matching prefix (0xFF... which won't match random targets)
+        let non_matching_prefix = Nibbles::from_nibbles([0xF, 0xF, 0xF, 0xF]);
+        group.bench_with_input(
+            BenchmarkId::new("no_match", target_count),
+            &(retainer, non_matching_prefix),
             |b, (retainer, prefix)| {
                 b.iter(|| black_box(retainer.matches(prefix)));
             },

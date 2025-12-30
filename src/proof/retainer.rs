@@ -88,7 +88,10 @@ impl FromIterator<Nibbles> for ProofRetainer {
 
 impl ProofRetainer {
     /// Create new retainer with target nibbles.
-    pub fn new(targets: Vec<Nibbles>) -> Self {
+    ///
+    /// Targets are sorted for efficient binary search during matching.
+    pub fn new(mut targets: Vec<Nibbles>) -> Self {
+        targets.sort_unstable();
         Self { targets, ..Default::default() }
     }
 }
@@ -111,8 +114,16 @@ impl<K> ProofRetainer<K> {
 
 impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
     /// Returns `true` if the given prefix matches the retainer target.
+    ///
+    /// Uses binary search over sorted targets for O(log n) lookup.
     pub fn matches(&self, prefix: &Nibbles) -> bool {
-        prefix.is_empty() || self.targets.iter().any(|target| target.starts_with(prefix))
+        if prefix.is_empty() {
+            return true;
+        }
+        // Find the first target >= prefix using binary search
+        let idx = self.targets.partition_point(|t| t < prefix);
+        // Check if the target at idx starts with prefix
+        idx < self.targets.len() && self.targets[idx].starts_with(prefix)
     }
 
     /// Returns all collected proofs.
