@@ -1,4 +1,7 @@
-use core::fmt;
+use core::{
+    fmt,
+    ops::{Shl, ShlAssign, Shr, ShrAssign},
+};
 use derive_more::{
     BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Deref, From, Not,
 };
@@ -103,5 +106,49 @@ impl TrieMask {
     #[inline]
     pub const fn unset_bit(&mut self, index: u8) {
         self.0 &= !(1u16 << index);
+    }
+}
+
+impl<T> Shl<T> for TrieMask
+where
+    u16: Shl<T, Output = u16>,
+{
+    type Output = Self;
+
+    #[inline]
+    fn shl(self, rhs: T) -> Self::Output {
+        Self(self.0 << rhs)
+    }
+}
+
+impl<T> ShlAssign<T> for TrieMask
+where
+    u16: ShlAssign<T>,
+{
+    #[inline]
+    fn shl_assign(&mut self, rhs: T) {
+        self.0 <<= rhs;
+    }
+}
+
+impl<T> Shr<T> for TrieMask
+where
+    u16: Shr<T, Output = u16>,
+{
+    type Output = Self;
+
+    #[inline]
+    fn shr(self, rhs: T) -> Self::Output {
+        Self(self.0 >> rhs)
+    }
+}
+
+impl<T> ShrAssign<T> for TrieMask
+where
+    u16: ShrAssign<T>,
+{
+    #[inline]
+    fn shr_assign(&mut self, rhs: T) {
+        self.0 >>= rhs;
     }
 }
