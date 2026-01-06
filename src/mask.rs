@@ -89,11 +89,7 @@ impl TrieMask {
     /// Returns the index of the first bit set in the mask, or `None` if the mask is empty.
     #[inline]
     pub const fn first_set_bit_index(self) -> Option<u8> {
-        if self.is_empty() {
-            None
-        } else {
-            Some(self.0.trailing_zeros() as u8)
-        }
+        if self.is_empty() { None } else { Some(self.0.trailing_zeros() as u8) }
     }
 
     /// Set bit at a specified index.
