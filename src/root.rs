@@ -106,8 +106,7 @@ impl fmt::Display for OrderedRootError {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for OrderedRootError {}
+impl core::error::Error for OrderedRootError {}
 
 /// A builder for computing ordered trie roots incrementally.
 ///
