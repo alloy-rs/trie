@@ -100,6 +100,35 @@ pub enum OrderedRootError {
     },
 }
 
+impl OrderedRootError {
+    /// Returns `true` if the error is [`OrderedRootError::Incomplete`].
+    #[inline]
+    pub const fn is_incomplete(&self) -> bool {
+        matches!(self, Self::Incomplete { .. })
+    }
+
+    /// Returns `true` if the error is [`OrderedRootError::IndexOutOfBounds`].
+    #[inline]
+    pub const fn is_index_out_of_bounds(&self) -> bool {
+        matches!(self, Self::IndexOutOfBounds { .. })
+    }
+
+    /// Returns `true` if the error is [`OrderedRootError::DuplicateIndex`].
+    #[inline]
+    pub const fn is_duplicate_index(&self) -> bool {
+        matches!(self, Self::DuplicateIndex { .. })
+    }
+
+    /// Returns the index associated with the error, if any.
+    #[inline]
+    pub const fn index(&self) -> Option<usize> {
+        match self {
+            Self::Incomplete { .. } => None,
+            Self::IndexOutOfBounds { index, .. } | Self::DuplicateIndex { index } => Some(*index),
+        }
+    }
+}
+
 impl fmt::Display for OrderedRootError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -131,8 +160,8 @@ impl core::error::Error for OrderedRootError {}
 /// # Example
 ///
 /// ```
-/// use alloy_trie::root::OrderedTrieRootBuilder;
 /// use alloy_rlp::Encodable;
+/// use alloy_trie::root::OrderedTrieRootBuilder;
 ///
 /// // Create a builder for 3 items
 /// let mut builder = OrderedTrieRootBuilder::new(3, |item: &u64, buf: &mut Vec<u8>| {
@@ -141,7 +170,7 @@ impl core::error::Error for OrderedRootError {}
 ///
 /// // Push items as they arrive (can be out of order)
 /// builder.push(0, &100u64).unwrap();
-/// builder.push(2, &300u64).unwrap();  // out of order is fine
+/// builder.push(2, &300u64).unwrap(); // out of order is fine
 /// builder.push(1, &200u64).unwrap();
 ///
 /// // Finalize to get the root hash
@@ -200,6 +229,7 @@ where
     ///
     /// - [`OrderedRootError::IndexOutOfBounds`] if `index >= len`
     /// - [`OrderedRootError::DuplicateIndex`] if an item was already pushed at this index
+    #[inline]
     pub fn push(&mut self, index: usize, item: &T) -> Result<(), OrderedRootError> {
         if index >= self.len {
             return Err(OrderedRootError::IndexOutOfBounds { index, len: self.len });
@@ -208,6 +238,24 @@ where
         if self.pending[index].is_some() {
             return Err(OrderedRootError::DuplicateIndex { index });
         }
+
+        self.push_unchecked(index, item);
+        Ok(())
+    }
+
+    /// Pushes an item at the given index without bounds or duplicate checking.
+    ///
+    /// This is a performance-critical method for callers that can guarantee:
+    /// - `index < len`
+    /// - No item has been pushed at this index before
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug mode if `index >= len`.
+    #[inline]
+    pub fn push_unchecked(&mut self, index: usize, item: &T) {
+        debug_assert!(index < self.len, "index {index} out of bounds for length {}", self.len);
+        debug_assert!(self.pending[index].is_none(), "duplicate item at index {index}");
 
         // Encode the item
         self.encode_buf.clear();
@@ -219,8 +267,6 @@ where
 
         // Try to flush as many items as possible
         self.flush();
-
-        Ok(())
     }
 
     /// Attempts to flush pending items to the hash builder.
@@ -346,6 +392,7 @@ impl OrderedTrieRootEncodedBuilder {
     ///
     /// - [`OrderedRootError::IndexOutOfBounds`] if `index >= len`
     /// - [`OrderedRootError::DuplicateIndex`] if an item was already pushed at this index
+    #[inline]
     pub fn push(&mut self, index: usize, bytes: &[u8]) -> Result<(), OrderedRootError> {
         if index >= self.len {
             return Err(OrderedRootError::IndexOutOfBounds { index, len: self.len });
@@ -355,14 +402,30 @@ impl OrderedTrieRootEncodedBuilder {
             return Err(OrderedRootError::DuplicateIndex { index });
         }
 
+        self.push_unchecked(index, bytes);
+        Ok(())
+    }
+
+    /// Pushes a pre-encoded item at the given index without bounds or duplicate checking.
+    ///
+    /// This is a performance-critical method for callers that can guarantee:
+    /// - `index < len`
+    /// - No item has been pushed at this index before
+    ///
+    /// # Panics
+    ///
+    /// Panics in debug mode if `index >= len`.
+    #[inline]
+    pub fn push_unchecked(&mut self, index: usize, bytes: &[u8]) {
+        debug_assert!(index < self.len, "index {index} out of bounds for length {}", self.len);
+        debug_assert!(self.pending[index].is_none(), "duplicate item at index {index}");
+
         // Store in pending buffer at the specified index
         self.pending[index] = Some(bytes.to_vec());
         self.received += 1;
 
         // Try to flush as many items as possible
         self.flush();
-
-        Ok(())
     }
 
     /// Attempts to flush pending items to the hash builder.
@@ -570,10 +633,9 @@ mod tests {
             });
 
             // Compute using the builder (in order)
-            let mut builder =
-                OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
-                    alloy_rlp::Encodable::encode(item, buf);
-                });
+            let mut builder = OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
+                alloy_rlp::Encodable::encode(item, buf);
+            });
 
             for (i, item) in items.iter().enumerate() {
                 builder.push(i, item).unwrap();
@@ -599,10 +661,9 @@ mod tests {
             });
 
             // Push in reverse order
-            let mut builder =
-                OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
-                    alloy_rlp::Encodable::encode(item, buf);
-                });
+            let mut builder = OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
+                alloy_rlp::Encodable::encode(item, buf);
+            });
 
             for i in (0..len).rev() {
                 builder.push(i, &items[i]).unwrap();
@@ -612,10 +673,9 @@ mod tests {
             assert_eq!(expected, actual, "mismatch for reverse order len={len}");
 
             // Push in random order (odds first, then evens)
-            let mut builder =
-                OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
-                    alloy_rlp::Encodable::encode(item, buf);
-                });
+            let mut builder = OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
+                alloy_rlp::Encodable::encode(item, buf);
+            });
 
             for i in (1..len).step_by(2) {
                 builder.push(i, &items[i]).unwrap();
@@ -809,10 +869,9 @@ mod tests {
 
             let expected = ordered_trie_root(&items);
 
-            let mut builder =
-                OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
-                    alloy_rlp::Encodable::encode(item, buf);
-                });
+            let mut builder = OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
+                alloy_rlp::Encodable::encode(item, buf);
+            });
 
             for (i, item) in items.iter().enumerate() {
                 builder.push(i, item).unwrap();
