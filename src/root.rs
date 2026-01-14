@@ -153,9 +153,29 @@ impl core::error::Error for OrderedRootError {}
 /// (e.g., receipts after each transaction execution), rather than requiring
 /// all items upfront like [`ordered_trie_root_with_encoder`].
 ///
+/// # Use Case
+///
+/// When executing a block, the receipt root must be computed from all transaction
+/// receipts. With the standard [`ordered_trie_root_with_encoder`], you must wait
+/// until all transactions are executed before computing the root. This builder
+/// enables **incremental computation** - you can start building the trie as soon
+/// as receipts become available, potentially in parallel with continued execution.
+///
+/// The builder requires knowing the total item count upfront (the number of
+/// transactions in the block), but items can be pushed in any order by index.
+///
+/// # How It Works
+///
 /// Items can be pushed in any order by specifying their index. The builder
 /// internally buffers items and flushes them to the underlying [`HashBuilder`]
-/// in the correct order for RLP key encoding.
+/// in the correct order for RLP key encoding (as determined by [`adjust_index_for_rlp`]).
+///
+/// # Memory
+///
+/// Each pushed item is encoded and stored in an internal buffer until it can be
+/// flushed. In the worst case (e.g., pushing index 0 last), all items except one
+/// will be buffered. For receipt roots, index 0 is typically flushed late due to
+/// RLP key ordering, so expect to buffer most items until near the end.
 ///
 /// # Example
 ///
@@ -339,7 +359,8 @@ impl<T: Encodable> OrderedTrieRootBuilder<T, fn(&T, &mut Vec<u8>)> {
 /// A builder for computing ordered trie roots incrementally from pre-encoded items.
 ///
 /// This is similar to [`OrderedTrieRootBuilder`] but for items that are already
-/// encoded (e.g., EIP-2718 transactions).
+/// encoded (e.g., EIP-2718 transactions). See [`OrderedTrieRootBuilder`] for
+/// details on the use case, memory characteristics, and incremental flushing behavior.
 ///
 /// # Example
 ///
