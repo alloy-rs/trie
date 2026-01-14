@@ -2,6 +2,7 @@ use crate::{EMPTY_ROOT_HASH, HashBuilder};
 use alloc::vec::Vec;
 use alloy_primitives::B256;
 use alloy_rlp::Encodable;
+use core::fmt;
 use nybbles::Nibbles;
 
 /// Adjust the index of an item for rlp encoding.
@@ -73,6 +74,336 @@ where
     }
 
     hb.root()
+}
+
+/// Error returned when using [`OrderedTrieRootBuilder`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OrderedRootError {
+    /// Called `finalize()` before all items were pushed.
+    Incomplete {
+        /// The expected number of items.
+        expected: usize,
+        /// The number of items received.
+        received: usize,
+    },
+    /// Attempted to push more items than expected.
+    TooManyItems {
+        /// The expected number of items.
+        expected: usize,
+    },
+}
+
+impl fmt::Display for OrderedRootError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Incomplete { expected, received } => {
+                write!(f, "incomplete: expected {expected} items, received {received}")
+            }
+            Self::TooManyItems { expected } => {
+                write!(f, "too many items: expected {expected}")
+            }
+        }
+    }
+}
+
+#[cfg(feature = "std")]
+impl std::error::Error for OrderedRootError {}
+
+/// A builder for computing ordered trie roots incrementally.
+///
+/// This builder allows you to push items one by one as they become available
+/// (e.g., receipts after each transaction execution), rather than requiring
+/// all items upfront like [`ordered_trie_root_with_encoder`].
+///
+/// Items must be pushed in sequential order (0, 1, 2, ...). The builder
+/// internally buffers items and flushes them to the underlying [`HashBuilder`]
+/// in the correct order for RLP key encoding.
+///
+/// # Example
+///
+/// ```
+/// use alloy_trie::root::OrderedTrieRootBuilder;
+/// use alloy_rlp::Encodable;
+///
+/// // Create a builder for 3 items
+/// let mut builder = OrderedTrieRootBuilder::new(3, |item: &u64, buf: &mut Vec<u8>| {
+///     item.encode(buf);
+/// });
+///
+/// // Push items as they arrive
+/// builder.push(&100u64).unwrap();
+/// builder.push(&200u64).unwrap();
+/// builder.push(&300u64).unwrap();
+///
+/// // Finalize to get the root hash
+/// let root = builder.finalize().unwrap();
+/// ```
+#[derive(Debug)]
+pub struct OrderedTrieRootBuilder<T, F> {
+    /// Total expected number of items.
+    len: usize,
+    /// Number of items received so far (next expected execution index).
+    next_exec: usize,
+    /// Next insertion loop counter (determines which adjusted index to flush next).
+    next_insert_i: usize,
+    /// Buffer for pending encoded items, indexed by execution index.
+    pending: Vec<Option<Vec<u8>>>,
+    /// The underlying hash builder.
+    hb: HashBuilder,
+    /// Encoder function.
+    encode: F,
+    /// Reusable buffer for encoding.
+    encode_buf: Vec<u8>,
+    /// Phantom marker for the item type.
+    _marker: core::marker::PhantomData<T>,
+}
+
+impl<T, F> OrderedTrieRootBuilder<T, F>
+where
+    F: FnMut(&T, &mut Vec<u8>),
+{
+    /// Creates a new builder for `len` items with a custom encoder.
+    ///
+    /// # Arguments
+    ///
+    /// * `len` - The total number of items that will be pushed.
+    /// * `encode` - A function that encodes an item into a byte buffer.
+    pub fn new(len: usize, encode: F) -> Self {
+        Self {
+            len,
+            next_exec: 0,
+            next_insert_i: 0,
+            pending: vec![None; len],
+            hb: HashBuilder::default(),
+            encode,
+            encode_buf: Vec::new(),
+            _marker: core::marker::PhantomData,
+        }
+    }
+
+    /// Pushes the next item to the builder.
+    ///
+    /// Items must be pushed in sequential order (0, 1, 2, ...).
+    /// The builder will automatically flush items to the underlying
+    /// [`HashBuilder`] when they become available in the correct order.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OrderedRootError::TooManyItems`] if called after all expected
+    /// items have been pushed.
+    pub fn push(&mut self, item: &T) -> Result<(), OrderedRootError> {
+        if self.next_exec >= self.len {
+            return Err(OrderedRootError::TooManyItems { expected: self.len });
+        }
+
+        // Encode the item
+        self.encode_buf.clear();
+        (self.encode)(item, &mut self.encode_buf);
+
+        // Store in pending buffer at the current execution index
+        self.pending[self.next_exec] = Some(self.encode_buf.clone());
+        self.next_exec += 1;
+
+        // Try to flush as many items as possible
+        self.flush();
+
+        Ok(())
+    }
+
+    /// Attempts to flush pending items to the hash builder.
+    fn flush(&mut self) {
+        while self.next_insert_i < self.len {
+            let exec_index_needed = adjust_index_for_rlp(self.next_insert_i, self.len);
+
+            // Check if we have the item at this execution index
+            let Some(value) = self.pending[exec_index_needed].take() else {
+                break;
+            };
+
+            // Add the leaf with the RLP-encoded index as key
+            let index_buffer = alloy_rlp::encode_fixed_size(&exec_index_needed);
+            self.hb.add_leaf(Nibbles::unpack(&index_buffer), &value);
+
+            self.next_insert_i += 1;
+        }
+    }
+
+    /// Returns `true` if all items have been pushed.
+    #[inline]
+    pub const fn is_complete(&self) -> bool {
+        self.next_exec == self.len
+    }
+
+    /// Returns the number of items pushed so far.
+    #[inline]
+    pub const fn pushed_count(&self) -> usize {
+        self.next_exec
+    }
+
+    /// Returns the expected total number of items.
+    #[inline]
+    pub const fn expected_count(&self) -> usize {
+        self.len
+    }
+
+    /// Finalizes the builder and returns the trie root.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OrderedRootError::Incomplete`] if not all items have been pushed.
+    pub fn finalize(mut self) -> Result<B256, OrderedRootError> {
+        if self.len == 0 {
+            return Ok(EMPTY_ROOT_HASH);
+        }
+
+        if self.next_exec != self.len {
+            return Err(OrderedRootError::Incomplete {
+                expected: self.len,
+                received: self.next_exec,
+            });
+        }
+
+        // All items should have been flushed by now
+        debug_assert_eq!(self.next_insert_i, self.len, "not all items were flushed");
+
+        Ok(self.hb.root())
+    }
+}
+
+impl<T: Encodable> OrderedTrieRootBuilder<T, fn(&T, &mut Vec<u8>)> {
+    /// Creates a new builder for `len` RLP-encodable items.
+    pub fn with_rlp_encoding(len: usize) -> Self {
+        Self::new(len, |item: &T, buf: &mut Vec<u8>| item.encode(buf))
+    }
+}
+
+/// A builder for computing ordered trie roots incrementally from pre-encoded items.
+///
+/// This is similar to [`OrderedTrieRootBuilder`] but for items that are already
+/// encoded (e.g., EIP-2718 transactions).
+///
+/// # Example
+///
+/// ```
+/// use alloy_trie::root::OrderedTrieRootEncodedBuilder;
+///
+/// // Create a builder for 2 pre-encoded items
+/// let mut builder = OrderedTrieRootEncodedBuilder::new(2);
+///
+/// // Push pre-encoded items as they arrive
+/// builder.push(b"encoded_item_0").unwrap();
+/// builder.push(b"encoded_item_1").unwrap();
+///
+/// // Finalize to get the root hash
+/// let root = builder.finalize().unwrap();
+/// ```
+#[derive(Debug)]
+pub struct OrderedTrieRootEncodedBuilder {
+    /// Total expected number of items.
+    len: usize,
+    /// Number of items received so far (next expected execution index).
+    next_exec: usize,
+    /// Next insertion loop counter (determines which adjusted index to flush next).
+    next_insert_i: usize,
+    /// Buffer for pending items, indexed by execution index.
+    pending: Vec<Option<Vec<u8>>>,
+    /// The underlying hash builder.
+    hb: HashBuilder,
+}
+
+impl OrderedTrieRootEncodedBuilder {
+    /// Creates a new builder for `len` pre-encoded items.
+    pub fn new(len: usize) -> Self {
+        Self {
+            len,
+            next_exec: 0,
+            next_insert_i: 0,
+            pending: vec![None; len],
+            hb: HashBuilder::default(),
+        }
+    }
+
+    /// Pushes the next pre-encoded item to the builder.
+    ///
+    /// Items must be pushed in sequential order (0, 1, 2, ...).
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OrderedRootError::TooManyItems`] if called after all expected
+    /// items have been pushed.
+    pub fn push(&mut self, bytes: &[u8]) -> Result<(), OrderedRootError> {
+        if self.next_exec >= self.len {
+            return Err(OrderedRootError::TooManyItems { expected: self.len });
+        }
+
+        // Store in pending buffer at the current execution index
+        self.pending[self.next_exec] = Some(bytes.to_vec());
+        self.next_exec += 1;
+
+        // Try to flush as many items as possible
+        self.flush();
+
+        Ok(())
+    }
+
+    /// Attempts to flush pending items to the hash builder.
+    fn flush(&mut self) {
+        while self.next_insert_i < self.len {
+            let exec_index_needed = adjust_index_for_rlp(self.next_insert_i, self.len);
+
+            // Check if we have the item at this execution index
+            let Some(value) = self.pending[exec_index_needed].take() else {
+                break;
+            };
+
+            // Add the leaf with the RLP-encoded index as key
+            let index_buffer = alloy_rlp::encode_fixed_size(&exec_index_needed);
+            self.hb.add_leaf(Nibbles::unpack(&index_buffer), &value);
+
+            self.next_insert_i += 1;
+        }
+    }
+
+    /// Returns `true` if all items have been pushed.
+    #[inline]
+    pub const fn is_complete(&self) -> bool {
+        self.next_exec == self.len
+    }
+
+    /// Returns the number of items pushed so far.
+    #[inline]
+    pub const fn pushed_count(&self) -> usize {
+        self.next_exec
+    }
+
+    /// Returns the expected total number of items.
+    #[inline]
+    pub const fn expected_count(&self) -> usize {
+        self.len
+    }
+
+    /// Finalizes the builder and returns the trie root.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`OrderedRootError::Incomplete`] if not all items have been pushed.
+    pub fn finalize(mut self) -> Result<B256, OrderedRootError> {
+        if self.len == 0 {
+            return Ok(EMPTY_ROOT_HASH);
+        }
+
+        if self.next_exec != self.len {
+            return Err(OrderedRootError::Incomplete {
+                expected: self.len,
+                received: self.next_exec,
+            });
+        }
+
+        // All items should have been flushed by now
+        debug_assert_eq!(self.next_insert_i, self.len, "not all items were flushed");
+
+        Ok(self.hb.root())
+    }
 }
 
 /// Ethereum specific trie root functions.
@@ -162,5 +493,262 @@ mod ethereum {
             hb.add_leaf(Nibbles::unpack(hashed_key), &account_rlp_buf);
         }
         hb.root()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test that `adjust_index_for_rlp` produces the expected reordering.
+    #[test]
+    fn test_adjust_index_for_rlp() {
+        // For len=1: [0] -> iter i=0 maps to exec_index=0
+        assert_eq!(adjust_index_for_rlp(0, 1), 0);
+
+        // For len=2: insertion order should be [1, 0]
+        assert_eq!(adjust_index_for_rlp(0, 2), 1);
+        assert_eq!(adjust_index_for_rlp(1, 2), 0);
+
+        // For len=3: insertion order should be [1, 2, 0]
+        assert_eq!(adjust_index_for_rlp(0, 3), 1);
+        assert_eq!(adjust_index_for_rlp(1, 3), 2);
+        assert_eq!(adjust_index_for_rlp(2, 3), 0);
+
+        // For len=128: insertion order is [1, 2, ..., 127, 0]
+        // i=0 -> 1, i=1 -> 2, ..., i=126 -> 127, i=127 (last element) -> 0
+        assert_eq!(adjust_index_for_rlp(0, 128), 1);
+        assert_eq!(adjust_index_for_rlp(126, 128), 127);
+        assert_eq!(adjust_index_for_rlp(127, 128), 0); // last element maps to 0
+
+        // For len=129: insertion order is [1, 2, ..., 127, 0, 128]
+        // i=127 (0x7f) triggers the "i == 0x7f" condition, mapping to 0
+        // i=128 > 0x7f, so it stays as 128
+        assert_eq!(adjust_index_for_rlp(0, 129), 1);
+        assert_eq!(adjust_index_for_rlp(126, 129), 127);
+        assert_eq!(adjust_index_for_rlp(127, 129), 0); // 0x7f maps to 0
+        assert_eq!(adjust_index_for_rlp(128, 129), 128); // > 0x7f, stays same
+
+        // For len=130: [1, 2, ..., 127, 0, 128, 129]
+        // i > 0x7f is checked first, so 128 and 129 just return themselves
+        assert_eq!(adjust_index_for_rlp(0, 130), 1);
+        assert_eq!(adjust_index_for_rlp(126, 130), 127);
+        assert_eq!(adjust_index_for_rlp(127, 130), 0); // 0x7f maps to 0
+        assert_eq!(adjust_index_for_rlp(128, 130), 128); // > 0x7f, stays same
+        assert_eq!(adjust_index_for_rlp(129, 130), 129); // > 0x7f, stays same
+    }
+
+    /// Test OrderedTrieRootBuilder produces same results as ordered_trie_root_with_encoder
+    #[test]
+    fn test_ordered_builder_equivalence() {
+        // Test with various lengths including edge cases
+        for len in [0, 1, 2, 3, 10, 127, 128, 129, 130, 200] {
+            let items: Vec<u64> = (0..len).map(|i| i as u64 * 100).collect();
+
+            // Compute using the existing function
+            let expected = ordered_trie_root_with_encoder(&items, |item, buf| {
+                alloy_rlp::Encodable::encode(item, buf);
+            });
+
+            // Compute using the builder
+            let mut builder =
+                OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
+                    alloy_rlp::Encodable::encode(item, buf);
+                });
+
+            for item in &items {
+                builder.push(item).unwrap();
+            }
+
+            let actual = builder.finalize().unwrap();
+            assert_eq!(
+                expected, actual,
+                "mismatch for len={len}: expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    /// Test OrderedTrieRootEncodedBuilder produces same results as ordered_trie_root_encoded
+    #[test]
+    fn test_ordered_encoded_builder_equivalence() {
+        for len in [0, 1, 2, 3, 10, 127, 128, 129, 130, 200] {
+            // Generate some "encoded" items (just arbitrary bytes for testing)
+            let items: Vec<Vec<u8>> =
+                (0..len).map(|i| format!("item_{i}_data").into_bytes()).collect();
+
+            // Compute using the existing function
+            let expected = ordered_trie_root_encoded(&items);
+
+            // Compute using the builder
+            let mut builder = OrderedTrieRootEncodedBuilder::new(len);
+
+            for item in &items {
+                builder.push(item).unwrap();
+            }
+
+            let actual = builder.finalize().unwrap();
+            assert_eq!(
+                expected, actual,
+                "mismatch for len={len}: expected {expected:?}, got {actual:?}"
+            );
+        }
+    }
+
+    /// Test that the builder correctly handles the empty case
+    #[test]
+    fn test_ordered_builder_empty() {
+        let builder: OrderedTrieRootBuilder<u64, _> =
+            OrderedTrieRootBuilder::new(0, |_: &u64, _: &mut Vec<u8>| {});
+        assert!(builder.is_complete());
+        assert_eq!(builder.finalize().unwrap(), EMPTY_ROOT_HASH);
+
+        let builder = OrderedTrieRootEncodedBuilder::new(0);
+        assert!(builder.is_complete());
+        assert_eq!(builder.finalize().unwrap(), EMPTY_ROOT_HASH);
+    }
+
+    /// Test that finalize errors when incomplete
+    #[test]
+    fn test_ordered_builder_incomplete_error() {
+        let mut builder = OrderedTrieRootBuilder::new(3, |item: &u64, buf: &mut Vec<u8>| {
+            alloy_rlp::Encodable::encode(item, buf);
+        });
+
+        builder.push(&1u64).unwrap();
+        builder.push(&2u64).unwrap();
+        // Don't push the third item
+
+        assert!(!builder.is_complete());
+        assert_eq!(
+            builder.finalize(),
+            Err(OrderedRootError::Incomplete { expected: 3, received: 2 })
+        );
+    }
+
+    /// Test that pushing too many items errors
+    #[test]
+    fn test_ordered_builder_too_many_items() {
+        let mut builder = OrderedTrieRootBuilder::new(2, |item: &u64, buf: &mut Vec<u8>| {
+            alloy_rlp::Encodable::encode(item, buf);
+        });
+
+        builder.push(&1u64).unwrap();
+        builder.push(&2u64).unwrap();
+        assert!(builder.is_complete());
+
+        assert_eq!(builder.push(&3u64), Err(OrderedRootError::TooManyItems { expected: 2 }));
+    }
+
+    /// Test is_complete and pushed_count
+    #[test]
+    fn test_ordered_builder_state_tracking() {
+        let mut builder = OrderedTrieRootBuilder::new(3, |item: &u64, buf: &mut Vec<u8>| {
+            alloy_rlp::Encodable::encode(item, buf);
+        });
+
+        assert_eq!(builder.pushed_count(), 0);
+        assert_eq!(builder.expected_count(), 3);
+        assert!(!builder.is_complete());
+
+        builder.push(&1u64).unwrap();
+        assert_eq!(builder.pushed_count(), 1);
+        assert!(!builder.is_complete());
+
+        builder.push(&2u64).unwrap();
+        assert_eq!(builder.pushed_count(), 2);
+        assert!(!builder.is_complete());
+
+        builder.push(&3u64).unwrap();
+        assert_eq!(builder.pushed_count(), 3);
+        assert!(builder.is_complete());
+    }
+
+    /// Test that items are flushed incrementally when possible
+    #[test]
+    fn test_ordered_builder_incremental_flush() {
+        // For len=3, insertion order is [1, 2, 0]
+        // So after pushing exec_index 0, nothing can be flushed (need exec_index 1 first)
+        // After pushing exec_index 1, we can flush exec_index 1
+        // After pushing exec_index 2, we can flush exec_index 2 and then exec_index 0
+
+        let mut builder = OrderedTrieRootBuilder::new(3, |item: &u64, buf: &mut Vec<u8>| {
+            alloy_rlp::Encodable::encode(item, buf);
+        });
+
+        // Push item at exec_index 0
+        builder.push(&100u64).unwrap();
+        // next_insert_i should still be 0 because we need exec_index 1 first
+        assert_eq!(builder.next_insert_i, 0);
+
+        // Push item at exec_index 1
+        builder.push(&200u64).unwrap();
+        // Now we should have flushed exec_index 1, so next_insert_i = 1
+        assert_eq!(builder.next_insert_i, 1);
+
+        // Push item at exec_index 2
+        builder.push(&300u64).unwrap();
+        // Now we should have flushed exec_index 2 and then exec_index 0
+        assert_eq!(builder.next_insert_i, 3);
+        assert!(builder.is_complete());
+    }
+
+    /// Test with_rlp_encoding convenience constructor
+    #[test]
+    fn test_with_rlp_encoding() {
+        let items: Vec<u64> = vec![100, 200, 300];
+
+        let expected = ordered_trie_root(&items);
+
+        let mut builder = OrderedTrieRootBuilder::<u64, _>::with_rlp_encoding(3);
+        for item in &items {
+            builder.push(item).unwrap();
+        }
+        let actual = builder.finalize().unwrap();
+
+        assert_eq!(expected, actual);
+    }
+
+    /// Test single item
+    #[test]
+    fn test_ordered_builder_single_item() {
+        let items = vec![42u64];
+
+        let expected = ordered_trie_root(&items);
+
+        let mut builder = OrderedTrieRootBuilder::new(1, |item: &u64, buf: &mut Vec<u8>| {
+            alloy_rlp::Encodable::encode(item, buf);
+        });
+        builder.push(&42u64).unwrap();
+
+        // For len=1, after pushing index 0, we should flush immediately
+        assert_eq!(builder.next_insert_i, 1);
+        assert!(builder.is_complete());
+
+        assert_eq!(builder.finalize().unwrap(), expected);
+    }
+
+    /// Test that the flush logic handles boundary at 127/128 correctly
+    #[test]
+    fn test_ordered_builder_boundary_128() {
+        // For len=128: insertion order is [1, 2, ..., 127, 0]
+        // For len=129: insertion order is [1, 2, ..., 127, 0, 128]
+
+        for len in [127, 128, 129, 130] {
+            let items: Vec<u64> = (0..len).map(|i| i as u64).collect();
+
+            let expected = ordered_trie_root(&items);
+
+            let mut builder =
+                OrderedTrieRootBuilder::new(len, |item: &u64, buf: &mut Vec<u8>| {
+                    alloy_rlp::Encodable::encode(item, buf);
+                });
+
+            for item in &items {
+                builder.push(item).unwrap();
+            }
+
+            assert!(builder.is_complete());
+            assert_eq!(builder.finalize().unwrap(), expected, "failed for len={len}");
+        }
     }
 }
