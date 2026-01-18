@@ -47,6 +47,34 @@ where
     hb.root()
 }
 
+/// Compute a trie root of the collection of pre-encoded items.
+///
+/// This is an optimized version of [`ordered_trie_root_with_encoder`] for items that are
+/// already encoded as rlp (for example EIP-2718 transactions).
+///
+/// Each item is inserted into the trie with its index (adjusted by [`adjust_index_for_rlp`])
+/// as the key and the item's byte representation as the value.
+///
+/// Returns [`EMPTY_ROOT_HASH`] if the collection is empty.
+pub fn ordered_trie_root_encoded<T>(items: &[T]) -> B256
+where
+    T: AsRef<[u8]>,
+{
+    if items.is_empty() {
+        return EMPTY_ROOT_HASH;
+    }
+    let mut hb = HashBuilder::default();
+    let items_len = items.len();
+    for i in 0..items_len {
+        let index = adjust_index_for_rlp(i, items_len);
+
+        let index_buffer = alloy_rlp::encode_fixed_size(&index);
+        hb.add_leaf(Nibbles::unpack(&index_buffer), items[index].as_ref());
+    }
+
+    hb.root()
+}
+
 /// Ethereum specific trie root functions.
 #[cfg(feature = "ethereum")]
 pub use ethereum::*;
