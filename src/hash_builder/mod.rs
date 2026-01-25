@@ -496,7 +496,7 @@ mod tests {
         K: AsRef<[u8]> + Ord,
     {
         let hashed = iter
-            .map(|(k, v)| (keccak256(k.as_ref()), alloy_rlp::encode(v).to_vec()))
+            .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
             // Collect into a btree map to sort the data
             .collect::<BTreeMap<_, _>>();
 
@@ -540,6 +540,182 @@ mod tests {
         use proptest::prelude::*;
         proptest!(|(state: BTreeMap<B256, U256>)| {
             assert_hashed_trie_root(state.iter());
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_trie_root_raw_keys() {
+        use proptest::prelude::*;
+
+        // Test with raw (non-hashed) keys of fixed length (32 bytes like hashed keys)
+        // This avoids the prefix-key issue where one key is a prefix of another,
+        // which is not supported by the MPT implementation (and not needed for
+        // Ethereum where keys are always hashed to 32 bytes)
+        proptest!(|(entries in proptest::collection::btree_map(
+            proptest::collection::vec(any::<u8>(), 32..=32),
+            proptest::collection::vec(any::<u8>(), 0..=128),
+            0..100
+        ))| {
+            assert_trie_root(entries);
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_trie_root_with_updates() {
+        use proptest::prelude::*;
+
+        // Verify that enabling updates doesn't change the root
+        proptest!(|(state: BTreeMap<B256, U256>)| {
+            let hashed: BTreeMap<_, _> = state
+                .iter()
+                .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
+                .collect();
+
+            // Build without updates
+            let mut hb1 = HashBuilder::default();
+            for (key, val) in &hashed {
+                hb1.add_leaf(Nibbles::unpack(key), val);
+            }
+            let root1 = hb1.root();
+
+            // Build with updates enabled
+            let mut hb2 = HashBuilder::default().with_updates(true);
+            for (key, val) in &hashed {
+                hb2.add_leaf(Nibbles::unpack(key), val);
+            }
+            let root2 = hb2.root();
+
+            assert_eq!(root1, root2);
+            assert_eq!(root1, triehash_trie_root(&hashed));
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_deterministic_root() {
+        use proptest::prelude::*;
+
+        // Building the trie twice should produce identical roots
+        proptest!(|(state: BTreeMap<B256, U256>)| {
+            let hashed: BTreeMap<_, _> = state
+                .iter()
+                .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
+                .collect();
+
+            let mut hb1 = HashBuilder::default();
+            let mut hb2 = HashBuilder::default();
+
+            for (key, val) in &hashed {
+                hb1.add_leaf(Nibbles::unpack(key), val);
+                hb2.add_leaf(Nibbles::unpack(key), val);
+            }
+
+            assert_eq!(hb1.root(), hb2.root());
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_branch_updates_valid() {
+        use proptest::prelude::*;
+
+        // Verify that branch updates have valid masks
+        proptest!(|(state: BTreeMap<B256, U256>)| {
+            let hashed: BTreeMap<_, _> = state
+                .iter()
+                .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
+                .collect();
+
+            let mut hb = HashBuilder::default().with_updates(true);
+            for (key, val) in &hashed {
+                hb.add_leaf(Nibbles::unpack(key), val);
+            }
+            let _ = hb.root();
+            let (_, updates) = hb.split();
+
+            // Verify all branch node compacts have valid invariants
+            for (_, node) in updates {
+                // tree_mask must be subset of state_mask
+                assert!(node.tree_mask.is_subset_of(node.state_mask));
+                // hash_mask must be subset of state_mask
+                assert!(node.hash_mask.is_subset_of(node.state_mask));
+                // hashes count must match hash_mask popcount
+                assert_eq!(node.hash_mask.count_ones() as usize, node.hashes.len());
+            }
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_common_prefix_stress() {
+        use proptest::prelude::*;
+
+        // Generate keys that share common prefixes to stress branch node creation
+        let key_strategy = (0u8..16).prop_flat_map(|prefix| {
+            proptest::collection::vec(any::<u8>(), 31..=31)
+                .prop_map(move |mut v| {
+                    v[0] = prefix << 4 | (v[0] & 0x0f);
+                    v
+                })
+        });
+
+        proptest!(|(entries in proptest::collection::btree_map(
+            key_strategy,
+            proptest::collection::vec(any::<u8>(), 0..=64),
+            0..50
+        ))| {
+            assert_trie_root(entries);
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_single_leaf() {
+        use proptest::prelude::*;
+
+        // Single leaf should produce valid root
+        proptest!(|(key: B256, value: U256)| {
+            let mut hb = HashBuilder::default();
+            let nibbles = Nibbles::unpack(&key);
+            let encoded_value = alloy_rlp::encode(&value);
+            hb.add_leaf(nibbles, &encoded_value);
+            let root = hb.root();
+
+            let expected = triehash_trie_root([(key, encoded_value)]);
+            assert_eq!(root, expected);
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_add_leaf_unchecked_equivalence() {
+        use proptest::prelude::*;
+
+        // add_leaf_unchecked should produce same result as add_leaf
+        proptest!(|(state: BTreeMap<B256, U256>)| {
+            let hashed: BTreeMap<_, _> = state
+                .iter()
+                .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
+                .collect();
+
+            let mut hb1 = HashBuilder::default();
+            let mut hb2 = HashBuilder::default();
+
+            for (key, val) in &hashed {
+                hb1.add_leaf(Nibbles::unpack(key), val);
+                hb2.add_leaf_unchecked(Nibbles::unpack(key), val);
+            }
+
+            assert_eq!(hb1.root(), hb2.root());
         });
     }
 
