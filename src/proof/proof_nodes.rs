@@ -46,7 +46,7 @@ impl ProofNodes {
     /// Return the sorted vec of proof nodes that match the target.
     pub fn matching_nodes_sorted(&self, target: &Nibbles) -> Vec<(Nibbles, Bytes)> {
         let mut nodes = self.matching_nodes(target);
-        nodes.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        nodes.sort_unstable_by_key(|a| a.0);
         nodes
     }
 
@@ -58,14 +58,14 @@ impl ProofNodes {
     /// Return the sorted vec of all proof nodes.
     pub fn nodes_sorted(&self) -> Vec<(Nibbles, Bytes)> {
         let mut nodes = Vec::from_iter(self.0.iter().map(|(k, v)| (*k, v.clone())));
-        nodes.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        nodes.sort_unstable_by_key(|a| a.0);
         nodes
     }
 
     /// Convert into sorted vec of all proof nodes.
     pub fn into_nodes_sorted(self) -> Vec<(Nibbles, Bytes)> {
         let mut nodes = Vec::from_iter(self.0);
-        nodes.sort_unstable_by(|a, b| a.0.cmp(&b.0));
+        nodes.sort_unstable_by_key(|a| a.0);
         nodes
     }
 
