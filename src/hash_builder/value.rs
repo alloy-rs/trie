@@ -169,7 +169,7 @@ mod tests {
         let mut value = HashBuilderValue::new();
         value.set_from_ref(HashBuilderValueRef::Bytes(&[1, 2, 3, 4]));
 
-        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == &[1, 2, 3, 4]));
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == [1, 2, 3, 4]));
         assert_eq!(value.as_slice(), &[1, 2, 3, 4]);
     }
 
@@ -188,7 +188,7 @@ mod tests {
         let mut value = HashBuilderValue::new();
         value.set_bytes_owned(vec![5, 6, 7, 8]);
 
-        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == &[5, 6, 7, 8]));
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == [5, 6, 7, 8]));
     }
 
     #[test]
@@ -215,7 +215,7 @@ mod tests {
 
         // Switch back to bytes
         value.set_from_ref(HashBuilderValueRef::Bytes(&[4, 5, 6]));
-        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == &[4, 5, 6]));
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == [4, 5, 6]));
     }
 
     #[test]

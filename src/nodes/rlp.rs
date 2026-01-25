@@ -183,7 +183,7 @@ mod tests {
         assert_eq!(node.len(), 33);
 
         // Verify it equals word_rlp(keccak256(rlp))
-        let expected = RlpNode::word_rlp(&keccak256(&long_rlp));
+        let expected = RlpNode::word_rlp(&keccak256(long_rlp));
         assert_eq!(node.as_slice(), expected.as_slice());
         assert_eq!(node.as_hash(), expected.as_hash());
     }

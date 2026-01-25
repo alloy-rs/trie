@@ -666,7 +666,7 @@ mod tests {
             );
 
             // CORRECTNESS CHECK: Verify all branch node compacts have valid invariants
-            for (_, node) in &updates {
+            for node in updates.values() {
                 // tree_mask must be subset of state_mask
                 assert!(node.tree_mask.is_subset_of(node.state_mask));
                 // hash_mask must be subset of state_mask
@@ -698,7 +698,7 @@ mod tests {
             let (_, updates) = hb.split();
 
             // Verify all branch node compacts have valid invariants
-            for (_, node) in &updates {
+            for node in updates.values() {
                 // tree_mask must be subset of state_mask
                 assert!(node.tree_mask.is_subset_of(node.state_mask));
                 // hash_mask must be subset of state_mask
@@ -742,8 +742,8 @@ mod tests {
         // Single leaf should produce valid root
         proptest!(|(key: B256, value: U256)| {
             let mut hb = HashBuilder::default();
-            let nibbles = Nibbles::unpack(&key);
-            let encoded_value = alloy_rlp::encode(&value);
+            let nibbles = Nibbles::unpack(key);
+            let encoded_value = alloy_rlp::encode(value);
             hb.add_leaf(nibbles, &encoded_value);
             let root = hb.root();
 
@@ -1069,6 +1069,7 @@ mod tests {
     /// This test creates a branch node that would be small enough to inline
     /// and checks if parent's hash_mask is still set.
     #[test]
+    #[cfg(feature = "std")]
     fn test_hash_mask_semantics_inlined_branch() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -1125,6 +1126,7 @@ mod tests {
     /// This tests whether a stored branch deep in the trie correctly propagates
     /// its tree_mask up through extension nodes to the root.
     #[test]
+    #[cfg(feature = "std")]
     fn test_tree_mask_propagation_through_extensions() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -1169,6 +1171,7 @@ mod tests {
     /// Test Issue 2 edge case: multiple stored branches at different depths
     /// with a non-stored sibling in between.
     #[test]
+    #[cfg(feature = "std")]
     fn test_tree_mask_complex_nesting() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -1213,6 +1216,7 @@ mod tests {
 
     /// Test that hash_mask only marks branch children, not leaf children.
     #[test]
+    #[cfg(feature = "std")]
     fn test_hash_mask_branch_vs_leaf_children() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -1262,6 +1266,7 @@ mod tests {
     /// Under MPT rules, nodes with RLP >= 32 bytes must be referenced by hash.
     /// This test checks whether hash_mask reflects "hashed reference" or "branch child".
     #[test]
+    #[cfg(feature = "std")]
     fn test_hash_mask_large_leaf_value() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -1320,6 +1325,7 @@ mod tests {
     ///
     /// NOTE: Fails due to store_branch_node bug - see PR #124
     #[test]
+    #[cfg(feature = "std")]
     #[ignore = "fails due to store_branch_node bug - see PR #124"]
     fn test_mask_isolation_successive_subtrees() {
         let mut hb = HashBuilder::default().with_updates(true);

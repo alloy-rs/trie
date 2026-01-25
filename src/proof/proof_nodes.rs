@@ -85,7 +85,7 @@ mod tests {
     use super::*;
 
     fn nibbles(hex: &[u8]) -> Nibbles {
-        Nibbles::from_nibbles_unchecked(hex.to_vec())
+        Nibbles::from_nibbles_unchecked(hex)
     }
 
     #[test]
