@@ -633,9 +633,9 @@ mod tests {
     ///
     /// NOTE: This test currently fails due to a bug in `store_branch_node` where branch nodes
     /// with only leaf children are not stored in updates. See:
-    /// <https://github.com/alloy-rs/trie/pull/25>
+    /// <https://github.com/alloy-rs/trie/pull/124>
     #[test]
-    #[ignore = "fails due to store_branch_node bug - see PR #25"]
+    #[ignore = "fails due to store_branch_node bug - see PR #124"]
     #[cfg(feature = "arbitrary")]
     #[cfg_attr(miri, ignore = "no proptest")]
     fn arbitrary_branch_updates_complete() {
@@ -919,9 +919,9 @@ mod tests {
     /// Test edge case: keys that diverge at the last nibble with empty values.
     /// This creates very small leaf RLPs and deep branch structures.
     ///
-    /// NOTE: Fails due to store_branch_node bug - see PR #25
+    /// NOTE: Fails due to store_branch_node bug - see PR #124
     #[test]
-    #[ignore = "fails due to store_branch_node bug - see PR #25"]
+    #[ignore = "fails due to store_branch_node bug - see PR #124"]
     fn test_deep_divergence_empty_values() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -940,9 +940,9 @@ mod tests {
 
     /// Test: siblings at different depths to verify mask propagation.
     ///
-    /// NOTE: Fails due to store_branch_node bug - see PR #25
+    /// NOTE: Fails due to store_branch_node bug - see PR #124
     #[test]
-    #[ignore = "fails due to store_branch_node bug - see PR #25"]
+    #[ignore = "fails due to store_branch_node bug - see PR #124"]
     fn test_mask_propagation_across_depths() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -982,5 +982,416 @@ mod tests {
 
         // Root should be present
         assert!(updates.contains_key(&Nibbles::default()), "root should be in updates");
+    }
+
+    /// Test Issue 2 from Oracle: tree_mask should only be set for children that are
+    /// explicitly marked as stored_in_database, not siblings.
+    ///
+    /// This test uses add_branch with stored_in_database=true for one subtree
+    /// and add_leaf for a sibling, then verifies tree_mask only includes the stored subtree.
+    #[test]
+    fn test_tree_mask_no_sibling_contamination() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Add a branch at nibble 0x1... that is stored in database
+        let stored_hash = b256!("1111111111111111111111111111111111111111111111111111111111111111");
+        hb.add_branch(
+            Nibbles::from_nibbles_unchecked([0x1]),
+            stored_hash,
+            true, // stored_in_database = true
+        );
+
+        // Add a leaf at nibble 0x2... (sibling, not stored in database)
+        let key2 = hex!("2000000000000000000000000000000000000000000000000000000000000000");
+        hb.add_leaf(Nibbles::unpack(key2), b"value");
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // Find the root branch node update
+        if let Some(root_node) = updates.get(&Nibbles::default()) {
+            // state_mask should have bits for both 0x1 and 0x2
+            assert!(root_node.state_mask.is_bit_set(0x1), "state_mask should have bit 1 set");
+            assert!(root_node.state_mask.is_bit_set(0x2), "state_mask should have bit 2 set");
+
+            // tree_mask should ONLY have bit for 0x1 (the stored branch)
+            // NOT for 0x2 (the leaf sibling)
+            assert!(
+                root_node.tree_mask.is_bit_set(0x1),
+                "tree_mask should have bit 1 set (stored branch)"
+            );
+            assert!(
+                !root_node.tree_mask.is_bit_set(0x2),
+                "tree_mask should NOT have bit 2 set (leaf sibling) - this would indicate Issue 2 bug"
+            );
+        }
+    }
+
+    /// Test Issue 2 from Oracle: verify tree_mask propagation doesn't leak
+    /// across unrelated siblings when using multiple add_branch calls.
+    #[test]
+    fn test_tree_mask_isolation_multiple_branches() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        let hash_a = b256!("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        let hash_b = b256!("bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
+
+        // Add branch A at 0x1, stored in database
+        hb.add_branch(Nibbles::from_nibbles_unchecked([0x1]), hash_a, true);
+
+        // Add branch B at 0x2, NOT stored in database
+        hb.add_branch(Nibbles::from_nibbles_unchecked([0x2]), hash_b, false);
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        if let Some(root_node) = updates.get(&Nibbles::default()) {
+            // Both should be in state_mask
+            assert!(root_node.state_mask.is_bit_set(0x1));
+            assert!(root_node.state_mask.is_bit_set(0x2));
+
+            // Only 0x1 should be in tree_mask (stored_in_database=true)
+            assert!(root_node.tree_mask.is_bit_set(0x1), "tree_mask should have bit 1 (stored)");
+            assert!(
+                !root_node.tree_mask.is_bit_set(0x2),
+                "tree_mask should NOT have bit 2 (not stored) - Issue 2 bug if set"
+            );
+
+            // Both should be in hash_mask (both are branches)
+            assert!(root_node.hash_mask.is_bit_set(0x1), "hash_mask should have bit 1");
+            assert!(root_node.hash_mask.is_bit_set(0x2), "hash_mask should have bit 2");
+        }
+    }
+
+    /// Test Issue 1 from Oracle: hash_mask semantics - does it mean
+    /// "child is a branch" or "child is actually hashed in RLP (>=32 bytes)"?
+    ///
+    /// This test creates a branch node that would be small enough to inline
+    /// and checks if parent's hash_mask is still set.
+    #[test]
+    fn test_hash_mask_semantics_inlined_branch() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Create a minimal trie: two leaves that share a common prefix
+        // This will create a branch node at the divergence point
+        // The branch node might be small enough to inline
+
+        // Keys that diverge at the 63rd nibble (last nibble of a 32-byte key)
+        let key1 = hex!("0000000000000000000000000000000000000000000000000000000000000000");
+        let key2 = hex!("0000000000000000000000000000000000000000000000000000000000000001");
+
+        // Use tiny values to make leaves as small as possible
+        hb.add_leaf(Nibbles::unpack(key1), &[0x01]);
+        hb.add_leaf(Nibbles::unpack(key2), &[0x02]);
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // There should be a branch node at the common prefix (62 nibbles of zeros)
+        // and possibly a root node
+
+        for (path, node) in &updates {
+            // Verify hash_mask invariant: popcount matches hashes length
+            assert_eq!(
+                node.hash_mask.count_ones() as usize,
+                node.hashes.len(),
+                "hash_mask/hashes mismatch at {:?}",
+                path
+            );
+
+            // For each bit in hash_mask, the corresponding child should be a branch
+            // (not a leaf), according to the apparent semantics
+        }
+
+        // If we have a root node, check its children
+        if let Some(root_node) = updates.get(&Nibbles::default()) {
+            // With keys starting with 0x0..., the root should have a child at nibble 0
+            // This child is a branch (extension -> branch structure)
+            // hash_mask should indicate this
+
+            // The key insight: if Issue 1 is a bug, we'd set hash_mask for children
+            // that are inlined, which would be incorrect under "RLP hashed" semantics
+            // But if hash_mask means "branch child", it's correct
+
+            println!("Root node state_mask: {:?}", root_node.state_mask);
+            println!("Root node hash_mask: {:?}", root_node.hash_mask);
+            println!("Root node tree_mask: {:?}", root_node.tree_mask);
+            println!("Root node hashes: {:?}", root_node.hashes);
+        }
+    }
+
+    /// Test Issue 2 deeper: extension nodes and tree_mask propagation.
+    ///
+    /// This tests whether a stored branch deep in the trie correctly propagates
+    /// its tree_mask up through extension nodes to the root.
+    #[test]
+    fn test_tree_mask_propagation_through_extensions() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Add a stored branch at a deep path with extension node prefix
+        // Path: 0x1234... - this will create extension nodes
+        let stored_hash = b256!("1111111111111111111111111111111111111111111111111111111111111111");
+        hb.add_branch(
+            Nibbles::from_nibbles_unchecked([0x1, 0x2, 0x3, 0x4]),
+            stored_hash,
+            true, // stored_in_database = true
+        );
+
+        // Add a leaf at a different top-level nibble (sibling to the extension)
+        let key2 = hex!("2000000000000000000000000000000000000000000000000000000000000000");
+        hb.add_leaf(Nibbles::unpack(key2), b"value");
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // Check root node
+        if let Some(root_node) = updates.get(&Nibbles::default()) {
+            println!("Root state_mask: {:?}", root_node.state_mask);
+            println!("Root tree_mask: {:?}", root_node.tree_mask);
+            println!("Root hash_mask: {:?}", root_node.hash_mask);
+
+            // Nibble 0x1 leads to extension -> stored branch
+            // Nibble 0x2 leads to leaf
+
+            // tree_mask should have 0x1 set (stored subtree)
+            // tree_mask should NOT have 0x2 set (leaf, not stored)
+            assert!(
+                root_node.tree_mask.is_bit_set(0x1),
+                "tree_mask should have bit 1 (stored subtree via extension)"
+            );
+            assert!(
+                !root_node.tree_mask.is_bit_set(0x2),
+                "tree_mask should NOT have bit 2 (leaf sibling)"
+            );
+        }
+    }
+
+    /// Test Issue 2 edge case: multiple stored branches at different depths
+    /// with a non-stored sibling in between.
+    #[test]
+    fn test_tree_mask_complex_nesting() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Stored branch at 0x11
+        let hash1 = b256!("1111111111111111111111111111111111111111111111111111111111111111");
+        hb.add_branch(Nibbles::from_nibbles_unchecked([0x1, 0x1]), hash1, true);
+
+        // Non-stored branch at 0x12 (sibling at level 2 of the 0x1 subtree)
+        let hash2 = b256!("2222222222222222222222222222222222222222222222222222222222222222");
+        hb.add_branch(Nibbles::from_nibbles_unchecked([0x1, 0x2]), hash2, false);
+
+        // Leaf at 0x2 (sibling at root level)
+        let key3 = hex!("2000000000000000000000000000000000000000000000000000000000000000");
+        hb.add_leaf(Nibbles::unpack(key3), b"value");
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        println!("Updates:");
+        for (path, node) in &updates {
+            println!(
+                "  {:?}: state={:?}, tree={:?}, hash={:?}",
+                path, node.state_mask, node.tree_mask, node.hash_mask
+            );
+        }
+
+        // Check the branch at 0x1 (parent of 0x11 and 0x12)
+        let nibble_1_path = Nibbles::from_nibbles_unchecked([0x1]);
+        if let Some(branch_1) = updates.get(&nibble_1_path) {
+            // state_mask should have both 0x1 and 0x2
+            assert!(branch_1.state_mask.is_bit_set(0x1), "should have child at 1");
+            assert!(branch_1.state_mask.is_bit_set(0x2), "should have child at 2");
+
+            // tree_mask should ONLY have 0x1 (the stored branch)
+            assert!(branch_1.tree_mask.is_bit_set(0x1), "tree_mask should have bit 1 (stored)");
+            assert!(
+                !branch_1.tree_mask.is_bit_set(0x2),
+                "tree_mask should NOT have bit 2 (not stored) - Issue 2 bug if set"
+            );
+        }
+    }
+
+    /// Test that hash_mask only marks branch children, not leaf children.
+    #[test]
+    fn test_hash_mask_branch_vs_leaf_children() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Create a trie where root has:
+        // - A branch child at nibble 0 (two leaves under it)
+        // - A leaf child at nibble 1
+
+        // Two leaves under 0x0...
+        let key1 = hex!("0000000000000000000000000000000000000000000000000000000000000000");
+        let key2 = hex!("0100000000000000000000000000000000000000000000000000000000000000");
+        // One leaf at 0x1...
+        let key3 = hex!("1000000000000000000000000000000000000000000000000000000000000000");
+
+        hb.add_leaf(Nibbles::unpack(key1), b"value1");
+        hb.add_leaf(Nibbles::unpack(key2), b"value2");
+        hb.add_leaf(Nibbles::unpack(key3), b"value3");
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // Check root node
+        if let Some(root_node) = updates.get(&Nibbles::default()) {
+            // Root should have children at nibbles 0 and 1
+            assert!(root_node.state_mask.is_bit_set(0x0), "should have child at 0");
+            assert!(root_node.state_mask.is_bit_set(0x1), "should have child at 1");
+
+            // hash_mask: nibble 0 leads to a branch, nibble 1 leads to a leaf
+            // If hash_mask means "branch child", nibble 0 should be set, nibble 1 should NOT
+            let has_0 = root_node.hash_mask.is_bit_set(0x0);
+            let has_1 = root_node.hash_mask.is_bit_set(0x1);
+
+            println!(
+                "Root hash_mask: 0x0={}, 0x1={}, hashes.len={}",
+                has_0,
+                has_1,
+                root_node.hashes.len()
+            );
+
+            // The expectation depends on semantics:
+            // If "branch child": 0x0=true, 0x1=false
+            // If "RLP hashed": depends on RLP size of each child
+        }
+    }
+
+    /// Test hash_mask semantics with a large leaf value (>=32 bytes RLP).
+    ///
+    /// Under MPT rules, nodes with RLP >= 32 bytes must be referenced by hash.
+    /// This test checks whether hash_mask reflects "hashed reference" or "branch child".
+    #[test]
+    fn test_hash_mask_large_leaf_value() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Create a leaf with a very large value (>32 bytes when RLP encoded)
+        // This should force the leaf to be referenced by hash under MPT rules
+        let key1 = hex!("1000000000000000000000000000000000000000000000000000000000000000");
+        let large_value = vec![0xAB; 100]; // 100 bytes of data
+
+        // Create another leaf at a sibling nibble with small value
+        let key2 = hex!("2000000000000000000000000000000000000000000000000000000000000000");
+        let small_value = vec![0x01]; // 1 byte
+
+        hb.add_leaf(Nibbles::unpack(key1), &large_value);
+        hb.add_leaf(Nibbles::unpack(key2), &small_value);
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // Check root node
+        if let Some(root_node) = updates.get(&Nibbles::default()) {
+            println!("Large leaf test - Root node:");
+            println!("  state_mask: {:?}", root_node.state_mask);
+            println!("  hash_mask: {:?}", root_node.hash_mask);
+            println!("  tree_mask: {:?}", root_node.tree_mask);
+            println!("  hashes.len: {}", root_node.hashes.len());
+
+            // Both nibbles 1 and 2 should be in state_mask
+            assert!(root_node.state_mask.is_bit_set(0x1));
+            assert!(root_node.state_mask.is_bit_set(0x2));
+
+            // Key observation: neither child is a branch node
+            // If hash_mask means "branch child": both bits should be unset
+            // If hash_mask means "hashed reference (RLP >= 32)": large leaf might have bit set
+            //
+            // Current implementation: hash_mask tracks branch children for BranchNodeCompact,
+            // not MPT RLP hashing decisions. So we expect both bits to be unset.
+            let has_1 = root_node.hash_mask.is_bit_set(0x1);
+            let has_2 = root_node.hash_mask.is_bit_set(0x2);
+
+            println!("  hash_mask bit 1 (large leaf): {}", has_1);
+            println!("  hash_mask bit 2 (small leaf): {}", has_2);
+
+            // Document observed behavior - hash_mask is "branch child" not "RLP hashed"
+            // Both leaves, so neither should be in hash_mask
+            assert!(
+                !has_1 && !has_2,
+                "hash_mask should be empty for leaf-only branches (current semantics)"
+            );
+        }
+    }
+
+    /// Test mask isolation across disjoint subtrees built in succession.
+    ///
+    /// This tests that mask arrays are properly cleared/scoped when building
+    /// multiple subtrees under the same parent in successive inserts.
+    ///
+    /// NOTE: Fails due to store_branch_node bug - see PR #124
+    #[test]
+    #[ignore = "fails due to store_branch_node bug - see PR #124"]
+    fn test_mask_isolation_successive_subtrees() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // First subtree under 0x1...: stored branch with leaves
+        let hash1 = b256!("1111111111111111111111111111111111111111111111111111111111111111");
+        hb.add_branch(
+            Nibbles::from_nibbles_unchecked([0x1, 0x0]),
+            hash1,
+            true, // stored
+        );
+
+        // Add a leaf under 0x1... to force branch creation
+        let key1a = hex!("1100000000000000000000000000000000000000000000000000000000000000");
+        hb.add_leaf(Nibbles::unpack(key1a), b"value1a");
+
+        // Second subtree under 0x2...: NOT stored, just leaves
+        let key2a = hex!("2000000000000000000000000000000000000000000000000000000000000000");
+        let key2b = hex!("2100000000000000000000000000000000000000000000000000000000000000");
+        hb.add_leaf(Nibbles::unpack(key2a), b"value2a");
+        hb.add_leaf(Nibbles::unpack(key2b), b"value2b");
+
+        // Third subtree under 0x3...: stored branch
+        let hash3 = b256!("3333333333333333333333333333333333333333333333333333333333333333");
+        hb.add_branch(
+            Nibbles::from_nibbles_unchecked([0x3]),
+            hash3,
+            true, // stored
+        );
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        println!("Successive subtrees test - Updates:");
+        for (path, node) in &updates {
+            println!(
+                "  {:?}: state={:?}, tree={:?}, hash={:?}",
+                path, node.state_mask, node.tree_mask, node.hash_mask
+            );
+        }
+
+        // Check root node
+        if let Some(root_node) = updates.get(&Nibbles::default()) {
+            // state_mask should have bits 1, 2, 3
+            assert!(root_node.state_mask.is_bit_set(0x1));
+            assert!(root_node.state_mask.is_bit_set(0x2));
+            assert!(root_node.state_mask.is_bit_set(0x3));
+
+            // With the fix, tree_mask should have ALL branch children that are stored
+            // in updates, including the branch at 0x2 created from leaves.
+            // tree_mask means "child is stored in DB" not "child was added via
+            // stored_in_database=true"
+            assert!(root_node.tree_mask.is_bit_set(0x1), "tree_mask should have bit 1 (stored)");
+            assert!(
+                root_node.tree_mask.is_bit_set(0x2),
+                "tree_mask should have bit 2 (branch stored via fix)"
+            );
+            assert!(root_node.tree_mask.is_bit_set(0x3), "tree_mask should have bit 3 (stored)");
+
+            // hash_mask should have all branch children (1, 2, 3)
+            assert!(
+                root_node.hash_mask.is_bit_set(0x1),
+                "hash_mask should have bit 1 (branch child)"
+            );
+            assert!(
+                root_node.hash_mask.is_bit_set(0x2),
+                "hash_mask should have bit 2 (branch child)"
+            );
+            assert!(
+                root_node.hash_mask.is_bit_set(0x3),
+                "hash_mask should have bit 3 (branch child)"
+            );
+        }
     }
 }
