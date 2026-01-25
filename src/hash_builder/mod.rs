@@ -427,13 +427,37 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
     /// masks in the database. We will use that when consuming the intermediate nodes
     /// from the database to efficiently build the trie.
     fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
+        // Update the parent's hash_mask to indicate this child is a hashed branch node
         if len > 0 {
             let parent_index = len - 1;
             self.hash_masks[parent_index] |=
                 TrieMask::from_nibble(current.get_unchecked(parent_index));
         }
 
-        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
+        // Determine if this branch node should be stored in the database.
+        //
+        // A branch node must be stored if:
+        // 1. It is the root node (len == 0), since it's the entry point for trie traversal, OR
+        // 2. It has children that are themselves branches (indicated by non-empty tree/hash masks),
+        //    meaning we need to store it to allow incremental updates, OR
+        // 3. Its parent references it as a hashed child. Since we just set the parent's hash_mask
+        //    above, we check if this child's bit is now set in the parent's hash_mask.
+        //
+        // The key insight is that even a branch node with only leaf children must be stored
+        // if its parent will reference it by hash (which is always the case for branch nodes
+        // whose RLP encoding >= 32 bytes).
+        let store_in_db_trie = if len == 0 {
+            // Root node is always stored
+            true
+        } else {
+            let parent_index = len - 1;
+            let flag = TrieMask::from_nibble(current.get_unchecked(parent_index));
+            // Store if this node has branch children OR if the parent references this child
+            !self.tree_masks[len].is_empty()
+                || !self.hash_masks[len].is_empty()
+                || (self.hash_masks[parent_index] & flag) != TrieMask::default()
+        };
+
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
@@ -631,11 +655,8 @@ mod tests {
 
     /// Verify that branch updates are complete for multi-leaf tries.
     ///
-    /// NOTE: This test currently fails due to a bug in `store_branch_node` where branch nodes
-    /// with only leaf children are not stored in updates. See:
-    /// <https://github.com/alloy-rs/trie/pull/124>
+    /// For tries with 2+ leaves, there must be at least one branch node in updates.
     #[test]
-    #[ignore = "fails due to store_branch_node bug - see PR #124"]
     #[cfg(feature = "arbitrary")]
     #[cfg_attr(miri, ignore = "no proptest")]
     fn arbitrary_branch_updates_complete() {
@@ -796,7 +817,8 @@ mod tests {
         //    `3`.
         // 2. Hash Mask: 0b0110. Of the above items, nibbles `1` and `2` correspond to children that
         //    are branch nodes.
-        // 3. Tree Mask: 0b0000. None of the children are stored in the database (yet).
+        // 3. Tree Mask: 0b0110. Children at nibbles `1` and `2` are branch nodes that are stored in
+        //    the database/updates (they are referenced by hash from this parent node).
         // 4. Hashes: Hashes of the 2 sub-branch roots, at nibbles `1` and `2`. Calculated by
         //    hashing the 0th and 1st element for the branch at nibble `1` , and the 0th and 2nd
         //    element for the branch at nibble `2`. This basically means that every
@@ -842,8 +864,8 @@ mod tests {
         let update = updates.get(&Nibbles::from_nibbles_unchecked(hex!("01"))).unwrap();
         // Nibbles 0, 1, 2, 3 have children
         assert_eq!(update.state_mask, TrieMask::new(0b1111));
-        // None of the children are stored in the database
-        assert_eq!(update.tree_mask, TrieMask::new(0b0000));
+        // Children at nibbles 1 and 2 are branch nodes stored in updates
+        assert_eq!(update.tree_mask, TrieMask::new(0b0110));
         // Children under nibbles `1` and `2` are branch nodes with `hashes`
         assert_eq!(update.hash_mask, TrieMask::new(0b0110));
         // Calculated when running the hash builder
@@ -916,12 +938,129 @@ mod tests {
         assert_eq!(hb2.root(), expected);
     }
 
+    /// Test that branch nodes are correctly added to updates even when they only have leaf
+    /// children. This was a bug where branch nodes with only leaf children were not being
+    /// stored in updates because the condition only checked if the node had branch children.
+    ///
+    /// Regression test from <https://github.com/alloy-rs/trie/pull/25>.
+    #[test]
+    fn test_updates_root() {
+        let mut hb = HashBuilder::default().with_updates(true);
+        let account: Vec<u8> = Vec::new();
+
+        hb.add_leaf(
+            Nibbles::unpack(hex!(
+                "a711355ec1c8f7e26bb3ccbcb0b75d870d15846c0b98e5cc452db46c37faea40"
+            )),
+            account.as_ref(),
+        );
+        hb.add_leaf(
+            Nibbles::unpack(hex!(
+                "a77d337781e762f3577784bab7491fcc43e291ce5a356b9bc517ac52eed3a37a"
+            )),
+            account.as_ref(),
+        );
+        hb.add_leaf(
+            Nibbles::unpack(hex!(
+                "a77d397a32b8ab5eb4b043c65b1f00c93f517bc8883c5cd31baf8e8a279475e3"
+            )),
+            account.as_ref(),
+        );
+        hb.add_leaf(
+            Nibbles::unpack(hex!(
+                "a7f936599f93b769acf90c7178fd2ddcac1b5b4bc9949ee5a04b7e0823c2446e"
+            )),
+            account.as_ref(),
+        );
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // Previously this would return an empty map because branch nodes with only
+        // leaf children were not being stored. Now all branch nodes should be stored.
+        assert!(!updates.is_empty(), "updates should not be empty");
+    }
+
+    /// Test the tree handling for various branch configurations.
+    /// This tests that all branch nodes in a multi-level trie are correctly stored.
+    ///
+    /// Regression test from <https://github.com/alloy-rs/trie/pull/25>.
+    #[test]
+    fn test_trie_updates_branch_nodes() {
+        let default_leaf = b"hello";
+
+        // Create a trie structure with multiple branch levels:
+        // Root branch at 0x with children at nibbles 0, 1, 2, 3
+        // Each of these has further structure creating nested branches
+        let data = vec![
+            (hex!("0000").to_vec(), default_leaf.to_vec()),
+            (hex!("0020").to_vec(), default_leaf.to_vec()),
+            (hex!("1000").to_vec(), default_leaf.to_vec()),
+            (hex!("2000").to_vec(), default_leaf.to_vec()),
+            (hex!("2111").to_vec(), default_leaf.to_vec()),
+            (hex!("2122").to_vec(), default_leaf.to_vec()),
+            (hex!("2123").to_vec(), default_leaf.to_vec()),
+            (hex!("3000").to_vec(), default_leaf.to_vec()),
+            (hex!("3001").to_vec(), default_leaf.to_vec()),
+        ];
+
+        let mut hb = HashBuilder::default().with_updates(true);
+        for (key, val) in &data {
+            let nibbles = Nibbles::unpack(key);
+            hb.add_leaf(nibbles, val.as_ref());
+        }
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // The trie structure creates 6 branch nodes that should all be in updates:
+        // 1. Root branch (path: empty)
+        // 2. Branch at 0x0 (children at 0, 2)
+        // 3. Branch at 0x2 (children at 0, 1)
+        // 4. Branch at 0x21 (children at 1, 2)
+        // 5. Branch at 0x212 (children at 2, 3)
+        // 6. Branch at 0x300 (children at 0, 1)
+        assert_eq!(updates.len(), 6, "expected 6 branch nodes in updates");
+    }
+
+    /// Test that small storage tries (like new contracts with few slots) correctly
+    /// store their branch nodes for incremental sync.
+    ///
+    /// Regression test from <https://github.com/alloy-rs/trie/pull/25>.
+    #[test]
+    fn test_small_storage_trie_updates() {
+        use alloy_primitives::keccak256;
+
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Simulate a contract with 4 storage slots (common for simple contracts)
+        // Keys are keccak256(slot_index) as per Ethereum spec
+        let slots: BTreeMap<_, _> = (0u64..4)
+            .map(|i| {
+                let mut slot = [0u8; 32];
+                slot[31] = i as u8;
+                let key = keccak256(slot);
+                (key, alloy_rlp::encode(U256::from(i * 100)))
+            })
+            .collect();
+
+        for (key, value) in &slots {
+            hb.add_leaf(Nibbles::unpack(key), value);
+        }
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // Even a small trie should have at least the root branch node stored
+        assert!(!updates.is_empty(), "small storage trie should have updates");
+
+        // Verify root is included (path = empty nibbles)
+        assert!(updates.contains_key(&Nibbles::default()), "root branch node should be in updates");
+    }
+
     /// Test edge case: keys that diverge at the last nibble with empty values.
     /// This creates very small leaf RLPs and deep branch structures.
-    ///
-    /// NOTE: Fails due to store_branch_node bug - see PR #124
     #[test]
-    #[ignore = "fails due to store_branch_node bug - see PR #124"]
     fn test_deep_divergence_empty_values() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -939,10 +1078,7 @@ mod tests {
     }
 
     /// Test: siblings at different depths to verify mask propagation.
-    ///
-    /// NOTE: Fails due to store_branch_node bug - see PR #124
     #[test]
-    #[ignore = "fails due to store_branch_node bug - see PR #124"]
     fn test_mask_propagation_across_depths() {
         let mut hb = HashBuilder::default().with_updates(true);
 
@@ -1322,11 +1458,8 @@ mod tests {
     ///
     /// This tests that mask arrays are properly cleared/scoped when building
     /// multiple subtrees under the same parent in successive inserts.
-    ///
-    /// NOTE: Fails due to store_branch_node bug - see PR #124
     #[test]
     #[cfg(feature = "std")]
-    #[ignore = "fails due to store_branch_node bug - see PR #124"]
     fn test_mask_isolation_successive_subtrees() {
         let mut hb = HashBuilder::default().with_updates(true);
 
