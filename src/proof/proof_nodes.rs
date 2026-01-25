@@ -191,9 +191,7 @@ mod tests {
 
     #[test]
     fn test_proof_nodes_into_inner() {
-        let nodes = ProofNodes::from_iter([
-            (nibbles(&[1, 2]), Bytes::from_static(&[0x01])),
-        ]);
+        let nodes = ProofNodes::from_iter([(nibbles(&[1, 2]), Bytes::from_static(&[0x01]))]);
 
         let inner = nodes.into_inner();
         assert_eq!(inner.len(), 1);
@@ -202,9 +200,7 @@ mod tests {
 
     #[test]
     fn test_proof_nodes_extend() {
-        let mut nodes = ProofNodes::from_iter([
-            (nibbles(&[1, 2]), Bytes::from_static(&[0x01])),
-        ]);
+        let mut nodes = ProofNodes::from_iter([(nibbles(&[1, 2]), Bytes::from_static(&[0x01]))]);
 
         nodes.extend([(nibbles(&[3, 4]), Bytes::from_static(&[0x02]))]);
         assert_eq!(nodes.len(), 2);
@@ -212,9 +208,7 @@ mod tests {
 
     #[test]
     fn test_proof_nodes_extend_from() {
-        let mut nodes1 = ProofNodes::from_iter([
-            (nibbles(&[1, 2]), Bytes::from_static(&[0x01])),
-        ]);
+        let mut nodes1 = ProofNodes::from_iter([(nibbles(&[1, 2]), Bytes::from_static(&[0x01]))]);
 
         let nodes2 = ProofNodes::from_iter([
             (nibbles(&[3, 4]), Bytes::from_static(&[0x02])),
@@ -227,9 +221,7 @@ mod tests {
 
     #[test]
     fn test_proof_nodes_deref() {
-        let nodes = ProofNodes::from_iter([
-            (nibbles(&[1, 2]), Bytes::from_static(&[0x01])),
-        ]);
+        let nodes = ProofNodes::from_iter([(nibbles(&[1, 2]), Bytes::from_static(&[0x01]))]);
 
         let inner: &HashMap<Nibbles, Bytes> = &nodes;
         assert_eq!(inner.len(), 1);
@@ -237,9 +229,7 @@ mod tests {
 
     #[test]
     fn test_proof_nodes_clone_and_eq() {
-        let nodes1 = ProofNodes::from_iter([
-            (nibbles(&[1, 2]), Bytes::from_static(&[0x01])),
-        ]);
+        let nodes1 = ProofNodes::from_iter([(nibbles(&[1, 2]), Bytes::from_static(&[0x01]))]);
         let nodes2 = nodes1.clone();
         assert_eq!(nodes1, nodes2);
     }

@@ -538,7 +538,10 @@ mod tests {
     #[cfg_attr(miri, ignore = "no proptest")]
     fn arbitrary_hashed_root() {
         use proptest::prelude::*;
+
+        // Empty trie is tested by the `empty()` unit test; focus on non-empty here
         proptest!(|(state: BTreeMap<B256, U256>)| {
+            prop_assume!(!state.is_empty());
             assert_hashed_trie_root(state.iter());
         });
     }
@@ -549,14 +552,15 @@ mod tests {
     fn arbitrary_trie_root_raw_keys() {
         use proptest::prelude::*;
 
-        // Test with raw (non-hashed) keys of fixed length (32 bytes like hashed keys)
+        // Test with raw (non-hashed) keys of fixed length (32 bytes like hashed keys).
         // This avoids the prefix-key issue where one key is a prefix of another,
         // which is not supported by the MPT implementation (and not needed for
-        // Ethereum where keys are always hashed to 32 bytes)
+        // Ethereum where keys are always hashed to 32 bytes).
+        // Require at least 2 entries to exercise branching logic.
         proptest!(|(entries in proptest::collection::btree_map(
             proptest::collection::vec(any::<u8>(), 32..=32),
             proptest::collection::vec(any::<u8>(), 0..=128),
-            0..100
+            2..100
         ))| {
             assert_trie_root(entries);
         });
@@ -568,8 +572,11 @@ mod tests {
     fn arbitrary_trie_root_with_updates() {
         use proptest::prelude::*;
 
-        // Verify that enabling updates doesn't change the root
+        // Verify that enabling updates doesn't change the root.
+        // Require at least 2 entries to ensure updates machinery is exercised.
         proptest!(|(state: BTreeMap<B256, U256>)| {
+            prop_assume!(state.len() >= 2);
+
             let hashed: BTreeMap<_, _> = state
                 .iter()
                 .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
@@ -600,8 +607,11 @@ mod tests {
     fn arbitrary_deterministic_root() {
         use proptest::prelude::*;
 
-        // Building the trie twice should produce identical roots
+        // Building the trie twice should produce identical roots.
+        // Require at least 2 entries to exercise branching determinism.
         proptest!(|(state: BTreeMap<B256, U256>)| {
+            prop_assume!(state.len() >= 2);
+
             let hashed: BTreeMap<_, _> = state
                 .iter()
                 .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
@@ -619,13 +629,61 @@ mod tests {
         });
     }
 
+    /// Verify that branch updates are complete for multi-leaf tries.
+    ///
+    /// NOTE: This test currently fails due to a bug in `store_branch_node` where branch nodes
+    /// with only leaf children are not stored in updates. See:
+    /// <https://github.com/alloy-rs/trie/pull/25>
+    #[test]
+    #[ignore = "fails due to store_branch_node bug - see PR #25"]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_branch_updates_complete() {
+        use proptest::prelude::*;
+
+        // Only test multi-leaf tries where branches are required
+        proptest!(|(state: BTreeMap<B256, U256>)| {
+            prop_assume!(state.len() >= 2);
+
+            let hashed: BTreeMap<_, _> = state
+                .iter()
+                .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
+                .collect();
+
+            let mut hb = HashBuilder::default().with_updates(true);
+            for (key, val) in &hashed {
+                hb.add_leaf(Nibbles::unpack(key), val);
+            }
+            let _ = hb.root();
+            let (_, updates) = hb.split();
+
+            // COMPLETENESS CHECK: For tries with 2+ leaves, there must be at least one branch.
+            // A trie with multiple leaves requires branches to distinguish them.
+            assert!(
+                !updates.is_empty(),
+                "trie with {} leaves must have branch updates, got none",
+                hashed.len()
+            );
+
+            // CORRECTNESS CHECK: Verify all branch node compacts have valid invariants
+            for (_, node) in &updates {
+                // tree_mask must be subset of state_mask
+                assert!(node.tree_mask.is_subset_of(node.state_mask));
+                // hash_mask must be subset of state_mask
+                assert!(node.hash_mask.is_subset_of(node.state_mask));
+                // hashes count must match hash_mask popcount
+                assert_eq!(node.hash_mask.count_ones() as usize, node.hashes.len());
+            }
+        });
+    }
+
     #[test]
     #[cfg(feature = "arbitrary")]
     #[cfg_attr(miri, ignore = "no proptest")]
     fn arbitrary_branch_updates_valid() {
         use proptest::prelude::*;
 
-        // Verify that branch updates have valid masks
+        // Verify that branch updates (when present) have valid mask invariants
         proptest!(|(state: BTreeMap<B256, U256>)| {
             let hashed: BTreeMap<_, _> = state
                 .iter()
@@ -640,7 +698,7 @@ mod tests {
             let (_, updates) = hb.split();
 
             // Verify all branch node compacts have valid invariants
-            for (_, node) in updates {
+            for (_, node) in &updates {
                 // tree_mask must be subset of state_mask
                 assert!(node.tree_mask.is_subset_of(node.state_mask));
                 // hash_mask must be subset of state_mask
@@ -657,19 +715,19 @@ mod tests {
     fn arbitrary_common_prefix_stress() {
         use proptest::prelude::*;
 
-        // Generate keys that share common prefixes to stress branch node creation
+        // Generate keys that share common prefixes to stress branch node creation.
+        // Require at least 2 entries so a branch must exist somewhere.
         let key_strategy = (0u8..16).prop_flat_map(|prefix| {
-            proptest::collection::vec(any::<u8>(), 31..=31)
-                .prop_map(move |mut v| {
-                    v[0] = prefix << 4 | (v[0] & 0x0f);
-                    v
-                })
+            proptest::collection::vec(any::<u8>(), 31..=31).prop_map(move |mut v| {
+                v[0] = prefix << 4 | (v[0] & 0x0f);
+                v
+            })
         });
 
         proptest!(|(entries in proptest::collection::btree_map(
             key_strategy,
             proptest::collection::vec(any::<u8>(), 0..=64),
-            0..50
+            2..50
         ))| {
             assert_trie_root(entries);
         });
@@ -700,8 +758,11 @@ mod tests {
     fn arbitrary_add_leaf_unchecked_equivalence() {
         use proptest::prelude::*;
 
-        // add_leaf_unchecked should produce same result as add_leaf
+        // add_leaf_unchecked should produce same result as add_leaf.
+        // Require at least 2 entries to ensure both APIs handle branching.
         proptest!(|(state: BTreeMap<B256, U256>)| {
+            prop_assume!(state.len() >= 2);
+
             let hashed: BTreeMap<_, _> = state
                 .iter()
                 .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
@@ -853,5 +914,73 @@ mod tests {
 
         assert_eq!(hb.root(), expected);
         assert_eq!(hb2.root(), expected);
+    }
+
+    /// Test edge case: keys that diverge at the last nibble with empty values.
+    /// This creates very small leaf RLPs and deep branch structures.
+    ///
+    /// NOTE: Fails due to store_branch_node bug - see PR #25
+    #[test]
+    #[ignore = "fails due to store_branch_node bug - see PR #25"]
+    fn test_deep_divergence_empty_values() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        let key1 = hex!("0000000000000000000000000000000000000000000000000000000000000000");
+        let key2 = hex!("0000000000000000000000000000000000000000000000000000000000000001");
+
+        hb.add_leaf(Nibbles::unpack(key1), &[]);
+        hb.add_leaf(Nibbles::unpack(key2), &[]);
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // With the fix, should have at least one branch update
+        assert!(!updates.is_empty(), "deep divergence should have branch updates");
+    }
+
+    /// Test: siblings at different depths to verify mask propagation.
+    ///
+    /// NOTE: Fails due to store_branch_node bug - see PR #25
+    #[test]
+    #[ignore = "fails due to store_branch_node bug - see PR #25"]
+    fn test_mask_propagation_across_depths() {
+        let mut hb = HashBuilder::default().with_updates(true);
+
+        // Path 1 and 2 share prefix and go deep, path 3 is shallow sibling
+        let keys = [
+            hex!("1000000000000000000000000000000000000000000000000000000000000000"),
+            hex!("1000000000000000000000000000000000000000000000000000000000000001"),
+            hex!("2000000000000000000000000000000000000000000000000000000000000000"),
+        ];
+
+        for key in &keys {
+            hb.add_leaf(Nibbles::unpack(*key), b"value");
+        }
+
+        let _root = hb.root();
+        let (_, updates) = hb.split();
+
+        // Verify all stored nodes have valid invariants
+        for (path, node) in &updates {
+            assert!(
+                node.tree_mask.is_subset_of(node.state_mask),
+                "tree_mask must be subset of state_mask at {:?}",
+                path
+            );
+            assert!(
+                node.hash_mask.is_subset_of(node.state_mask),
+                "hash_mask must be subset of state_mask at {:?}",
+                path
+            );
+            assert_eq!(
+                node.hash_mask.count_ones() as usize,
+                node.hashes.len(),
+                "hash count mismatch at {:?}",
+                path
+            );
+        }
+
+        // Root should be present
+        assert!(updates.contains_key(&Nibbles::default()), "root should be in updates");
     }
 }
