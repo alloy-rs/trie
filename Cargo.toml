@@ -113,10 +113,10 @@ arbitrary = [
     "nybbles/arbitrary",
 ]
 ethereum = []
-# Store all branch nodes that are referenced by hash in `updated_branch_nodes`,
-# including those with only leaf children. Required for complete incremental trie sync.
-# Without this feature, branch nodes with only leaf children are omitted as an optimization.
-complete-updates = []
+# When enabled, `HashBuilder::updated_branch_nodes` includes branch nodes even if they
+# only have leaf children (required for complete incremental trie sync). When disabled,
+# such branch nodes are omitted as an I/O optimization.
+full-branch-updates = []
 
 [[bench]]
 name = "bench"
