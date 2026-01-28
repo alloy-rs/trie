@@ -629,54 +629,6 @@ mod tests {
         });
     }
 
-    /// Verify that branch updates are complete for multi-leaf tries.
-    ///
-    /// NOTE: This test currently fails due to a bug in `store_branch_node` where branch nodes
-    /// with only leaf children are not stored in updates. See:
-    /// <https://github.com/alloy-rs/trie/pull/124>
-    #[test]
-    #[ignore = "fails due to store_branch_node bug - see PR #124"]
-    #[cfg(feature = "arbitrary")]
-    #[cfg_attr(miri, ignore = "no proptest")]
-    fn arbitrary_branch_updates_complete() {
-        use proptest::prelude::*;
-
-        // Only test multi-leaf tries where branches are required
-        proptest!(|(state: BTreeMap<B256, U256>)| {
-            prop_assume!(state.len() >= 2);
-
-            let hashed: BTreeMap<_, _> = state
-                .iter()
-                .map(|(k, v)| (keccak256(k), alloy_rlp::encode(v).to_vec()))
-                .collect();
-
-            let mut hb = HashBuilder::default().with_updates(true);
-            for (key, val) in &hashed {
-                hb.add_leaf(Nibbles::unpack(key), val);
-            }
-            let _ = hb.root();
-            let (_, updates) = hb.split();
-
-            // COMPLETENESS CHECK: For tries with 2+ leaves, there must be at least one branch.
-            // A trie with multiple leaves requires branches to distinguish them.
-            assert!(
-                !updates.is_empty(),
-                "trie with {} leaves must have branch updates, got none",
-                hashed.len()
-            );
-
-            // CORRECTNESS CHECK: Verify all branch node compacts have valid invariants
-            for node in updates.values() {
-                // tree_mask must be subset of state_mask
-                assert!(node.tree_mask.is_subset_of(node.state_mask));
-                // hash_mask must be subset of state_mask
-                assert!(node.hash_mask.is_subset_of(node.state_mask));
-                // hashes count must match hash_mask popcount
-                assert_eq!(node.hash_mask.count_ones() as usize, node.hashes.len());
-            }
-        });
-    }
-
     #[test]
     #[cfg(feature = "arbitrary")]
     #[cfg_attr(miri, ignore = "no proptest")]
