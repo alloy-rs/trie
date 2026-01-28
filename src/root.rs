@@ -75,6 +75,104 @@ where
     hb.root()
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ordered_trie_root_empty() {
+        let items: Vec<Vec<u8>> = vec![];
+        assert_eq!(ordered_trie_root(&items), EMPTY_ROOT_HASH);
+    }
+
+    #[test]
+    fn test_ordered_trie_root_single() {
+        let items = vec![vec![0x80u8]]; // RLP empty string
+        let root = ordered_trie_root(&items);
+        assert_ne!(root, EMPTY_ROOT_HASH);
+    }
+
+    #[test]
+    fn test_ordered_trie_root_multiple() {
+        let items: Vec<Vec<u8>> = vec![vec![1, 2, 3], vec![4, 5, 6], vec![7, 8, 9]];
+        let root = ordered_trie_root(&items);
+        assert_ne!(root, EMPTY_ROOT_HASH);
+    }
+
+    #[test]
+    fn test_ordered_trie_root_encoded_empty() {
+        let items: Vec<Vec<u8>> = vec![];
+        assert_eq!(ordered_trie_root_encoded(&items), EMPTY_ROOT_HASH);
+    }
+
+    #[test]
+    fn test_ordered_trie_root_encoded_single() {
+        let items = vec![vec![0x80u8]];
+        let root = ordered_trie_root_encoded(&items);
+        assert_ne!(root, EMPTY_ROOT_HASH);
+    }
+
+    #[test]
+    fn test_ordered_trie_root_deterministic() {
+        let items: Vec<Vec<u8>> = vec![vec![1], vec![2], vec![3]];
+        let root1 = ordered_trie_root(&items);
+        let root2 = ordered_trie_root(&items);
+        assert_eq!(root1, root2);
+    }
+
+    #[test]
+    fn test_adjust_index_for_rlp() {
+        // Test the index adjustment logic
+        assert_eq!(adjust_index_for_rlp(0, 10), 1);
+        assert_eq!(adjust_index_for_rlp(1, 10), 2);
+        assert_eq!(adjust_index_for_rlp(0x7e, 0x80), 0x7f);
+        assert_eq!(adjust_index_for_rlp(0x7f, 0x80), 0); // 0x7f maps to 0
+        assert_eq!(adjust_index_for_rlp(0x80, 0x100), 0x80); // >= 0x80 unchanged
+        assert_eq!(adjust_index_for_rlp(9, 10), 0); // last item maps to 0
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_ordered_trie_root() {
+        use proptest::prelude::*;
+
+        proptest!(|(items in proptest::collection::vec(
+            proptest::collection::vec(any::<u8>(), 0..=64),
+            0..50
+        ))| {
+            // Just verify it doesn't panic and produces consistent results
+            let root1 = ordered_trie_root(&items);
+            let root2 = ordered_trie_root(&items);
+            prop_assert_eq!(root1, root2);
+
+            if items.is_empty() {
+                prop_assert_eq!(root1, EMPTY_ROOT_HASH);
+            }
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_ordered_trie_root_encoded() {
+        use proptest::prelude::*;
+
+        proptest!(|(items in proptest::collection::vec(
+            proptest::collection::vec(any::<u8>(), 1..=64),
+            0..50
+        ))| {
+            let root1 = ordered_trie_root_encoded(&items);
+            let root2 = ordered_trie_root_encoded(&items);
+            prop_assert_eq!(root1, root2);
+
+            if items.is_empty() {
+                prop_assert_eq!(root1, EMPTY_ROOT_HASH);
+            }
+        });
+    }
+}
+
 /// Ethereum specific trie root functions.
 #[cfg(feature = "ethereum")]
 pub use ethereum::*;
