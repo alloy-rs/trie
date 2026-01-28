@@ -868,7 +868,6 @@ mod tests {
         assert_eq!(hb2.root(), expected);
     }
 
-
     /// Test Issue 2 from Oracle: tree_mask should only be set for children that are
     /// explicitly marked as stored_in_database, not siblings.
     ///
