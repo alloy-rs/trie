@@ -52,6 +52,8 @@ alloy-primitives = { version = "1.0", default-features = false, features = [
 alloy-rlp = { version = "0.3.9", default-features = false, features = [
     "derive",
     "arrayvec",
+    "core-net",
+    "core-error"
 ] }
 
 arrayvec = { version = "0.7", default-features = false }
@@ -62,6 +64,7 @@ derive_more = { version = "2", default-features = false, features = [
     "from",
     "not",
 ] }
+thiserror = { version = "2", default-features = false }
 nybbles = { version = "0.4", default-features = false }
 smallvec = { version = "1.0", default-features = false, features = [
     "const_new",
@@ -94,6 +97,7 @@ std = [
     "arrayvec/std",
     "derive_more/std",
     "nybbles/std",
+    "thiserror/std",
     "tracing/std",
     "serde?/std",
 ]
