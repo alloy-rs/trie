@@ -52,6 +52,8 @@ alloy-primitives = { version = "1.0", default-features = false, features = [
 alloy-rlp = { version = "0.3.9", default-features = false, features = [
     "derive",
     "arrayvec",
+    "core-net",
+    "core-error"
 ] }
 
 arrayvec = { version = "0.7", default-features = false }
