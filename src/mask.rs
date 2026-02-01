@@ -214,6 +214,7 @@ impl DoubleEndedIterator for TrieMaskIter {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec::Vec;
 
     #[test]
     fn iter_set_bits_empty() {
