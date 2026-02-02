@@ -103,6 +103,19 @@ impl TrieMask {
     pub const fn unset_bit(&mut self, index: u8) {
         self.0 &= !(1u16 << index);
     }
+
+    /// Returns an iterator over the indices of set bits in the mask.
+    ///
+    /// The iterator yields values in ascending order (0 to 15). Use [`.rev()`](Iterator::rev) for
+    /// descending order.
+    ///
+    /// This is more efficient than iterating over `0..16` and checking
+    /// [`is_bit_set`](Self::is_bit_set) for each index, as it directly iterates only the set
+    /// bits using bit manipulation.
+    #[inline]
+    pub const fn iter(self) -> TrieMaskIter {
+        TrieMaskIter { mask: self.0 }
+    }
 }
 
 impl<T> Shl<T> for TrieMask
@@ -146,5 +159,141 @@ where
     #[inline]
     fn shr_assign(&mut self, rhs: T) {
         self.0.shr_assign(rhs);
+    }
+}
+
+/// An iterator over the set bit indices of a [`TrieMask`].
+///
+/// Iterates in ascending order by default. Use [`.rev()`](Iterator::rev) for descending order.
+#[derive(Debug, Clone, Copy)]
+pub struct TrieMaskIter {
+    mask: u16,
+}
+
+impl Iterator for TrieMaskIter {
+    type Item = u8;
+
+    #[inline]
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.mask == 0 {
+            return None;
+        }
+        let bit = self.mask.trailing_zeros() as u8;
+        self.mask &= self.mask - 1; // Clear the lowest set bit.
+        Some(bit)
+    }
+
+    #[inline]
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let count = self.len();
+        (count, Some(count))
+    }
+}
+
+impl ExactSizeIterator for TrieMaskIter {
+    #[inline]
+    fn len(&self) -> usize {
+        self.mask.count_ones() as usize
+    }
+}
+
+impl core::iter::FusedIterator for TrieMaskIter {}
+
+impl DoubleEndedIterator for TrieMaskIter {
+    #[inline]
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.mask == 0 {
+            return None;
+        }
+        let bit = 15 - self.mask.leading_zeros() as u8;
+        self.mask &= !(1 << bit); // Clear the highest set bit.
+        Some(bit)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloc::vec::Vec;
+
+    #[test]
+    fn iter_set_bits_empty() {
+        let mask = TrieMask::new(0);
+        assert_eq!(mask.iter().collect::<Vec<_>>(), Vec::<u8>::new());
+    }
+
+    #[test]
+    fn iter_set_bits_all() {
+        let mask = TrieMask::new(0xFFFF);
+        assert_eq!(mask.iter().collect::<Vec<_>>(), (0..16).collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn iter_set_bits_sparse() {
+        let mask = TrieMask::new(0b0000_0000_0010_0101); // bits 0, 2, 5
+        assert_eq!(mask.iter().collect::<Vec<_>>(), vec![0, 2, 5]);
+    }
+
+    #[test]
+    fn iter_set_bits_rev() {
+        let mask = TrieMask::new(0b0000_0000_0010_0101); // bits 0, 2, 5
+        assert_eq!(mask.iter().rev().collect::<Vec<_>>(), vec![5, 2, 0]);
+    }
+
+    #[test]
+    fn iter_set_bits_double_ended() {
+        let mask = TrieMask::new(0b0000_0000_0010_0101); // bits 0, 2, 5
+        let mut iter = mask.iter();
+        assert_eq!(iter.next(), Some(0));
+        assert_eq!(iter.next_back(), Some(5));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), None);
+        assert_eq!(iter.next_back(), None);
+    }
+
+    #[test]
+    fn iter_set_bits_exact_size() {
+        let mask = TrieMask::new(0b0000_0000_0010_0101); // bits 0, 2, 5
+        let mut iter = mask.iter();
+
+        assert_eq!(iter.len(), 3);
+        assert_eq!(iter.size_hint(), (3, Some(3)));
+
+        iter.next();
+        assert_eq!(iter.len(), 2);
+        assert_eq!(iter.size_hint(), (2, Some(2)));
+
+        iter.next();
+        assert_eq!(iter.len(), 1);
+        assert_eq!(iter.size_hint(), (1, Some(1)));
+
+        iter.next();
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+
+        iter.next();
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.size_hint(), (0, Some(0)));
+    }
+
+    #[test]
+    fn iter_set_bits_size_hint_double_ended() {
+        let mask = TrieMask::new(0b0000_0000_0010_0101); // bits 0, 2, 5
+        let mut iter = mask.iter();
+
+        assert_eq!(iter.len(), 3);
+        assert_eq!(iter.size_hint(), (3, Some(3)));
+
+        iter.next();
+        assert_eq!(iter.len(), 2);
+        assert_eq!(iter.size_hint(), (2, Some(2)));
+
+        iter.next_back();
+        assert_eq!(iter.len(), 1);
+        assert_eq!(iter.size_hint(), (1, Some(1)));
+
+        iter.next_back();
+        assert_eq!(iter.len(), 0);
+        assert_eq!(iter.size_hint(), (0, Some(0)));
     }
 }
