@@ -350,4 +350,54 @@ mod tests {
             }
         });
     }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn unpack_path_to_nibbles_equivalence() {
+        use proptest::{collection::vec, prelude::*};
+
+        // Test that unpack_path_to_nibbles produces correct results for both odd and even paths
+        proptest::proptest!(|(rest in vec(any::<u8>(), 0..31), first_nibble in 0u8..16)| {
+            // Test with first nibble (odd path)
+            let result_odd = unpack_path_to_nibbles(Some(first_nibble), &rest);
+
+            // Manually construct expected result
+            let rest_nibbles = Nibbles::unpack(&rest);
+            let expected_odd = Nibbles::from_nibbles_unchecked([first_nibble]).join(&rest_nibbles);
+
+            prop_assert_eq!(result_odd, expected_odd);
+
+            // Test without first nibble (even path)
+            let result_even = unpack_path_to_nibbles(None, &rest);
+            let expected_even = Nibbles::unpack(&rest);
+
+            prop_assert_eq!(result_even, expected_even);
+        });
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn unpack_path_roundtrip() {
+        use proptest::{collection::vec, prelude::*};
+
+        // Test that encode_path_leaf and unpack_path_to_nibbles are inverses
+        proptest::proptest!(|(input in vec(any::<u8>(), 0..32))| {
+            let nibbles = Nibbles::unpack(&input);
+
+            // Encode as leaf
+            let encoded = encode_path_leaf(&nibbles, true);
+
+            // Decode
+            let first = if encoded[0] & 0x10 != 0 {
+                Some(encoded[0] & 0x0f)
+            } else {
+                None
+            };
+            let decoded = unpack_path_to_nibbles(first, &encoded[1..]);
+
+            prop_assert_eq!(nibbles, decoded);
+        });
+    }
 }

@@ -153,3 +153,109 @@ impl fmt::Debug for HashBuilderValueRef<'_> {
         write!(f, "{name}({slice})")
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_hash_builder_value_default() {
+        let value = HashBuilderValue::default();
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b.is_empty()));
+    }
+
+    #[test]
+    fn test_hash_builder_value_set_bytes() {
+        let mut value = HashBuilderValue::new();
+        value.set_from_ref(HashBuilderValueRef::Bytes(&[1, 2, 3, 4]));
+
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == [1, 2, 3, 4]));
+        assert_eq!(value.as_slice(), &[1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn test_hash_builder_value_set_hash() {
+        let mut value = HashBuilderValue::new();
+        let hash = B256::repeat_byte(0xab);
+        value.set_from_ref(HashBuilderValueRef::Hash(&hash));
+
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Hash(h) if *h == hash));
+        assert_eq!(value.as_slice(), hash.as_slice());
+    }
+
+    #[test]
+    fn test_hash_builder_value_set_bytes_owned() {
+        let mut value = HashBuilderValue::new();
+        value.set_bytes_owned(vec![5, 6, 7, 8]);
+
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == [5, 6, 7, 8]));
+    }
+
+    #[test]
+    fn test_hash_builder_value_clear() {
+        let mut value = HashBuilderValue::new();
+        value.set_from_ref(HashBuilderValueRef::Bytes(&[1, 2, 3]));
+        value.clear();
+
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b.is_empty()));
+    }
+
+    #[test]
+    fn test_hash_builder_value_switch_types() {
+        let mut value = HashBuilderValue::new();
+
+        // Start with bytes
+        value.set_from_ref(HashBuilderValueRef::Bytes(&[1, 2, 3]));
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(_)));
+
+        // Switch to hash
+        let hash = B256::repeat_byte(0xcd);
+        value.set_from_ref(HashBuilderValueRef::Hash(&hash));
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Hash(h) if *h == hash));
+
+        // Switch back to bytes
+        value.set_from_ref(HashBuilderValueRef::Bytes(&[4, 5, 6]));
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Bytes(b) if b == [4, 5, 6]));
+    }
+
+    #[test]
+    fn test_hash_builder_value_ref_as_slice() {
+        let bytes = [1u8, 2, 3, 4];
+        let bytes_ref = HashBuilderValueRef::Bytes(&bytes);
+        assert_eq!(bytes_ref.as_slice(), &bytes);
+
+        let hash = B256::repeat_byte(0xef);
+        let hash_ref = HashBuilderValueRef::Hash(&hash);
+        assert_eq!(hash_ref.as_slice(), hash.as_slice());
+    }
+
+    #[test]
+    fn test_hash_builder_value_debug() {
+        let mut value = HashBuilderValue::new();
+        value.set_from_ref(HashBuilderValueRef::Bytes(&[0xab, 0xcd]));
+        let debug_str = format!("{:?}", value);
+        assert!(debug_str.contains("Bytes"));
+        assert!(debug_str.contains("abcd"));
+
+        let hash = B256::repeat_byte(0x12);
+        value.set_from_ref(HashBuilderValueRef::Hash(&hash));
+        let debug_str = format!("{:?}", value);
+        assert!(debug_str.contains("Hash"));
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_hash_builder_value_roundtrip() {
+        use proptest::prelude::*;
+
+        proptest!(|(value: HashBuilderValue)| {
+            // Test that as_ref and as_slice are consistent
+            let slice = value.as_slice();
+            match value.as_ref() {
+                HashBuilderValueRef::Bytes(b) => prop_assert_eq!(b, slice),
+                HashBuilderValueRef::Hash(h) => prop_assert_eq!(h.as_slice(), slice),
+            }
+        });
+    }
+}
