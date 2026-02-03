@@ -74,6 +74,12 @@ impl TrieMask {
         self.0 & (1u16 << index) != 0
     }
 
+    /// Returns the number of bits set in the mask.
+    #[inline]
+    pub const fn len(self) -> usize {
+        self.0.count_ones() as usize
+    }
+
     /// Returns `true` if the mask is empty.
     #[inline]
     pub const fn is_empty(self) -> bool {
