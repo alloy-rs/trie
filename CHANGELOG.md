@@ -5,11 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.4](https://github.com/alloy-rs/trie/releases/tag/v0.9.4) - 2026-02-03
+
+### Bug Fixes
+
+- [clippy] Use sort_unstable_by_key instead of sort_unstable_by ([#122](https://github.com/alloy-rs/trie/issues/122))
+
+### Dependencies
+
+- [deps] Bumps ([#129](https://github.com/alloy-rs/trie/issues/129))
+
+### Features
+
+- Add TrieMask::len ([#130](https://github.com/alloy-rs/trie/issues/130))
+- Add TrieMask::iter_set_bits for efficient bit iteration ([#126](https://github.com/alloy-rs/trie/issues/126))
+
+### Miscellaneous Tasks
+
+- Use thiserror for Error implementations ([#127](https://github.com/alloy-rs/trie/issues/127))
+- Update CODEOWNERS ([#128](https://github.com/alloy-rs/trie/issues/128))
+
+### Other
+
+- Update to tempoxyz ([#120](https://github.com/alloy-rs/trie/issues/120))
+
 ## [0.9.3](https://github.com/alloy-rs/trie/releases/tag/v0.9.3) - 2026-01-07
 
 ### Features
 
 - Add bit ops to TrieMask ([#117](https://github.com/alloy-rs/trie/issues/117))
+
+### Miscellaneous Tasks
+
+- Release 0.9.3
 
 ## [0.9.2](https://github.com/alloy-rs/trie/releases/tag/v0.9.2) - 2025-12-22
 
