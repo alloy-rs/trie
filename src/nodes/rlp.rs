@@ -5,10 +5,18 @@ use core::{fmt, mem::MaybeUninit};
 const MAX: usize = 33;
 
 /// An RLP-encoded node.
-#[derive(Copy, Clone)]
+#[allow(missing_copy_implementations)]
 pub struct RlpNode {
     len: u8,
     buf: [MaybeUninit<u8>; MAX],
+}
+
+impl Clone for RlpNode {
+    #[inline]
+    fn clone(&self) -> Self {
+        // SAFETY: All fields are trivially copyable (`u8` + `[MaybeUninit<u8>; 33]`).
+        unsafe { core::ptr::read(self) }
+    }
 }
 
 impl Default for RlpNode {
