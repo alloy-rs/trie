@@ -56,7 +56,6 @@ alloy-rlp = { version = "0.3.9", default-features = false, features = [
     "core-error"
 ] }
 
-arrayvec = { version = "0.7", default-features = false }
 derive_more = { version = "2", default-features = false, features = [
     "add",
     "add_assign",
@@ -94,7 +93,6 @@ default = ["std", "alloy-primitives/default"]
 std = [
     "alloy-primitives/std",
     "alloy-rlp/std",
-    "arrayvec/std",
     "derive_more/std",
     "nybbles/std",
     "thiserror/std",
@@ -104,7 +102,6 @@ std = [
 serde = [
     "dep:serde",
     "alloy-primitives/serde",
-    "arrayvec/serde",
     "nybbles/serde",
 ]
 arbitrary = [

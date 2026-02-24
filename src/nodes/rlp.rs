@@ -1,14 +1,45 @@
 use alloy_primitives::{B256, hex, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
-use arrayvec::ArrayVec;
 use core::fmt;
+use core::mem::MaybeUninit;
 
 const MAX: usize = 33;
 
 /// An RLP-encoded node.
-#[derive(Clone, Default, PartialEq, Eq)]
+///
+/// Internally stores a `u8` length and a `[MaybeUninit<u8>; 33]` buffer,
+/// avoiding `ArrayVec`'s `u32` length overhead.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-pub struct RlpNode(ArrayVec<u8, MAX>);
+#[cfg_attr(feature = "serde", serde(from = "SerdeBuf", into = "SerdeBuf"))]
+pub struct RlpNode {
+    len: u8,
+    buf: [MaybeUninit<u8>; MAX],
+}
+
+impl Copy for RlpNode {}
+
+impl Clone for RlpNode {
+    #[inline]
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl Default for RlpNode {
+    #[inline]
+    fn default() -> Self {
+        Self { len: 0, buf: [MaybeUninit::uninit(); MAX] }
+    }
+}
+
+impl PartialEq for RlpNode {
+    #[inline]
+    fn eq(&self, other: &Self) -> bool {
+        self.as_slice() == other.as_slice()
+    }
+}
+
+impl Eq for RlpNode {}
 
 impl alloy_rlp::Decodable for RlpNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
@@ -22,27 +53,27 @@ impl core::ops::Deref for RlpNode {
 
     #[inline]
     fn deref(&self) -> &Self::Target {
-        &self.0
+        self.as_slice()
     }
 }
 
 impl core::ops::DerefMut for RlpNode {
     #[inline]
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
+        self.as_mut_slice()
     }
 }
 
 impl AsRef<[u8]> for RlpNode {
     #[inline]
     fn as_ref(&self) -> &[u8] {
-        &self.0
+        self.as_slice()
     }
 }
 
 impl fmt::Debug for RlpNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "RlpNode({})", hex::encode_prefixed(&self.0))
+        write!(f, "RlpNode({})", hex::encode_prefixed(self.as_slice()))
     }
 }
 
@@ -51,10 +82,17 @@ impl RlpNode {
     ///
     /// Returns `None` if the data is too large (greater than 33 bytes).
     #[inline]
-    pub fn from_raw(data: &[u8]) -> Option<Self> {
-        let mut arr = ArrayVec::new();
-        arr.try_extend_from_slice(data).ok()?;
-        Some(Self(arr))
+    pub const fn from_raw(data: &[u8]) -> Option<Self> {
+        let len = data.len();
+        if len > MAX {
+            return None;
+        }
+        let mut buf = [MaybeUninit::uninit(); MAX];
+        // SAFETY: `len <= MAX`, so `data` fits in `buf`.
+        unsafe {
+            core::ptr::copy_nonoverlapping(data.as_ptr(), buf.as_mut_ptr().cast(), len);
+        }
+        Some(Self { len: len as u8, buf })
     }
 
     /// Creates a new RLP-encoded node from the given data.
@@ -77,11 +115,18 @@ impl RlpNode {
 
     /// RLP-encodes the given word and returns it as a new RLP node.
     #[inline]
-    pub fn word_rlp(word: &B256) -> Self {
-        let mut arr = [0u8; 33];
-        arr[0] = EMPTY_STRING_CODE + 32;
-        arr[1..].copy_from_slice(word.as_slice());
-        Self(ArrayVec::from(arr))
+    pub const fn word_rlp(word: &B256) -> Self {
+        let mut buf = [MaybeUninit::uninit(); MAX];
+        buf[0] = MaybeUninit::new(EMPTY_STRING_CODE + 32);
+        // SAFETY: Writing 32 bytes at offset 1 within a 33-byte buffer.
+        unsafe {
+            core::ptr::copy_nonoverlapping(
+                word.as_slice().as_ptr(),
+                buf.as_mut_ptr().add(1).cast(),
+                32,
+            );
+        }
+        Self { len: MAX as u8, buf }
     }
 
     /// Returns true if this is an RLP-encoded hash.
@@ -92,14 +137,45 @@ impl RlpNode {
 
     /// Returns the RLP-encoded node as a slice.
     #[inline]
-    pub fn as_slice(&self) -> &[u8] {
-        &self.0
+    pub const fn as_slice(&self) -> &[u8] {
+        // SAFETY: `self.buf[..self.len]` is always initialized.
+        unsafe { core::slice::from_raw_parts(self.buf.as_ptr().cast(), self.len as usize) }
+    }
+
+    /// Returns the RLP-encoded node as a mutable slice.
+    #[inline]
+    pub const fn as_mut_slice(&mut self) -> &mut [u8] {
+        // SAFETY: `self.buf[..self.len]` is always initialized.
+        unsafe { core::slice::from_raw_parts_mut(self.buf.as_mut_ptr().cast(), self.len as usize) }
     }
 
     /// Returns hash if this is an RLP-encoded hash
     #[inline]
     pub fn as_hash(&self) -> Option<B256> {
-        if self.is_hash() { Some(B256::from_slice(&self.0[1..])) } else { None }
+        if self.is_hash() {
+            Some(B256::from_slice(&self.as_slice()[1..]))
+        } else {
+            None
+        }
+    }
+}
+
+// Serde helper: serialize/deserialize as a byte vec.
+#[cfg(feature = "serde")]
+#[derive(serde::Serialize, serde::Deserialize)]
+struct SerdeBuf(Vec<u8>);
+
+#[cfg(feature = "serde")]
+impl From<SerdeBuf> for RlpNode {
+    fn from(buf: SerdeBuf) -> Self {
+        Self::from_raw(&buf.0).expect("deserialized RlpNode too large")
+    }
+}
+
+#[cfg(feature = "serde")]
+impl From<RlpNode> for SerdeBuf {
+    fn from(node: RlpNode) -> Self {
+        Self(node.as_slice().to_vec())
     }
 }
 
@@ -107,9 +183,7 @@ impl RlpNode {
 impl<'u> arbitrary::Arbitrary<'u> for RlpNode {
     fn arbitrary(g: &mut arbitrary::Unstructured<'u>) -> arbitrary::Result<Self> {
         let len = g.int_in_range(0..=MAX)?;
-        let mut arr = ArrayVec::new();
-        arr.try_extend_from_slice(g.bytes(len)?).unwrap();
-        Ok(Self(arr))
+        Ok(Self::from_raw(g.bytes(len)?).unwrap())
     }
 }
 
