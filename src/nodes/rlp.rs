@@ -6,9 +6,18 @@ use core::fmt;
 const MAX: usize = 33;
 
 /// An RLP-encoded node.
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Default, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct RlpNode(ArrayVec<u8, MAX>);
+
+impl Clone for RlpNode {
+    #[inline]
+    fn clone(&self) -> Self {
+        // SAFETY: `ArrayVec<u8, 33>` is `Copy`-like (contains only `u8` and a length),
+        // so we can safely copy the entire struct.
+        unsafe { core::ptr::read(self) }
+    }
+}
 
 impl alloy_rlp::Decodable for RlpNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
