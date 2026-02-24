@@ -1,7 +1,6 @@
 use alloy_primitives::{B256, hex, keccak256};
 use alloy_rlp::EMPTY_STRING_CODE;
-use core::fmt;
-use core::mem::MaybeUninit;
+use core::{fmt, mem::MaybeUninit};
 
 const MAX: usize = 33;
 
@@ -139,11 +138,7 @@ impl RlpNode {
     /// Returns hash if this is an RLP-encoded hash
     #[inline]
     pub fn as_hash(&self) -> Option<B256> {
-        if self.is_hash() {
-            Some(B256::from_slice(&self.as_slice()[1..]))
-        } else {
-            None
-        }
+        if self.is_hash() { Some(B256::from_slice(&self.as_slice()[1..])) } else { None }
     }
 }
 
@@ -157,8 +152,37 @@ impl serde::Serialize for RlpNode {
 #[cfg(feature = "serde")]
 impl<'de> serde::Deserialize<'de> for RlpNode {
     fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
-        let bytes: Vec<u8> = serde::Deserialize::deserialize(deserializer)?;
-        Self::from_raw(&bytes).ok_or_else(|| serde::de::Error::custom("RlpNode too large"))
+        struct RlpNodeVisitor;
+
+        impl<'de> serde::de::Visitor<'de> for RlpNodeVisitor {
+            type Value = RlpNode;
+
+            fn expecting(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+                f.write_str("a byte sequence of at most 33 bytes")
+            }
+
+            fn visit_bytes<E: serde::de::Error>(self, v: &[u8]) -> Result<RlpNode, E> {
+                RlpNode::from_raw(v).ok_or_else(|| E::custom("RlpNode too large"))
+            }
+
+            fn visit_seq<A: serde::de::SeqAccess<'de>>(
+                self,
+                mut seq: A,
+            ) -> Result<RlpNode, A::Error> {
+                let mut buf = [MaybeUninit::uninit(); MAX];
+                let mut len = 0u8;
+                while let Some(byte) = seq.next_element()? {
+                    if (len as usize) >= MAX {
+                        return Err(serde::de::Error::custom("RlpNode too large"));
+                    }
+                    buf[len as usize] = MaybeUninit::new(byte);
+                    len += 1;
+                }
+                Ok(RlpNode { len, buf })
+            }
+        }
+
+        deserializer.deserialize_bytes(RlpNodeVisitor)
     }
 }
 
