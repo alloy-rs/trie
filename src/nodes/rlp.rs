@@ -6,9 +6,6 @@ use core::mem::MaybeUninit;
 const MAX: usize = 33;
 
 /// An RLP-encoded node.
-///
-/// Internally stores a `u8` length and a `[MaybeUninit<u8>; 33]` buffer,
-/// avoiding `ArrayVec`'s `u32` length overhead.
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(from = "SerdeBuf", into = "SerdeBuf"))]
 pub struct RlpNode {
