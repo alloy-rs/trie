@@ -157,7 +157,6 @@ impl RlpNode {
     }
 }
 
-// Serde helper: serialize/deserialize as a byte vec.
 #[cfg(feature = "serde")]
 #[derive(serde::Serialize, serde::Deserialize)]
 struct SerdeBuf(Vec<u8>);
