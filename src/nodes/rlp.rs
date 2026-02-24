@@ -6,18 +6,10 @@ use core::mem::MaybeUninit;
 const MAX: usize = 33;
 
 /// An RLP-encoded node.
+#[derive(Copy, Clone)]
 pub struct RlpNode {
     len: u8,
     buf: [MaybeUninit<u8>; MAX],
-}
-
-impl Copy for RlpNode {}
-
-impl Clone for RlpNode {
-    #[inline]
-    fn clone(&self) -> Self {
-        *self
-    }
 }
 
 impl Default for RlpNode {
