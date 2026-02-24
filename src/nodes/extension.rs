@@ -15,7 +15,7 @@ use alloc::vec::Vec;
 /// The purpose of an extension node is to optimize the trie structure by collapsing multiple nodes
 /// with a single child into one node. This simplification reduces the space and computational
 /// complexity when performing operations on the trie.
-#[derive(PartialEq, Eq, Clone)]
+#[derive(PartialEq, Eq, Copy, Clone)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExtensionNode {
     /// The key for this extension node.
@@ -28,7 +28,7 @@ impl fmt::Debug for ExtensionNode {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("ExtensionNode")
             .field("key", &self.key)
-            .field("child", &hex::encode(&self.child))
+            .field("child", &hex::encode(self.child))
             .finish()
     }
 }

@@ -148,7 +148,7 @@ pub fn rlp_node(rlp: &[u8]) -> RlpNode {
 /// Optimization for quick RLP-encoding of a 32-byte word.
 #[inline]
 #[deprecated = "use `RlpNode::word_rlp` instead"]
-pub fn word_rlp(word: &B256) -> RlpNode {
+pub const fn word_rlp(word: &B256) -> RlpNode {
     RlpNode::word_rlp(word)
 }
 
