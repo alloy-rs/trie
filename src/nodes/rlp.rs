@@ -6,8 +6,6 @@ use core::mem::MaybeUninit;
 const MAX: usize = 33;
 
 /// An RLP-encoded node.
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
-#[cfg_attr(feature = "serde", serde(from = "SerdeBuf", into = "SerdeBuf"))]
 pub struct RlpNode {
     len: u8,
     buf: [MaybeUninit<u8>; MAX],
@@ -158,20 +156,17 @@ impl RlpNode {
 }
 
 #[cfg(feature = "serde")]
-#[derive(serde::Serialize, serde::Deserialize)]
-struct SerdeBuf(Vec<u8>);
-
-#[cfg(feature = "serde")]
-impl From<SerdeBuf> for RlpNode {
-    fn from(buf: SerdeBuf) -> Self {
-        Self::from_raw(&buf.0).expect("deserialized RlpNode too large")
+impl serde::Serialize for RlpNode {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serde::Serialize::serialize(self.as_slice(), serializer)
     }
 }
 
 #[cfg(feature = "serde")]
-impl From<RlpNode> for SerdeBuf {
-    fn from(node: RlpNode) -> Self {
-        Self(node.as_slice().to_vec())
+impl<'de> serde::Deserialize<'de> for RlpNode {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let bytes: Vec<u8> = serde::Deserialize::deserialize(deserializer)?;
+        Self::from_raw(&bytes).ok_or_else(|| serde::de::Error::custom("RlpNode too large"))
     }
 }
 
