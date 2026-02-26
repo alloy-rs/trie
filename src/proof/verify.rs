@@ -3,9 +3,9 @@
 use crate::{
     EMPTY_ROOT_HASH,
     nodes::{BranchNode, CHILD_INDEX_RANGE, RlpNode, TrieNode},
-    proof::ProofVerificationError,
+    proof::{ProofVerificationError, RootMismatchError, ValueMismatchError},
 };
-use alloc::vec::Vec;
+use alloc::{boxed::Box, vec::Vec};
 use alloy_primitives::{B256, Bytes};
 use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
 use core::ops::Deref;
@@ -32,14 +32,17 @@ where
             if expected_value.is_none() {
                 Ok(())
             } else {
-                Err(ProofVerificationError::ValueMismatch {
+                Err(ProofVerificationError::ValueMismatch(Box::new(ValueMismatchError {
                     path: key,
                     got: None,
                     expected: expected_value.map(Bytes::from),
-                })
+                })))
             }
         } else {
-            Err(ProofVerificationError::RootMismatch { got: EMPTY_ROOT_HASH, expected: root })
+            Err(ProofVerificationError::RootMismatch(Box::new(RootMismatchError {
+                got: EMPTY_ROOT_HASH,
+                expected: root,
+            })))
         };
     }
 
@@ -51,7 +54,11 @@ where
         if Some(RlpNode::from_rlp(node).as_slice()) != last_decoded_node.as_deref() {
             let got = Some(Bytes::copy_from_slice(node));
             let expected = last_decoded_node.as_deref().map(Bytes::copy_from_slice);
-            return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
+            return Err(ProofVerificationError::ValueMismatch(Box::new(ValueMismatchError {
+                path: walked_path,
+                got,
+                expected,
+            })));
         }
 
         // Decode the next node from the proof.
@@ -64,11 +71,11 @@ where
     if last_decoded_node.as_deref() == expected_value.as_deref() {
         Ok(())
     } else {
-        Err(ProofVerificationError::ValueMismatch {
+        Err(ProofVerificationError::ValueMismatch(Box::new(ValueMismatchError {
             path: key,
             got: last_decoded_node.as_deref().map(Bytes::copy_from_slice),
             expected: expected_value.map(Bytes::from),
-        })
+        })))
     }
 }
 
@@ -223,11 +230,11 @@ mod tests {
         BranchNode::default().encode(&mut dummy_proof);
         assert_eq!(
             verify_proof(root, key, None, [&Bytes::from(dummy_proof.clone())]),
-            Err(ProofVerificationError::ValueMismatch {
+            Err(ProofVerificationError::ValueMismatch(Box::new(ValueMismatchError {
                 path: Nibbles::default(),
                 got: Some(Bytes::from(dummy_proof)),
                 expected: Some(Bytes::from(RlpNode::word_rlp(&EMPTY_ROOT_HASH)[..].to_vec()))
-            })
+            })))
         );
     }
 
@@ -254,21 +261,21 @@ mod tests {
         assert_eq!(verify_proof(root, first_key, Some(first_value.clone()), &proof), Ok(()));
         assert_eq!(
             verify_proof(root, first_key, None, &proof),
-            Err(ProofVerificationError::ValueMismatch {
+            Err(ProofVerificationError::ValueMismatch(Box::new(ValueMismatchError {
                 path: first_key,
                 got: Some(first_value.into()),
                 expected: None,
-            })
+            })))
         );
 
         assert_eq!(verify_proof(root, second_key, Some(second_value.clone()), &proof), Ok(()));
         assert_eq!(
             verify_proof(root, second_key, None, &proof),
-            Err(ProofVerificationError::ValueMismatch {
+            Err(ProofVerificationError::ValueMismatch(Box::new(ValueMismatchError {
                 path: second_key,
                 got: Some(second_value.into()),
                 expected: None,
-            })
+            })))
         );
     }
 
