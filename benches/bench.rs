@@ -1,3 +1,7 @@
+//! Trie benchmarks.
+//!
+//! Run with: `cargo bench --features arbitrary`
+
 #![allow(missing_docs)]
 
 use alloy_trie::nodes::encode_path_leaf;
