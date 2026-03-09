@@ -59,7 +59,18 @@ where
             process_trie_node(TrieNode::decode(&mut &node[..])?, &mut walked_path, &key)?;
     }
 
-    // Last decoded node should have the key that we are looking for.
+    // Reject incomplete proofs: if the walked path is a strict prefix of the key
+    // and there is still a pending node or value, the proof was truncated.
+    if walked_path != key && key.starts_with(&walked_path) && last_decoded_node.is_some() {
+        return Err(ProofVerificationError::ValueMismatch {
+            path: key,
+            got: last_decoded_node.as_deref().map(Bytes::copy_from_slice),
+            expected: expected_value.map(Bytes::from),
+        });
+    }
+
+    // If the walked path diverged from the key (e.g. via an extension node whose
+    // key doesn't match), the key does not exist — valid exclusion.
     last_decoded_node = last_decoded_node.filter(|_| walked_path == key);
     if last_decoded_node.as_deref() == expected_value.as_deref() {
         Ok(())
@@ -650,6 +661,58 @@ mod tests {
             proof.clone(),
         )
         .unwrap();
+    }
+
+    /// Truncated proof must not be accepted as valid exclusion proof. Verifies that an incomplete
+    /// proof is rejected even when the proof fragment could match an exclusion (None == None).
+    /// The key 0x42 exists in the trie, so verification with a truncated proof and `expected_value
+    /// = None` must fail.
+    #[test]
+    fn truncated_proof_rejected() {
+        // Build a trie with 256 keys so the proof has multiple nodes.
+        let range = 0..=0xff;
+        let target = Nibbles::unpack(B256::with_last_byte(0x42));
+        let target_value = B256::with_last_byte(0x42);
+        let retainer = ProofRetainer::from_iter([target]);
+        let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
+        for key in range.clone() {
+            let hash = B256::with_last_byte(key);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
+        }
+        let root = hash_builder.root();
+        assert_eq!(
+            root,
+            triehash_trie_root(range.map(|b| (B256::with_last_byte(b), B256::with_last_byte(b))))
+        );
+
+        let proof = hash_builder.take_proof_nodes().into_nodes_sorted();
+
+        // Verify: full proof correctly accepts inclusion.
+        assert_eq!(
+            verify_proof(
+                root,
+                target,
+                Some(target_value.to_vec()),
+                proof.iter().map(|(_, node)| node)
+            ),
+            Ok(())
+        );
+
+        // Verify: full proof correctly rejects false exclusion.
+        assert!(
+            verify_proof(root, target, None, proof.iter().map(|(_, node)| node)).is_err(),
+            "full proof must reject exclusion of an existing key"
+        );
+
+        // Test: truncated proof to only the first node (root) must be rejected.
+        let truncated: Vec<&Bytes> = proof.iter().map(|(_, node)| node).take(1).collect();
+        assert!(truncated.len() < proof.len(), "proof must have multiple nodes to truncate");
+
+        let result = verify_proof(root, target, None, truncated.iter().copied());
+        assert!(
+            result.is_err(),
+            "truncated proof must be rejected: walked_path must equal key before accepting any value"
+        );
     }
 
     #[test]
