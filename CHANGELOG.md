@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.4](https://github.com/alloy-rs/trie/releases/tag/v0.9.4) - 2026-02-03
+## [0.9.5](https://github.com/alloy-rs/trie/releases/tag/v0.9.5) - 2026-03-09
 
 ### Bug Fixes
 
@@ -22,12 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.9.4 ([#131](https://github.com/alloy-rs/trie/issues/131))
 - Use thiserror for Error implementations ([#127](https://github.com/alloy-rs/trie/issues/127))
 - Update CODEOWNERS ([#128](https://github.com/alloy-rs/trie/issues/128))
 
 ### Other
 
 - Update to tempoxyz ([#120](https://github.com/alloy-rs/trie/issues/120))
+
+### Performance
+
+- Rewrite RlpNode internals with manual u8 length + MaybeUninit buffer ([#133](https://github.com/alloy-rs/trie/issues/133))
 
 ## [0.9.3](https://github.com/alloy-rs/trie/releases/tag/v0.9.3) - 2026-01-07
 
