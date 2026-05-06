@@ -35,7 +35,7 @@ jobs:
       - name: Build the benchmark target(s)
         run: cargo codspeed build --profile profiling --features="arbitrary"
       - name: Run the benchmarks
-        uses: CodSpeedHQ/action@5322369bbf5359f5719bd337a19b4bcf4781fe3a # v3.8.1
+        uses: CodSpeedHQ/action@76578c2a7ddd928664caa737f0e962e3085d4e7c # v3.8.1
         with:
           run: cargo codspeed run --workspace
           token: ${{ secrets.CODSPEED_TOKEN }}
