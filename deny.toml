@@ -6,6 +6,8 @@ yanked = "warn"
 ignore = [
     # https://rustsec.org/advisories/RUSTSEC-2024-0436 paste! is unmaintained
     "RUSTSEC-2024-0436",
+    # Fixed in ruint 1.20.0, which requires Rust 1.90 (our MSRV is 1.85).
+    "RUSTSEC-2026-0220",
 ]
 
 [bans]
