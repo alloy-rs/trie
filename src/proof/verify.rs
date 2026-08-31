@@ -59,9 +59,11 @@ where
             process_trie_node(TrieNode::decode(&mut &node[..])?, &mut walked_path, &key)?;
     }
 
-    // Reject incomplete proofs: if the walked path is a strict prefix of the key
-    // and there is still a pending node or value, the proof was truncated.
-    if walked_path != key && key.starts_with(&walked_path) && last_decoded_node.is_some() {
+    // Reject incomplete proofs: if the walked path has not diverged from the key
+    // and there is still a pending node, the proof was truncated.
+    if key.starts_with(&walked_path)
+        && matches!(last_decoded_node, Some(NodeDecodingResult::Node(_)))
+    {
         return Err(ProofVerificationError::ValueMismatch {
             path: key,
             got: last_decoded_node.as_deref().map(Bytes::copy_from_slice),
@@ -712,6 +714,34 @@ mod tests {
         assert!(
             result.is_err(),
             "truncated proof must be rejected: walked_path must equal key before accepting any value"
+        );
+    }
+
+    #[test]
+    fn leaf_prefix_is_valid_exclusion() {
+        let leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x1]), vec![0x64; 32]));
+        let mut encoded = Vec::new();
+        leaf.encode(&mut encoded);
+        let encoded = Bytes::from(encoded);
+        let root = alloy_primitives::keccak256(&encoded);
+
+        assert_eq!(verify_proof(root, Nibbles::from_nibbles([0x1, 0x2]), None, [&encoded]), Ok(()));
+    }
+
+    #[test]
+    fn truncated_proof_at_key_boundary_rejected() {
+        let child = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x0]), vec![0x64]));
+        let child = RlpNode::word_rlp(&alloy_primitives::keccak256(alloy_rlp::encode(child)));
+        let root_node =
+            TrieNode::Extension(ExtensionNode::new(Nibbles::from_nibbles([0x1, 0x2]), child));
+        let mut encoded = Vec::new();
+        root_node.encode(&mut encoded);
+        let encoded = Bytes::from(encoded);
+        let root = alloy_primitives::keccak256(&encoded);
+
+        assert!(
+            verify_proof(root, Nibbles::from_nibbles([0x1, 0x2]), None, [&encoded]).is_err(),
+            "a pending child node at the exact key boundary must not prove exclusion"
         );
     }
 
