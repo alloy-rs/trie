@@ -97,7 +97,8 @@ where
 /// - [`TrieNode::Branch`] is decoded into a [`NodeDecodingResult::Value`] if the node at the
 ///   specified nibble was decoded into an in-place encoded [`TrieNode::Leaf`], or into a
 ///   [`NodeDecodingResult::Node`] otherwise.
-/// - [`TrieNode::Extension`] is always decoded into a [`NodeDecodingResult::Node`].
+/// - [`TrieNode::Extension`] is decoded into a [`NodeDecodingResult::Node`] if its child is hashed,
+///   or recursively into the result of its in-place child.
 /// - [`TrieNode::Leaf`] is always decoded into a [`NodeDecodingResult::Value`].
 #[derive(Debug, PartialEq, Eq)]
 enum NodeDecodingResult {
@@ -713,9 +714,13 @@ mod tests {
         );
 
         // Verify: full proof correctly rejects false exclusion.
-        assert!(
-            verify_proof(root, target, None, proof.iter().map(|(_, node)| node)).is_err(),
-            "full proof must reject exclusion of an existing key"
+        assert_eq!(
+            verify_proof(root, target, None, proof.iter().map(|(_, node)| node)),
+            Err(ProofVerificationError::ValueMismatch {
+                path: target,
+                got: Some(Bytes::copy_from_slice(&target_value[..])),
+                expected: None,
+            })
         );
 
         // Test: truncated proof to only the first node (root) must be rejected.
@@ -724,8 +729,15 @@ mod tests {
 
         let result = verify_proof(root, target, None, truncated.iter().copied());
         assert!(
-            result.is_err(),
-            "truncated proof must be rejected: walked_path must equal key before accepting any value"
+            matches!(
+                result,
+                Err(ProofVerificationError::ValueMismatch {
+                    path,
+                    got: Some(_),
+                    expected: None,
+                }) if path == target
+            ),
+            "truncated proof must be rejected while a child node is pending"
         );
     }
 
@@ -744,16 +756,22 @@ mod tests {
     fn truncated_proof_at_key_boundary_rejected() {
         let child = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x0]), vec![0x64]));
         let child = RlpNode::word_rlp(&alloy_primitives::keccak256(alloy_rlp::encode(child)));
+        let pending_child = Bytes::copy_from_slice(child.as_slice());
         let root_node =
             TrieNode::Extension(ExtensionNode::new(Nibbles::from_nibbles([0x1, 0x2]), child));
         let mut encoded = Vec::new();
         root_node.encode(&mut encoded);
         let encoded = Bytes::from(encoded);
         let root = alloy_primitives::keccak256(&encoded);
+        let key = Nibbles::from_nibbles([0x1, 0x2]);
 
-        assert!(
-            verify_proof(root, Nibbles::from_nibbles([0x1, 0x2]), None, [&encoded]).is_err(),
-            "a pending child node at the exact key boundary must not prove exclusion"
+        assert_eq!(
+            verify_proof(root, key, Some(pending_child.to_vec()), [&encoded]),
+            Err(ProofVerificationError::ValueMismatch {
+                path: key,
+                got: Some(pending_child.clone()),
+                expected: Some(pending_child),
+            })
         );
     }
 
@@ -762,25 +780,28 @@ mod tests {
         let forged_value = vec![0xff; 32];
         let forged_leaf =
             TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x2]), forged_value.clone()));
-        let forged_leaf = alloy_rlp::encode(forged_leaf);
+        let forged_leaf = Bytes::from(alloy_rlp::encode(forged_leaf));
 
         // Make the genuine terminal value look exactly like the node reference for the forged
         // suffix. A verifier that erases the Node/Value distinction will follow it as a child.
-        let genuine_value = RlpNode::from_rlp(&forged_leaf).as_slice().to_vec();
+        let genuine_value = Bytes::copy_from_slice(RlpNode::from_rlp(&forged_leaf).as_slice());
         let genuine_leaf =
-            TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x1]), genuine_value));
+            TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x1]), genuine_value.to_vec()));
         let genuine_leaf = Bytes::from(alloy_rlp::encode(genuine_leaf));
         let root = alloy_primitives::keccak256(&genuine_leaf);
 
-        assert!(
+        assert_eq!(
             verify_proof(
                 root,
                 Nibbles::from_nibbles([0x1, 0x2]),
                 Some(forged_value),
-                [&genuine_leaf, &Bytes::from(forged_leaf)],
-            )
-            .is_err(),
-            "proof nodes after a terminal leaf must be rejected"
+                [&genuine_leaf, &forged_leaf],
+            ),
+            Err(ProofVerificationError::ValueMismatch {
+                path: Nibbles::from_nibbles([0x1]),
+                got: Some(forged_leaf),
+                expected: Some(genuine_value),
+            })
         );
     }
 
