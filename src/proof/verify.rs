@@ -8,7 +8,6 @@ use crate::{
 use alloc::vec::Vec;
 use alloy_primitives::{B256, Bytes};
 use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
-use core::ops::Deref;
 use nybbles::Nibbles;
 
 /// Verify the proof for given key value pair against the provided state root.
@@ -48,9 +47,13 @@ where
     for node in proof {
         // Check if the node that we just decoded (or root node, if we just started) matches
         // the expected node from the proof.
-        if Some(RlpNode::from_rlp(node).as_slice()) != last_decoded_node.as_deref() {
+        let expected_node = last_decoded_node.as_ref().and_then(NodeDecodingResult::as_node);
+        if Some(RlpNode::from_rlp(node).as_slice()) != expected_node {
             let got = Some(Bytes::copy_from_slice(node));
-            let expected = last_decoded_node.as_deref().map(Bytes::copy_from_slice);
+            let expected = last_decoded_node
+                .as_ref()
+                .map(NodeDecodingResult::as_slice)
+                .map(Bytes::copy_from_slice);
             return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
         }
 
@@ -66,7 +69,10 @@ where
     {
         return Err(ProofVerificationError::ValueMismatch {
             path: key,
-            got: last_decoded_node.as_deref().map(Bytes::copy_from_slice),
+            got: last_decoded_node
+                .as_ref()
+                .map(NodeDecodingResult::as_slice)
+                .map(Bytes::copy_from_slice),
             expected: expected_value.map(Bytes::from),
         });
     }
@@ -74,12 +80,13 @@ where
     // If the walked path diverged from the key (e.g. via an extension node whose
     // key doesn't match), the key does not exist — valid exclusion.
     last_decoded_node = last_decoded_node.filter(|_| walked_path == key);
-    if last_decoded_node.as_deref() == expected_value.as_deref() {
+    let decoded_value = last_decoded_node.as_ref().map(NodeDecodingResult::as_slice);
+    if decoded_value == expected_value.as_deref() {
         Ok(())
     } else {
         Err(ProofVerificationError::ValueMismatch {
             path: key,
-            got: last_decoded_node.as_deref().map(Bytes::copy_from_slice),
+            got: decoded_value.map(Bytes::copy_from_slice),
             expected: expected_value.map(Bytes::from),
         })
     }
@@ -98,13 +105,18 @@ enum NodeDecodingResult {
     Value(Vec<u8>),
 }
 
-impl Deref for NodeDecodingResult {
-    type Target = [u8];
+impl NodeDecodingResult {
+    const fn as_node(&self) -> Option<&[u8]> {
+        match self {
+            Self::Node(node) => Some(node.as_slice()),
+            Self::Value(_) => None,
+        }
+    }
 
-    fn deref(&self) -> &Self::Target {
+    fn as_slice(&self) -> &[u8] {
         match self {
             Self::Node(node) => node.as_slice(),
-            Self::Value(value) => value,
+            Self::Value(value) => value.as_slice(),
         }
     }
 }
@@ -742,6 +754,33 @@ mod tests {
         assert!(
             verify_proof(root, Nibbles::from_nibbles([0x1, 0x2]), None, [&encoded]).is_err(),
             "a pending child node at the exact key boundary must not prove exclusion"
+        );
+    }
+
+    #[test]
+    fn node_after_terminal_leaf_rejected() {
+        let forged_value = vec![0xff; 32];
+        let forged_leaf =
+            TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x2]), forged_value.clone()));
+        let forged_leaf = alloy_rlp::encode(forged_leaf);
+
+        // Make the genuine terminal value look exactly like the node reference for the forged
+        // suffix. A verifier that erases the Node/Value distinction will follow it as a child.
+        let genuine_value = RlpNode::from_rlp(&forged_leaf).as_slice().to_vec();
+        let genuine_leaf =
+            TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x1]), genuine_value));
+        let genuine_leaf = Bytes::from(alloy_rlp::encode(genuine_leaf));
+        let root = alloy_primitives::keccak256(&genuine_leaf);
+
+        assert!(
+            verify_proof(
+                root,
+                Nibbles::from_nibbles([0x1, 0x2]),
+                Some(forged_value),
+                [&genuine_leaf, &Bytes::from(forged_leaf)],
+            )
+            .is_err(),
+            "proof nodes after a terminal leaf must be rejected"
         );
     }
 
