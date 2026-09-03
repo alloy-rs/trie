@@ -30,7 +30,7 @@ pub mod proof;
 #[cfg(feature = "ethereum")]
 mod account;
 #[cfg(feature = "ethereum")]
-pub use account::TrieAccount;
+pub use account::{TrieAccount, TrieAccountExtension};
 
 mod mask;
 pub use mask::{TrieMask, TrieMaskIter};

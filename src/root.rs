@@ -117,9 +117,13 @@ mod ethereum {
     /// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
     /// represented as MPT.
     /// See [`state_root_unsorted`] for more info.
-    pub fn state_root_ref_unhashed<'a, A: Into<TrieAccount> + Clone + 'a>(
+    pub fn state_root_ref_unhashed<'a, A, E>(
         state: impl IntoIterator<Item = (&'a Address, &'a A)>,
-    ) -> B256 {
+    ) -> B256
+    where
+        A: Into<TrieAccount<E>> + Clone + 'a,
+        E: crate::TrieAccountExtension,
+    {
         state_root_unsorted(
             state.into_iter().map(|(address, account)| (keccak256(address), account.clone())),
         )
@@ -128,9 +132,11 @@ mod ethereum {
     /// Hashes and sorts account keys, then proceeds to calculating the root hash of the state
     /// represented as MPT.
     /// See [`state_root_unsorted`] for more info.
-    pub fn state_root_unhashed<A: Into<TrieAccount>>(
-        state: impl IntoIterator<Item = (Address, A)>,
-    ) -> B256 {
+    pub fn state_root_unhashed<A, E>(state: impl IntoIterator<Item = (Address, A)>) -> B256
+    where
+        A: Into<TrieAccount<E>>,
+        E: crate::TrieAccountExtension,
+    {
         state_root_unsorted(
             state.into_iter().map(|(address, account)| (keccak256(address), account)),
         )
@@ -138,9 +144,11 @@ mod ethereum {
 
     /// Sorts the hashed account keys and calculates the root hash of the state represented as MPT.
     /// See [`state_root`] for more info.
-    pub fn state_root_unsorted<A: Into<TrieAccount>>(
-        state: impl IntoIterator<Item = (B256, A)>,
-    ) -> B256 {
+    pub fn state_root_unsorted<A, E>(state: impl IntoIterator<Item = (B256, A)>) -> B256
+    where
+        A: Into<TrieAccount<E>>,
+        E: crate::TrieAccountExtension,
+    {
         let mut vec = Vec::from_iter(state);
         vec.sort_unstable_by_key(|(key, _)| *key);
         state_root(vec)
@@ -153,7 +161,11 @@ mod ethereum {
     /// # Panics
     ///
     /// If the items are not in sorted order.
-    pub fn state_root<A: Into<TrieAccount>>(state: impl IntoIterator<Item = (B256, A)>) -> B256 {
+    pub fn state_root<A, E>(state: impl IntoIterator<Item = (B256, A)>) -> B256
+    where
+        A: Into<TrieAccount<E>>,
+        E: crate::TrieAccountExtension,
+    {
         let mut hb = HashBuilder::default();
         let mut account_rlp_buf = Vec::new();
         for (hashed_key, account) in state {
