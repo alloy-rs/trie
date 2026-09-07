@@ -128,7 +128,7 @@ impl<E: TrieAccountExtension> Encodable for TrieAccount<E> {
     }
 }
 
-impl<E: TrieAccountExtension> Decodable for TrieAccount<E> {
+impl<E: TrieAccountExtension + Default> Decodable for TrieAccount<E> {
     fn decode(buf: &mut &[u8]) -> Result<Self> {
         let header = Header::decode(buf)?;
         if !header.list {
@@ -142,7 +142,11 @@ impl<E: TrieAccountExtension> Decodable for TrieAccount<E> {
             balance: Decodable::decode(&mut payload)?,
             storage_root: Decodable::decode(&mut payload)?,
             code_hash: Decodable::decode(&mut payload)?,
-            extension: E::decode_payload(&mut payload)?,
+            extension: if payload.is_empty() {
+                E::default()
+            } else {
+                E::decode_payload(&mut payload)?
+            },
         };
         if !payload.is_empty() {
             return Err(Error::UnexpectedLength);
@@ -231,6 +235,10 @@ mod tests {
         });
         assert_eq!(alloy_rlp::encode(account), expected);
         assert_eq!(TrieAccount::<()>::decode(&mut expected.as_slice()).unwrap(), account);
+        assert_eq!(
+            TrieAccount::<TestExtension>::decode(&mut expected.as_slice()).unwrap().extension,
+            TestExtension::default()
+        );
     }
 
     #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
