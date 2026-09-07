@@ -5,8 +5,9 @@ use alloy_rlp::{BufMut, Decodable, Encodable, Error, Header, Result};
 /// Represents an TrieAccount in the account trie.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
+#[cfg_attr(feature = "serde", serde(bound(deserialize = "E: serde::Deserialize<'de> + Default")))]
 pub struct TrieAccount<E = ()> {
     /// The account's nonce.
     #[cfg_attr(feature = "serde", serde(with = "quantity"))]
@@ -20,6 +21,36 @@ pub struct TrieAccount<E = ()> {
     /// Chain-specific fields committed to by this account leaf.
     #[cfg_attr(feature = "serde", serde(default))]
     pub extension: E,
+}
+
+#[cfg(feature = "serde")]
+fn is_default<T: Default + PartialEq>(value: &T) -> bool {
+    value == &T::default()
+}
+
+#[cfg(feature = "serde")]
+impl<E> serde::Serialize for TrieAccount<E>
+where
+    E: serde::Serialize + Default + PartialEq,
+{
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        use serde::ser::SerializeStruct;
+
+        let include_extension = !serializer.is_human_readable() || !is_default(&self.extension);
+        let mut state =
+            serializer.serialize_struct("TrieAccount", 4 + usize::from(include_extension))?;
+        state.serialize_field("nonce", &alloy_primitives::U64::from(self.nonce))?;
+        state.serialize_field("balance", &self.balance)?;
+        state.serialize_field("storageRoot", &self.storage_root)?;
+        state.serialize_field("codeHash", &self.code_hash)?;
+        if include_extension {
+            state.serialize_field("extension", &self.extension)?;
+        }
+        state.end()
+    }
 }
 
 impl<E: Default> Default for TrieAccount<E> {
