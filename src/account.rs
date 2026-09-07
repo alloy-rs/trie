@@ -154,15 +154,7 @@ impl<E: TrieAccountExtension> Decodable for TrieAccount<E> {
 #[cfg(feature = "serde")]
 mod quantity {
     use alloy_primitives::U64;
-    use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
-    /// Serializes a primitive number as a "quantity" hex string.
-    pub(crate) fn serialize<S>(value: &u64, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: Serializer,
-    {
-        U64::from(*value).serialize(serializer)
-    }
+    use serde::{Deserialize, Deserializer};
 
     /// Deserializes a primitive number from a "quantity" hex string.
     pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
