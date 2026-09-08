@@ -74,14 +74,17 @@ impl<E: TrieAccountExtension> TrieAccount<E> {
 
 /// Additional chain-specific fields appended to an account trie leaf's RLP list.
 ///
-/// Implementations encode zero or more complete RLP items. The unit type encodes no items, so
-/// The unit implementation emits no fields, so [`TrieAccount<()>`] is byte-for-byte compatible
+/// Implementations encode zero or more complete RLP items. The unit implementation emits no
+/// fields, so [`TrieAccount<()>`] is byte-for-byte compatible
 /// with the canonical four-field Ethereum account encoding.
 pub trait TrieAccountExtension: Sized {
     /// Returns the encoded length of all extension fields.
     fn payload_length(&self) -> usize;
 
     /// Appends all extension fields to an account RLP list payload.
+    ///
+    /// Must write exactly [`Self::payload_length`] bytes. Callers may provide a fixed-size
+    /// buffer to encode directly into shared storage without an intermediate allocation.
     fn encode_payload(&self, out: &mut dyn BufMut);
 
     /// Decodes the extension fields from the remaining account RLP list payload.
