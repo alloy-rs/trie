@@ -7,7 +7,7 @@ mod verify;
 pub use verify::verify_proof;
 
 mod error;
-pub use error::ProofVerificationError;
+pub use error::{ProofVerificationError, RootMismatchError, ValueMismatchError};
 
 mod decoded_proof_nodes;
 pub use decoded_proof_nodes::DecodedProofNodes;

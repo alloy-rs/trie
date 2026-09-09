@@ -35,7 +35,7 @@ all = { level = "warn", priority = -1 }
 missing-const-for-fn = "warn"
 use-self = "warn"
 redundant-clone = "warn"
-result_large_err = "allow"
+result_large_err = "warn"
 
 # Use the `--profile profiling` flag to show symbols in release mode.
 # e.g. `cargo build --profile profiling`
