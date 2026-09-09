@@ -45,6 +45,8 @@ debug = "full"
 strip = "none"
 
 [dependencies]
+borsh = { version = "1.5", default-features = false, optional = true }
+triomphe = { version = "0.1.16", default-features = false, optional = true }
 alloy-primitives = { version = "1.0", default-features = false, features = [
     "rlp",
     "map",
@@ -89,6 +91,8 @@ triehash = "0.8.4"
 criterion = { version = "4.3", package = "codspeed-criterion-compat" }
 
 [features]
+borsh = ["dep:borsh"]
+account-ext = ["dep:triomphe"]
 default = ["std", "alloy-primitives/default"]
 std = [
     "alloy-primitives/std",
