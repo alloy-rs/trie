@@ -77,25 +77,14 @@ impl Eq for AccountExtension {}
 #[cfg(feature = "borsh")]
 impl borsh::BorshSerialize for AccountExtension {
     fn serialize<W: borsh::io::Write>(&self, writer: &mut W) -> borsh::io::Result<()> {
-        let len = u16::try_from(self.len()).map_err(|_| {
-            borsh::io::Error::new(
-                borsh::io::ErrorKind::InvalidInput,
-                "account extension exceeds u16 length",
-            )
-        })?;
-        writer.write_all(&len.to_be_bytes())?;
-        writer.write_all(self.as_ref())
+        self.as_ref().serialize(writer)
     }
 }
 
 #[cfg(feature = "borsh")]
 impl borsh::BorshDeserialize for AccountExtension {
     fn deserialize_reader<R: borsh::io::Read>(reader: &mut R) -> borsh::io::Result<Self> {
-        let mut len = [0; 2];
-        reader.read_exact(&mut len)?;
-        let mut bytes = alloc::vec![0; usize::from(u16::from_be_bytes(len))];
-        reader.read_exact(&mut bytes)?;
-        Ok(Self::from(bytes))
+        <Vec<u8>>::deserialize_reader(reader).map(Self::from)
     }
 }
 
@@ -167,5 +156,18 @@ mod tests {
                 );
             }
         }
+    }
+}
+
+#[cfg(all(test, feature = "borsh"))]
+mod borsh_tests {
+    use super::*;
+
+    #[test]
+    fn uses_standard_byte_vector_encoding() {
+        let extension = AccountExtension::copy_from_slice(&[0x82, 0xaa]);
+        let encoded = borsh::to_vec(&extension).unwrap();
+        assert_eq!(encoded, borsh::to_vec(&vec![0x82u8, 0xaa]).unwrap());
+        assert_eq!(borsh::from_slice::<AccountExtension>(&encoded).unwrap(), extension);
     }
 }
