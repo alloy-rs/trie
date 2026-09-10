@@ -29,8 +29,12 @@ pub mod proof;
 
 #[cfg(feature = "ethereum")]
 mod account;
+#[cfg(feature = "account-ext")]
+mod account_extension;
 #[cfg(feature = "ethereum")]
 pub use account::TrieAccount;
+#[cfg(feature = "account-ext")]
+pub use account_extension::AccountExtension;
 
 mod mask;
 pub use mask::{TrieMask, TrieMaskIter};
