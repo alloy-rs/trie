@@ -226,27 +226,31 @@ mod tests {
             let extension = AccountExtension::copy_from_slice(payload);
             let mut expected = (payload.len() as u16).to_be_bytes().to_vec();
             expected.extend_from_slice(payload);
-            let encoded = bincode::serialize(&extension).unwrap();
+            let encoded = postcard::to_allocvec(&extension).unwrap();
             assert_eq!(encoded, expected);
-            assert_eq!(bincode::deserialize::<AccountExtension>(&encoded).unwrap(), extension);
+            assert_eq!(postcard::from_bytes::<AccountExtension>(&encoded).unwrap(), extension);
             let pair = (extension.clone(), 42u8);
             assert_eq!(
-                bincode::deserialize::<(AccountExtension, u8)>(&bincode::serialize(&pair).unwrap())
-                    .unwrap(),
+                postcard::from_bytes::<(AccountExtension, u8)>(
+                    &postcard::to_allocvec(&pair).unwrap()
+                )
+                .unwrap(),
                 pair
             );
             let json = serde_json::to_string(&extension).unwrap();
             assert_eq!(serde_json::from_str::<AccountExtension>(&json).unwrap(), extension);
             if !payload.is_empty() {
                 assert!(
-                    bincode::deserialize::<AccountExtension>(&encoded[..encoded.len() - 1])
+                    postcard::from_bytes::<AccountExtension>(&encoded[..encoded.len() - 1])
                         .is_err()
                 );
             }
         }
         assert!(
-            bincode::serialize(&AccountExtension::from(alloc::vec![0; usize::from(u16::MAX) + 1]))
-                .is_err()
+            postcard::to_allocvec(&AccountExtension::from(
+                alloc::vec![0; usize::from(u16::MAX) + 1]
+            ))
+            .is_err()
         );
     }
 }
