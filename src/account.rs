@@ -8,7 +8,7 @@ use alloy_rlp::{BufMut, Decodable, Encodable, Error, Header, Result};
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[cfg_attr(not(feature = "account-ext"), derive(Copy))]
 #[cfg_attr(feature = "arbitrary", derive(arbitrary::Arbitrary))]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct TrieAccount {
     /// The account's nonce.
@@ -21,35 +21,12 @@ pub struct TrieAccount {
     /// The hash of the code of the account.
     pub code_hash: B256,
     /// Raw chain-specific bytes, encoded as a fifth RLP string only when nonempty.
-    #[cfg_attr(feature = "serde", serde(default))]
+    #[cfg_attr(
+        feature = "serde",
+        serde(default, skip_serializing_if = "AccountExtension::is_empty")
+    )]
     #[cfg(feature = "account-ext")]
     pub extension: AccountExtension,
-}
-
-#[cfg(feature = "serde")]
-impl serde::Serialize for TrieAccount {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        use serde::ser::SerializeStruct;
-
-        #[cfg(feature = "account-ext")]
-        let include_extension = !serializer.is_human_readable() || !self.extension.is_empty();
-        #[cfg(not(feature = "account-ext"))]
-        let include_extension = false;
-        let mut state =
-            serializer.serialize_struct("TrieAccount", 4 + usize::from(include_extension))?;
-        state.serialize_field("nonce", &alloy_primitives::U64::from(self.nonce))?;
-        state.serialize_field("balance", &self.balance)?;
-        state.serialize_field("storageRoot", &self.storage_root)?;
-        state.serialize_field("codeHash", &self.code_hash)?;
-        #[cfg(feature = "account-ext")]
-        if include_extension {
-            state.serialize_field("extension", &self.extension)?;
-        }
-        state.end()
-    }
 }
 
 impl Default for TrieAccount {
@@ -141,7 +118,11 @@ impl Decodable for TrieAccount {
 #[cfg(feature = "serde")]
 mod quantity {
     use alloy_primitives::U64;
-    use serde::{Deserialize, Deserializer};
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    pub(crate) fn serialize<S: Serializer>(value: &u64, serializer: S) -> Result<S::Ok, S::Error> {
+        U64::from(*value).serialize(serializer)
+    }
 
     /// Deserializes a primitive number from a "quantity" hex string.
     pub(crate) fn deserialize<'de, D>(deserializer: D) -> Result<u64, D::Error>
@@ -158,7 +139,10 @@ mod tests {
     use alloy_rlp::RlpEncodable;
 
     #[derive(RlpEncodable)]
+    #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+    #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
     struct LegacyAccount {
+        #[cfg_attr(feature = "serde", serde(with = "quantity"))]
         nonce: u64,
         balance: U256,
         storage_root: B256,
@@ -178,6 +162,38 @@ mod tests {
         assert_eq!(encoded, alloy_rlp::encode(legacy));
         assert_eq!(encoded.len(), account.length());
         assert_eq!(TrieAccount::decode(&mut encoded.as_slice()).unwrap(), account);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn account_messagepack_compatibility() {
+        let account = TrieAccount { nonce: 7, balance: U256::from(42), ..Default::default() };
+        let legacy = LegacyAccount {
+            nonce: account.nonce,
+            balance: account.balance,
+            storage_root: account.storage_root,
+            code_hash: account.code_hash,
+        };
+        let encoded = rmp_serde::to_vec(&account).unwrap();
+        assert_eq!(encoded, rmp_serde::to_vec(&legacy).unwrap());
+        assert_eq!(rmp_serde::from_slice::<TrieAccount>(&encoded).unwrap(), account);
+        let decoded: LegacyAccount = rmp_serde::from_slice(&encoded).unwrap();
+        assert_eq!(rmp_serde::to_vec(&decoded).unwrap(), encoded);
+
+        let accounts = alloc::vec![
+            account,
+            TrieAccount {
+                nonce: 9,
+                #[cfg(feature = "account-ext")]
+                extension: AccountExtension::copy_from_slice(&[0x82, 0xaa]),
+                ..Default::default()
+            },
+            TrieAccount::default(),
+        ];
+        let record = (accounts, 99u64);
+        let encoded = rmp_serde::to_vec(&record).unwrap();
+        let decoded: (alloc::vec::Vec<TrieAccount>, u64) = rmp_serde::from_slice(&encoded).unwrap();
+        assert_eq!(decoded, record);
     }
 
     #[cfg(feature = "account-ext")]
