@@ -20,7 +20,7 @@ pub struct TrieAccount {
     pub storage_root: B256,
     /// The hash of the code of the account.
     pub code_hash: B256,
-    /// Chain-specific fields committed to by this account leaf.
+    /// Raw chain-specific bytes, encoded as a fifth RLP string only when nonempty.
     #[cfg_attr(feature = "serde", serde(default))]
     #[cfg(feature = "account-ext")]
     pub extension: AccountExtension,
@@ -79,14 +79,17 @@ impl Encodable for TrieAccount {
             + self.storage_root.length()
             + self.code_hash.length();
         #[cfg(feature = "account-ext")]
-        let payload_length = payload_length + self.extension.len();
+        let payload_length = payload_length
+            + if self.extension.is_empty() { 0 } else { self.extension.as_ref().length() };
         Header { list: true, payload_length }.encode(out);
         self.nonce.encode(out);
         self.balance.encode(out);
         self.storage_root.encode(out);
         self.code_hash.encode(out);
         #[cfg(feature = "account-ext")]
-        out.put_slice(&self.extension);
+        if !self.extension.is_empty() {
+            self.extension.as_ref().encode(out);
+        }
     }
 
     fn length(&self) -> usize {
@@ -95,7 +98,8 @@ impl Encodable for TrieAccount {
             + self.storage_root.length()
             + self.code_hash.length();
         #[cfg(feature = "account-ext")]
-        let payload_length = payload_length + self.extension.len();
+        let payload_length = payload_length
+            + if self.extension.is_empty() { 0 } else { self.extension.as_ref().length() };
         Header { list: true, payload_length }.length() + payload_length
     }
 }
@@ -116,12 +120,15 @@ impl Decodable for TrieAccount {
             code_hash: Decodable::decode(&mut payload)?,
             #[cfg(feature = "account-ext")]
             extension: {
-                let extension = AccountExtension::copy_from_slice(payload);
-                // Preserve complete trailing RLP items, not an extra byte-string wrapper.
-                while !payload.is_empty() {
-                    alloy_rlp::Header::decode_raw(&mut payload)?;
+                if payload.is_empty() {
+                    AccountExtension::default()
+                } else {
+                    let bytes = Header::decode_bytes(&mut payload, false)?;
+                    if bytes.is_empty() {
+                        return Err(Error::Custom("empty account extension must be omitted"));
+                    }
+                    AccountExtension::copy_from_slice(bytes)
                 }
-                extension
             },
         };
         if !payload.is_empty() {
@@ -175,13 +182,13 @@ mod tests {
 
     #[cfg(feature = "account-ext")]
     #[test]
-    fn extension_is_appended_verbatim() {
+    fn extension_is_encoded_as_one_string() {
         let account = TrieAccount {
             extension: AccountExtension::copy_from_slice(&[0x01, 0x82, 0xaa, 0xbb]),
             ..Default::default()
         };
         let encoded = alloy_rlp::encode(&account);
-        assert!(encoded.ends_with(&[0x01, 0x82, 0xaa, 0xbb]));
+        assert!(encoded.ends_with(&[0x84, 0x01, 0x82, 0xaa, 0xbb]));
         assert_eq!(encoded.len(), account.length());
         assert_eq!(TrieAccount::decode(&mut encoded.as_slice()).unwrap(), account);
         assert_ne!(account.trie_hash_slow(), TrieAccount::default().trie_hash_slow());
@@ -189,11 +196,30 @@ mod tests {
 
     #[cfg(feature = "account-ext")]
     #[test]
-    fn malformed_extension_is_rejected() {
+    fn arbitrary_extension_bytes_roundtrip() {
         let account = TrieAccount {
             extension: AccountExtension::copy_from_slice(&[0x82, 0xaa]),
             ..Default::default()
         };
-        assert!(TrieAccount::decode(&mut alloy_rlp::encode(account).as_slice()).is_err());
+        let encoded = alloy_rlp::encode(&account);
+        assert!(encoded.ends_with(&[0x82, 0x82, 0xaa]));
+        assert_eq!(TrieAccount::decode(&mut encoded.as_slice()).unwrap(), account);
+    }
+
+    #[cfg(feature = "account-ext")]
+    #[test]
+    fn extension_must_be_one_nonempty_string() {
+        let account = TrieAccount::default();
+        for suffix in [&[0x80][..], &[0xc0][..], &[0x01, 0x02][..], &[0x82, 0xaa][..]] {
+            let encoded = alloy_rlp::encode(&account);
+            let mut input = encoded.as_slice();
+            let header = Header::decode(&mut input).unwrap();
+            let mut invalid = alloc::vec::Vec::new();
+            Header { list: true, payload_length: header.payload_length + suffix.len() }
+                .encode(&mut invalid);
+            invalid.extend_from_slice(input);
+            invalid.extend_from_slice(suffix);
+            assert!(alloy_rlp::decode_exact::<TrieAccount>(&invalid).is_err());
+        }
     }
 }
