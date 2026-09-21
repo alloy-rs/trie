@@ -21,7 +21,7 @@ jobs:
       contents: read
     steps:
       - name: Secure runner
-        uses: tempoxyz/gh-actions/actions/secure-runner@ca2b15de1d1f6edd2276736187d7e4c2d898972c
+        uses: tempoxyz/gh-actions/actions/secure-runnerd67c611dc0050e9f3fcd5bd47f3f899a00e
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -34,7 +34,7 @@ jobs:
         with:
           cache-on-failure: true
       - name: Install cargo-codspeed
-        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@25cce154e7fb10f99361a166468a6c56b9c31aa3
+        uses: tempoxyz/gh-actions/vendor/taiki-e/install-actiond67c611dc0050e9f3fcd5bd47f3f899a00e
         with:
           tool: cargo-codspeed@5.0.2
           checksum: true
