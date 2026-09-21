@@ -5,6 +5,39 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.6](https://github.com/alloy-rs/trie/releases/tag/v0.9.6) - 2026-09-21
+
+### Bug Fixes
+
+- Preserve changelog history during releases ([#157](https://github.com/alloy-rs/trie/issues/157))
+- Quote dependabot schedule time ([#148](https://github.com/alloy-rs/trie/issues/148))
+
+### Dependencies
+
+- [deps] Bump the ci-weekly group with 2 updates ([#159](https://github.com/alloy-rs/trie/issues/159))
+- [deps] Bump CodSpeedHQ/action from 5.0.3 to 5.2.1 in the ci-weekly group ([#155](https://github.com/alloy-rs/trie/issues/155))
+- [deps] Bump rui314/setup-mold from 9c9c13bf4c3f1adef0cc596abc155580bcb04444 to 7e4f20ad28a2e8ca6fd0892ccf72e2abb706b9c3 in the ci-weekly group ([#154](https://github.com/alloy-rs/trie/issues/154))
+- [deps] Bump the ci-weekly group with 3 updates ([#153](https://github.com/alloy-rs/trie/issues/153))
+- [deps] Bump CodSpeedHQ/action from 3.8.1 to 5.0.2 in the ci-weekly group ([#152](https://github.com/alloy-rs/trie/issues/152))
+- [deps] Bump actions/checkout from 7.0.0 to 7.0.1 in the ci-weekly group ([#151](https://github.com/alloy-rs/trie/issues/151))
+- [deps] Bump actions/checkout from 6.0.2 to 7.0.0 in the ci-weekly group ([#149](https://github.com/alloy-rs/trie/issues/149))
+- [deps] Bump taiki-e/install-action from 2.74.0 to 2.75.26 ([#140](https://github.com/alloy-rs/trie/issues/140))
+- [deps] Bump rui314/setup-mold from 725a8794d15fc7563f59595bd9556495c0564878 to 9c9c13bf4c3f1adef0cc596abc155580bcb04444 ([#139](https://github.com/alloy-rs/trie/issues/139))
+- [deps] Bump CodSpeedHQ/action from 5322369bbf5359f5719bd337a19b4bcf4781fe3a to 76578c2a7ddd928664caa737f0e962e3085d4e7c ([#138](https://github.com/alloy-rs/trie/issues/138))
+
+### Features
+
+- Support extended trie accounts ([#156](https://github.com/alloy-rs/trie/issues/156))
+
+### Miscellaneous Tasks
+
+- Group weekly dependabot updates ([#147](https://github.com/alloy-rs/trie/issues/147))
+
+### Other
+
+- Set rust-toolchain inputs explicitly ([#150](https://github.com/alloy-rs/trie/issues/150))
+- Harden supply chain — pin actions, lock permissions ([#137](https://github.com/alloy-rs/trie/issues/137))
+
 ## [0.9.5](https://github.com/alloy-rs/trie/releases/tag/v0.9.5) - 2026-03-09
 
 ### Bug Fixes
