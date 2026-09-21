@@ -8,7 +8,6 @@ use crate::{
 use alloc::vec::Vec;
 use alloy_primitives::{B256, Bytes};
 use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
-use core::ops::Deref;
 use nybbles::Nibbles;
 
 /// Verify the proof for given key value pair against the provided state root.
@@ -48,9 +47,13 @@ where
     for node in proof {
         // Check if the node that we just decoded (or root node, if we just started) matches
         // the expected node from the proof.
-        if Some(RlpNode::from_rlp(node).as_slice()) != last_decoded_node.as_deref() {
+        let expected_node = last_decoded_node.as_ref().and_then(NodeDecodingResult::as_node);
+        if Some(RlpNode::from_rlp(node).as_slice()) != expected_node {
             let got = Some(Bytes::copy_from_slice(node));
-            let expected = last_decoded_node.as_deref().map(Bytes::copy_from_slice);
+            let expected = last_decoded_node
+                .as_ref()
+                .map(NodeDecodingResult::as_slice)
+                .map(Bytes::copy_from_slice);
             return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
         }
 
@@ -59,14 +62,31 @@ where
             process_trie_node(TrieNode::decode(&mut &node[..])?, &mut walked_path, &key)?;
     }
 
-    // Last decoded node should have the key that we are looking for.
+    // Reject incomplete proofs: if the walked path has not diverged from the key
+    // and there is still a pending node, the proof was truncated.
+    if key.starts_with(&walked_path)
+        && matches!(last_decoded_node, Some(NodeDecodingResult::Node(_)))
+    {
+        return Err(ProofVerificationError::ValueMismatch {
+            path: key,
+            got: last_decoded_node
+                .as_ref()
+                .map(NodeDecodingResult::as_slice)
+                .map(Bytes::copy_from_slice),
+            expected: expected_value.map(Bytes::from),
+        });
+    }
+
+    // If the walked path diverged from the key (e.g. via an extension node whose
+    // key doesn't match), the key does not exist — valid exclusion.
     last_decoded_node = last_decoded_node.filter(|_| walked_path == key);
-    if last_decoded_node.as_deref() == expected_value.as_deref() {
+    let decoded_value = last_decoded_node.as_ref().map(NodeDecodingResult::as_slice);
+    if decoded_value == expected_value.as_deref() {
         Ok(())
     } else {
         Err(ProofVerificationError::ValueMismatch {
             path: key,
-            got: last_decoded_node.as_deref().map(Bytes::copy_from_slice),
+            got: decoded_value.map(Bytes::copy_from_slice),
             expected: expected_value.map(Bytes::from),
         })
     }
@@ -77,7 +97,8 @@ where
 /// - [`TrieNode::Branch`] is decoded into a [`NodeDecodingResult::Value`] if the node at the
 ///   specified nibble was decoded into an in-place encoded [`TrieNode::Leaf`], or into a
 ///   [`NodeDecodingResult::Node`] otherwise.
-/// - [`TrieNode::Extension`] is always decoded into a [`NodeDecodingResult::Node`].
+/// - [`TrieNode::Extension`] is decoded into a [`NodeDecodingResult::Node`] if its child is hashed,
+///   or recursively into the result of its in-place child.
 /// - [`TrieNode::Leaf`] is always decoded into a [`NodeDecodingResult::Value`].
 #[derive(Debug, PartialEq, Eq)]
 enum NodeDecodingResult {
@@ -85,13 +106,18 @@ enum NodeDecodingResult {
     Value(Vec<u8>),
 }
 
-impl Deref for NodeDecodingResult {
-    type Target = [u8];
+impl NodeDecodingResult {
+    const fn as_node(&self) -> Option<&[u8]> {
+        match self {
+            Self::Node(node) => Some(node.as_slice()),
+            Self::Value(_) => None,
+        }
+    }
 
-    fn deref(&self) -> &Self::Target {
+    fn as_slice(&self) -> &[u8] {
         match self {
             Self::Node(node) => node.as_slice(),
-            Self::Value(value) => value,
+            Self::Value(value) => value.as_slice(),
         }
     }
 }
@@ -650,6 +676,133 @@ mod tests {
             proof.clone(),
         )
         .unwrap();
+    }
+
+    /// Truncated proof must not be accepted as valid exclusion proof. Verifies that an incomplete
+    /// proof is rejected even when the proof fragment could match an exclusion (None == None).
+    /// The key 0x42 exists in the trie, so verification with a truncated proof and `expected_value
+    /// = None` must fail.
+    #[test]
+    fn truncated_proof_rejected() {
+        // Build a trie with 256 keys so the proof has multiple nodes.
+        let range = 0..=0xff;
+        let target = Nibbles::unpack(B256::with_last_byte(0x42));
+        let target_value = B256::with_last_byte(0x42);
+        let retainer = ProofRetainer::from_iter([target]);
+        let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
+        for key in range.clone() {
+            let hash = B256::with_last_byte(key);
+            hash_builder.add_leaf(Nibbles::unpack(hash), &hash[..]);
+        }
+        let root = hash_builder.root();
+        assert_eq!(
+            root,
+            triehash_trie_root(range.map(|b| (B256::with_last_byte(b), B256::with_last_byte(b))))
+        );
+
+        let proof = hash_builder.take_proof_nodes().into_nodes_sorted();
+
+        // Verify: full proof correctly accepts inclusion.
+        assert_eq!(
+            verify_proof(
+                root,
+                target,
+                Some(target_value.to_vec()),
+                proof.iter().map(|(_, node)| node)
+            ),
+            Ok(())
+        );
+
+        // Verify: full proof correctly rejects false exclusion.
+        assert_eq!(
+            verify_proof(root, target, None, proof.iter().map(|(_, node)| node)),
+            Err(ProofVerificationError::ValueMismatch {
+                path: target,
+                got: Some(Bytes::copy_from_slice(&target_value[..])),
+                expected: None,
+            })
+        );
+
+        // Test: truncated proof to only the first node (root) must be rejected.
+        let truncated: Vec<&Bytes> = proof.iter().map(|(_, node)| node).take(1).collect();
+        assert!(truncated.len() < proof.len(), "proof must have multiple nodes to truncate");
+
+        let result = verify_proof(root, target, None, truncated.iter().copied());
+        assert!(
+            matches!(
+                result,
+                Err(ProofVerificationError::ValueMismatch {
+                    path,
+                    got: Some(_),
+                    expected: None,
+                }) if path == target
+            ),
+            "truncated proof must be rejected while a child node is pending"
+        );
+    }
+
+    #[test]
+    fn leaf_prefix_is_valid_exclusion() {
+        let leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x1]), vec![0x64; 32]));
+        let mut encoded = Vec::new();
+        leaf.encode(&mut encoded);
+        let encoded = Bytes::from(encoded);
+        let root = alloy_primitives::keccak256(&encoded);
+
+        assert_eq!(verify_proof(root, Nibbles::from_nibbles([0x1, 0x2]), None, [&encoded]), Ok(()));
+    }
+
+    #[test]
+    fn truncated_proof_at_key_boundary_rejected() {
+        let child = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x0]), vec![0x64]));
+        let child = RlpNode::word_rlp(&alloy_primitives::keccak256(alloy_rlp::encode(child)));
+        let pending_child = Bytes::copy_from_slice(child.as_slice());
+        let root_node =
+            TrieNode::Extension(ExtensionNode::new(Nibbles::from_nibbles([0x1, 0x2]), child));
+        let mut encoded = Vec::new();
+        root_node.encode(&mut encoded);
+        let encoded = Bytes::from(encoded);
+        let root = alloy_primitives::keccak256(&encoded);
+        let key = Nibbles::from_nibbles([0x1, 0x2]);
+
+        assert_eq!(
+            verify_proof(root, key, Some(pending_child.to_vec()), [&encoded]),
+            Err(ProofVerificationError::ValueMismatch {
+                path: key,
+                got: Some(pending_child.clone()),
+                expected: Some(pending_child),
+            })
+        );
+    }
+
+    #[test]
+    fn node_after_terminal_leaf_rejected() {
+        let forged_value = vec![0xff; 32];
+        let forged_leaf =
+            TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x2]), forged_value.clone()));
+        let forged_leaf = Bytes::from(alloy_rlp::encode(forged_leaf));
+
+        // Make the genuine terminal value look exactly like the node reference for the forged
+        // suffix. A verifier that erases the Node/Value distinction will follow it as a child.
+        let genuine_value = Bytes::copy_from_slice(RlpNode::from_rlp(&forged_leaf).as_slice());
+        let genuine_leaf =
+            TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x1]), genuine_value.to_vec()));
+        let genuine_leaf = Bytes::from(alloy_rlp::encode(genuine_leaf));
+        let root = alloy_primitives::keccak256(&genuine_leaf);
+
+        assert_eq!(
+            verify_proof(
+                root,
+                Nibbles::from_nibbles([0x1, 0x2]),
+                Some(forged_value),
+                [&genuine_leaf, &forged_leaf],
+            ),
+            Err(ProofVerificationError::ValueMismatch {
+                path: Nibbles::from_nibbles([0x1]),
+                got: Some(forged_leaf),
+                expected: Some(genuine_value),
+            })
+        );
     }
 
     #[test]
