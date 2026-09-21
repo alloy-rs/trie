@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.7](https://github.com/alloy-rs/trie/releases/tag/v0.9.7) - 2026-09-21
+
+### Bug Fixes
+
+- [proof] Reject truncated exclusion proofs ([#134](https://github.com/alloy-rs/trie/issues/134))
+
 ## [0.9.6](https://github.com/alloy-rs/trie/releases/tag/v0.9.6) - 2026-09-21
 
 ### Bug Fixes
@@ -35,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.9.6
 - Group weekly dependabot updates ([#147](https://github.com/alloy-rs/trie/issues/147))
 - Release 0.9.5 ([#136](https://github.com/alloy-rs/trie/issues/136))
 - Release 0.9.4 ([#131](https://github.com/alloy-rs/trie/issues/131))
