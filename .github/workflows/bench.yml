@@ -33,6 +33,7 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
+          cache-bin: false
       - name: Install cargo-codspeed
         run: cargo install cargo-codspeed --version 5.0.2 --locked
       - name: Build the benchmark target(s)
