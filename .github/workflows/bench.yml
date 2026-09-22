@@ -17,8 +17,11 @@ jobs:
   codspeed:
     runs-on: ubuntu-latest
     permissions:
+      id-token: write
       contents: read
     steps:
+      - name: Secure runner
+        uses: tempoxyz/gh-actions/actions/secure-runner@68851d67c611dc0050e9f3fcd5bd47f3f899a00e
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
@@ -30,10 +33,9 @@ jobs:
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
         with:
           cache-on-failure: true
+          cache-bin: false
       - name: Install cargo-codspeed
-        uses: taiki-e/install-action@b651345a718c8f44efa2460560b3dbf29cbd7ee1 # v2
-        with:
-          tool: cargo-codspeed
+        run: cargo install cargo-codspeed --version 5.0.2 --locked
       - name: Build the benchmark target(s)
         run: cargo codspeed build --profile profiling --features="arbitrary"
       - name: Run the benchmarks
