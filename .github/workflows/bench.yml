@@ -34,11 +34,7 @@ jobs:
         with:
           cache-on-failure: true
       - name: Install cargo-codspeed
-        uses: tempoxyz/gh-actions/vendor/taiki-e/install-action@68851d67c611dc0050e9f3fcd5bd47f3f899a00e
-        with:
-          tool: cargo-codspeed@5.0.2
-          checksum: true
-          fallback: cargo-binstall
+        run: cargo install cargo-codspeed --version 5.0.2 --locked
       - name: Build the benchmark target(s)
         run: cargo codspeed build --profile profiling --features="arbitrary"
       - name: Run the benchmarks
