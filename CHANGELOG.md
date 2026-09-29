@@ -5,11 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.8](https://github.com/alloy-rs/trie/releases/tag/v0.9.8) - 2026-09-29
+
+### Bug Fixes
+
+- [ci] Reuse the shared deny workflow
+
+### Dependencies
+
+- Bump gh-actions to d5402286 ([#169](https://github.com/alloy-rs/trie/issues/169))
+- [ci] Bump secure-runner pins ([#163](https://github.com/alloy-rs/trie/issues/163))
+
+### Features
+
+- Add TrieAccount::new and with_extension ([#170](https://github.com/alloy-rs/trie/issues/170))
+
+### Miscellaneous Tasks
+
+- [ci] Migrate deny to gh-actions ([#168](https://github.com/alloy-rs/trie/issues/168))
+- Update gh-actions and deny workflow pins ([#167](https://github.com/alloy-rs/trie/issues/167))
+- Update gh-actions to ee2960a6 ([#166](https://github.com/alloy-rs/trie/issues/166))
+- [ci] Scan GitHub Actions workflows ([#165](https://github.com/alloy-rs/trie/issues/165))
+- [ci] Update gh-actions pins ([#164](https://github.com/alloy-rs/trie/issues/164))
+- [ci] Restore cargo-codspeed installer ([#161](https://github.com/alloy-rs/trie/issues/161))
+- [ci] Route package installs through Aegis ([#158](https://github.com/alloy-rs/trie/issues/158))
+
 ## [0.9.7](https://github.com/alloy-rs/trie/releases/tag/v0.9.7) - 2026-09-21
 
 ### Bug Fixes
 
 - [proof] Reject truncated exclusion proofs ([#134](https://github.com/alloy-rs/trie/issues/134))
+
+### Miscellaneous Tasks
+
+- Release 0.9.7
 
 ## [0.9.6](https://github.com/alloy-rs/trie/releases/tag/v0.9.6) - 2026-09-21
 
