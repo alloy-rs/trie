@@ -43,6 +43,30 @@ impl Default for TrieAccount {
 }
 
 impl TrieAccount {
+    /// Creates a trie account with an empty extension.
+    ///
+    /// The extension carries chain-specific data and only exists with the `account-ext` feature.
+    /// Use `with_extension` to attach one.
+    pub const fn new(nonce: u64, balance: U256, storage_root: B256, code_hash: B256) -> Self {
+        Self {
+            nonce,
+            balance,
+            storage_root,
+            code_hash,
+            #[cfg(feature = "account-ext")]
+            extension: AccountExtension::new(),
+        }
+    }
+
+    /// Returns this trie account with the given chain-specific extension.
+    ///
+    /// This replaces the extension, which [`Self::new`] leaves empty.
+    #[cfg(feature = "account-ext")]
+    pub fn with_extension(mut self, extension: impl Into<AccountExtension>) -> Self {
+        self.extension = extension.into();
+        self
+    }
+
     /// Compute  hash as committed to in the MPT trie without memorizing.
     pub fn trie_hash_slow(&self) -> B256 {
         keccak256(alloy_rlp::encode(self))
@@ -237,5 +261,38 @@ mod tests {
             invalid.extend_from_slice(suffix);
             assert!(alloy_rlp::decode_exact::<TrieAccount>(&invalid).is_err());
         }
+    }
+
+    #[test]
+    fn new_has_empty_extension() {
+        let storage_root = B256::repeat_byte(0x11);
+        let code_hash = B256::repeat_byte(0x22);
+        let account = TrieAccount::new(7, U256::from(42), storage_root, code_hash);
+        assert_eq!(account.nonce, 7);
+        assert_eq!(account.balance, U256::from(42));
+        assert_eq!(account.storage_root, storage_root);
+        assert_eq!(account.code_hash, code_hash);
+
+        // Setting every field would make the update needless without `account-ext`.
+        let account = TrieAccount::new(7, U256::from(42), EMPTY_ROOT_HASH, KECCAK_EMPTY);
+        let literal = TrieAccount { nonce: 7, balance: U256::from(42), ..Default::default() };
+        assert_eq!(alloy_rlp::encode(account), alloy_rlp::encode(literal));
+    }
+
+    #[cfg(feature = "account-ext")]
+    #[test]
+    fn with_extension_keeps_fields() {
+        let storage_root = B256::repeat_byte(0x11);
+        let code_hash = B256::repeat_byte(0x22);
+        let extension = AccountExtension::copy_from_slice(&[0x82, 0xaa]);
+        let account = TrieAccount::new(7, U256::from(42), storage_root, code_hash)
+            .with_extension(extension.clone());
+        assert_eq!(account.nonce, 7);
+        assert_eq!(account.balance, U256::from(42));
+        assert_eq!(account.storage_root, storage_root);
+        assert_eq!(account.code_hash, code_hash);
+        assert_eq!(account.extension, extension);
+        let encoded = alloy_rlp::encode(&account);
+        assert_eq!(alloy_rlp::decode_exact::<TrieAccount>(&encoded).unwrap(), account);
     }
 }
