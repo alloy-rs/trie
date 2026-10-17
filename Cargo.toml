@@ -15,7 +15,6 @@ rust-version = "1.85"
 license = "MIT OR Apache-2.0"
 categories = ["data-structures", "no-std"]
 keywords = ["nibbles", "trie", "mpt", "merkle", "ethereum"]
-homepage = "https://github.com/alloy-rs/trie"
 repository = "https://github.com/alloy-rs/trie"
 exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
