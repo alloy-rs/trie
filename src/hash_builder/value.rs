@@ -90,11 +90,10 @@ impl HashBuilderValue {
     pub fn as_ref(&self) -> HashBuilderValueRef<'_> {
         match self.kind {
             HashBuilderValueKind::Bytes => HashBuilderValueRef::Bytes(&self.buf),
-            HashBuilderValueKind::Hash => HashBuilderValueRef::Hash(
-                self.buf[..]
-                    .try_into()
-                    .expect("HashBuilderValue hash must contain exactly 32 bytes"),
-            ),
+            HashBuilderValueKind::Hash => {
+                debug_assert_eq!(self.buf.len(), 32);
+                HashBuilderValueRef::Hash(unsafe { self.buf[..].try_into().unwrap_unchecked() })
+            }
         }
     }
 
