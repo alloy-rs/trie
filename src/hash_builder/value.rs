@@ -6,13 +6,32 @@ use core::fmt;
 ///
 /// Stores [`HashBuilderValueRef`] efficiently by reusing resources.
 #[derive(Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct HashBuilderValue {
     /// Stores the bytes of either the leaf node value or the hash of adjacent nodes.
     #[cfg_attr(feature = "serde", serde(with = "hex"))]
     buf: Vec<u8>,
     /// The kind of value that is stored in `buf`.
     kind: HashBuilderValueKind,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for HashBuilderValue {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        #[serde(rename = "HashBuilderValue")]
+        struct Repr {
+            #[serde(with = "hex")]
+            buf: Vec<u8>,
+            kind: HashBuilderValueKind,
+        }
+
+        let Repr { buf, kind } = Repr::deserialize(deserializer)?;
+        if kind == HashBuilderValueKind::Hash && buf.len() != 32 {
+            return Err(serde::de::Error::custom("Hash kind requires exactly 32 bytes"));
+        }
+        Ok(Self { buf, kind })
+    }
 }
 
 impl Default for HashBuilderValue {
@@ -71,10 +90,11 @@ impl HashBuilderValue {
     pub fn as_ref(&self) -> HashBuilderValueRef<'_> {
         match self.kind {
             HashBuilderValueKind::Bytes => HashBuilderValueRef::Bytes(&self.buf),
-            HashBuilderValueKind::Hash => {
-                debug_assert_eq!(self.buf.len(), 32);
-                HashBuilderValueRef::Hash(unsafe { self.buf[..].try_into().unwrap_unchecked() })
-            }
+            HashBuilderValueKind::Hash => HashBuilderValueRef::Hash(
+                self.buf[..]
+                    .try_into()
+                    .expect("HashBuilderValue hash must contain exactly 32 bytes"),
+            ),
         }
     }
 
@@ -151,5 +171,100 @@ impl fmt::Debug for HashBuilderValueRef<'_> {
         };
         let slice = hex::encode_prefixed(self.as_slice());
         write!(f, "{name}({slice})")
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+
+    #[derive(serde::Serialize, serde::Deserialize)]
+    #[serde(rename = "HashBuilderValue")]
+    struct LegacyHashBuilderValue {
+        #[serde(with = "hex")]
+        buf: Vec<u8>,
+        kind: HashBuilderValueKind,
+    }
+
+    fn invalid_hash_values() -> impl Iterator<Item = LegacyHashBuilderValue> {
+        [0, 1, 31, 33, 64].into_iter().map(|len| LegacyHashBuilderValue {
+            buf: vec![0xab; len],
+            kind: HashBuilderValueKind::Hash,
+        })
+    }
+
+    #[test]
+    fn serde_rejects_invalid_hash_lengths_json() {
+        for value in invalid_hash_values() {
+            let encoded = serde_json::to_vec(&value).unwrap();
+            assert!(serde_json::from_slice::<HashBuilderValue>(&encoded).is_err());
+
+            let encoded =
+                serde_json::to_vec(&(hex::encode_prefixed(&value.buf), value.kind)).unwrap();
+            assert!(serde_json::from_slice::<HashBuilderValue>(&encoded).is_err());
+        }
+    }
+
+    #[test]
+    fn serde_rejects_invalid_hash_lengths_postcard() {
+        for value in invalid_hash_values() {
+            let encoded = postcard::to_allocvec(&value).unwrap();
+            assert!(postcard::from_bytes::<HashBuilderValue>(&encoded).is_err());
+        }
+    }
+
+    #[test]
+    fn serde_rejects_invalid_hash_lengths_messagepack() {
+        for value in invalid_hash_values() {
+            for encoded in
+                [rmp_serde::to_vec(&value).unwrap(), rmp_serde::to_vec_named(&value).unwrap()]
+            {
+                assert!(rmp_serde::from_slice::<HashBuilderValue>(&encoded).is_err());
+            }
+        }
+    }
+
+    fn assert_serde_compatibility(value: &HashBuilderValue) {
+        let legacy = LegacyHashBuilderValue { buf: value.buf.clone(), kind: value.kind };
+        let json = serde_json::to_vec(&legacy).unwrap();
+        let postcard = postcard::to_allocvec(&legacy).unwrap();
+        let messagepack = rmp_serde::to_vec(&legacy).unwrap();
+        let named_messagepack = rmp_serde::to_vec_named(&legacy).unwrap();
+
+        assert_eq!(serde_json::to_vec(value).unwrap(), json);
+        assert_eq!(postcard::to_allocvec(value).unwrap(), postcard);
+        assert_eq!(rmp_serde::to_vec(value).unwrap(), messagepack);
+        assert_eq!(rmp_serde::to_vec_named(value).unwrap(), named_messagepack);
+
+        for decoded in [
+            serde_json::from_slice::<HashBuilderValue>(&json).unwrap(),
+            postcard::from_bytes(&postcard).unwrap(),
+            rmp_serde::from_slice(&messagepack).unwrap(),
+            rmp_serde::from_slice(&named_messagepack).unwrap(),
+        ] {
+            assert_eq!(&decoded, value);
+            assert_eq!(decoded.as_ref().as_slice(), value.as_slice());
+            assert_eq!(format!("{decoded:?}"), format!("{value:?}"));
+        }
+    }
+
+    #[test]
+    fn serde_roundtrip_compatibility() {
+        let mut value = HashBuilderValue::new();
+        value.set_from_ref(HashBuilderValueRef::Hash(&B256::repeat_byte(0xab)));
+        assert_serde_compatibility(&value);
+
+        for len in [0, 1, 31, 32, 33, 64, 128] {
+            value.set_bytes_owned(vec![0xab; len]);
+            assert_serde_compatibility(&value);
+        }
+    }
+
+    #[test]
+    fn serde_json_accepts_reordered_and_unknown_fields() {
+        let hash = B256::repeat_byte(0xab);
+        let encoded = format!(r#"{{"kind":"Hash","extra":true,"buf":"{hash}"}}"#);
+        let value: HashBuilderValue = serde_json::from_str(&encoded).unwrap();
+        assert!(matches!(value.as_ref(), HashBuilderValueRef::Hash(value) if value == &hash));
     }
 }
