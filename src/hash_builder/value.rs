@@ -6,13 +6,32 @@ use core::fmt;
 ///
 /// Stores [`HashBuilderValueRef`] efficiently by reusing resources.
 #[derive(Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "serde", derive(serde::Serialize))]
 pub struct HashBuilderValue {
     /// Stores the bytes of either the leaf node value or the hash of adjacent nodes.
     #[cfg_attr(feature = "serde", serde(with = "hex"))]
     buf: Vec<u8>,
     /// The kind of value that is stored in `buf`.
     kind: HashBuilderValueKind,
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for HashBuilderValue {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        #[derive(serde::Deserialize)]
+        #[serde(rename = "HashBuilderValue")]
+        struct Repr {
+            #[serde(with = "hex")]
+            buf: Vec<u8>,
+            kind: HashBuilderValueKind,
+        }
+
+        let Repr { buf, kind } = Repr::deserialize(deserializer)?;
+        if kind == HashBuilderValueKind::Hash && buf.len() != 32 {
+            return Err(serde::de::Error::custom("Hash kind requires exactly 32 bytes"));
+        }
+        Ok(Self { buf, kind })
+    }
 }
 
 impl Default for HashBuilderValue {
@@ -73,6 +92,8 @@ impl HashBuilderValue {
             HashBuilderValueKind::Bytes => HashBuilderValueRef::Bytes(&self.buf),
             HashBuilderValueKind::Hash => {
                 debug_assert_eq!(self.buf.len(), 32);
+                // SAFETY: Every constructor, including `Deserialize`, keeps `Hash` values at
+                // exactly 32 bytes.
                 HashBuilderValueRef::Hash(unsafe { self.buf[..].try_into().unwrap_unchecked() })
             }
         }
@@ -151,5 +172,44 @@ impl fmt::Debug for HashBuilderValueRef<'_> {
         };
         let slice = hex::encode_prefixed(self.as_slice());
         write!(f, "{name}({slice})")
+    }
+}
+
+#[cfg(all(test, feature = "serde"))]
+mod tests {
+    use super::*;
+
+    #[derive(serde::Serialize)]
+    #[serde(rename = "HashBuilderValue")]
+    struct UncheckedHashBuilderValue {
+        #[serde(with = "hex")]
+        buf: Vec<u8>,
+        kind: HashBuilderValueKind,
+    }
+
+    #[test]
+    fn serde_rejects_invalid_hash_lengths() {
+        for len in [0, 1, 31, 33, 64] {
+            let value = UncheckedHashBuilderValue {
+                buf: vec![0xab; len],
+                kind: HashBuilderValueKind::Hash,
+            };
+
+            let json = serde_json::to_vec(&value).unwrap();
+            assert!(serde_json::from_slice::<HashBuilderValue>(&json).is_err());
+
+            let json = serde_json::to_vec(&(hex::encode_prefixed(&value.buf), value.kind)).unwrap();
+            assert!(serde_json::from_slice::<HashBuilderValue>(&json).is_err());
+
+            let postcard = postcard::to_allocvec(&value).unwrap();
+            assert!(postcard::from_bytes::<HashBuilderValue>(&postcard).is_err());
+        }
+
+        let mut value = HashBuilderValue::new();
+        value.set_from_ref(HashBuilderValueRef::Hash(&B256::repeat_byte(0xab)));
+        let json = serde_json::to_vec(&value).unwrap();
+        assert_eq!(serde_json::from_slice::<HashBuilderValue>(&json).unwrap(), value);
+        let postcard = postcard::to_allocvec(&value).unwrap();
+        assert_eq!(postcard::from_bytes::<HashBuilderValue>(&postcard).unwrap(), value);
     }
 }
