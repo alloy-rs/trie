@@ -191,10 +191,15 @@ fn process_branch(
                                             key,
                                         );
                                     }
-                                    node @ (TrieNode::EmptyRoot
+                                    // Not produced by a valid trie, but the proof is untrusted
+                                    // input, so reject it instead of panicking.
+                                    TrieNode::EmptyRoot
                                     | TrieNode::Extension(_)
-                                    | TrieNode::Leaf(_)) => {
-                                        unreachable!("unexpected extension node child: {node:?}")
+                                    | TrieNode::Leaf(_) => {
+                                        return Err(alloy_rlp::Error::Custom(
+                                            "in-place extension node child is not a branch node",
+                                        )
+                                        .into());
                                     }
                                 }
                             }
@@ -802,6 +807,31 @@ mod tests {
                 got: Some(forged_leaf),
                 expected: Some(genuine_value),
             })
+        );
+    }
+
+    #[test]
+    fn in_place_extension_with_leaf_child_rejected() {
+        // An in-place extension under a branch must point at an in-place branch. A forged branch
+        // whose in-place extension points at a leaf has to be rejected, not panic.
+        let leaf = TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x2]), vec![0x01]));
+        let leaf = RlpNode::from_rlp(&alloy_rlp::encode(leaf));
+        let extension = TrieNode::Extension(ExtensionNode::new(Nibbles::from_nibbles([0x1]), leaf));
+        let extension = RlpNode::from_rlp(&alloy_rlp::encode(extension));
+        assert!(!extension.is_hash());
+
+        // A second, hashed child makes the branch long enough to be referenced by hash.
+        let sibling = RlpNode::word_rlp(&B256::repeat_byte(0x11));
+        let branch =
+            TrieNode::Branch(BranchNode::new(vec![extension, sibling], TrieMask::new(0b11)));
+        let branch = Bytes::from(alloy_rlp::encode(branch));
+        let root = alloy_primitives::keccak256(&branch);
+
+        assert_eq!(
+            verify_proof(root, Nibbles::from_nibbles([0x0, 0x1, 0x2]), None, [&branch]),
+            Err(ProofVerificationError::Rlp(alloy_rlp::Error::Custom(
+                "in-place extension node child is not a branch node"
+            )))
         );
     }
 
