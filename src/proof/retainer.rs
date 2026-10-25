@@ -88,7 +88,8 @@ impl FromIterator<Nibbles> for ProofRetainer {
 
 impl ProofRetainer {
     /// Create new retainer with target nibbles.
-    pub fn new(targets: Vec<Nibbles>) -> Self {
+    pub fn new(mut targets: Vec<Nibbles>) -> Self {
+        targets.sort_unstable();
         Self { targets, ..Default::default() }
     }
 }
@@ -112,7 +113,11 @@ impl<K> ProofRetainer<K> {
 impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
     /// Returns `true` if the given prefix matches the retainer target.
     pub fn matches(&self, prefix: &Nibbles) -> bool {
-        prefix.is_empty() || self.targets.iter().any(|target| target.starts_with(prefix))
+        prefix.is_empty()
+            || self
+                .targets
+                .get(self.targets.partition_point(|target| target < prefix))
+                .is_some_and(|target| target.starts_with(prefix))
     }
 
     /// Returns all collected proofs.
@@ -305,5 +310,27 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
         if self.added_removed_keys.is_some() {
             self.added_removed_tracking.track_branch(path, proof)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn matches_unsorted_targets() {
+        let retainer = ProofRetainer::new(vec![
+            Nibbles::from_nibbles([0xb, 0x2]),
+            Nibbles::from_nibbles([0x1, 0x2, 0x3]),
+            Nibbles::from_nibbles([0xb, 0x1]),
+        ]);
+
+        assert!(retainer.matches(&Nibbles::default()));
+        assert!(retainer.matches(&Nibbles::from_nibbles([0x1, 0x2])));
+        assert!(retainer.matches(&Nibbles::from_nibbles([0xb])));
+        assert!(retainer.matches(&Nibbles::from_nibbles([0xb, 0x2])));
+        assert!(!retainer.matches(&Nibbles::from_nibbles([0x1, 0x3])));
+        assert!(!retainer.matches(&Nibbles::from_nibbles([0xb, 0x3])));
+        assert!(!retainer.matches(&Nibbles::from_nibbles([0xc])));
     }
 }
