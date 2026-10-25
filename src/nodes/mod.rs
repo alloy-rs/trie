@@ -223,24 +223,25 @@ pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles 
 #[inline]
 pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> {
     let mut nibbles = *nibbles;
-    let encoded_len = nibbles.len() / 2 + 1;
-    let odd_nibbles = nibbles.len() % 2 != 0;
-    // SAFETY: `len` is calculated correctly.
-    unsafe {
-        nybbles::smallvec_with(encoded_len, |buf| {
-            let (first, rest) = buf.split_first_mut().unwrap_unchecked();
-            first.write(match (is_leaf, odd_nibbles) {
-                (true, true) => LeafNode::ODD_FLAG | nibbles.get_unchecked(0),
-                (true, false) => LeafNode::EVEN_FLAG,
-                (false, true) => ExtensionNode::ODD_FLAG | nibbles.get_unchecked(0),
-                (false, false) => ExtensionNode::EVEN_FLAG,
-            });
-            if odd_nibbles {
-                nibbles = nibbles.slice(1..);
-            }
-            nibbles.pack_to_slice_unchecked(rest);
-        })
+    let len = nibbles.len();
+    let (even_flag, odd_flag) = if is_leaf {
+        (LeafNode::EVEN_FLAG, LeafNode::ODD_FLAG)
+    } else {
+        (ExtensionNode::EVEN_FLAG, ExtensionNode::ODD_FLAG)
+    };
+    // `Nibbles` stores the nibbles left-aligned in a `U256`, so the packed path is its big-endian
+    // bytes. Only the bytes inside the path are read.
+    let uint = *nibbles.as_mut_uint_unchecked();
+    let mut buf = [0u8; 36];
+    if len % 2 != 0 {
+        // The first nibble lands in the low half of the flag byte.
+        buf[..32].copy_from_slice(&(uint >> 4usize).to_be_bytes::<32>());
+        buf[0] |= odd_flag;
+    } else {
+        buf[1..33].copy_from_slice(&uint.to_be_bytes::<32>());
+        buf[0] = even_flag;
     }
+    SmallVec::from_buf_and_len(buf, len / 2 + 1)
 }
 
 #[cfg(test)]
