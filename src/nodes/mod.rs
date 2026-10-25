@@ -231,14 +231,24 @@ pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> 
     };
     // `Nibbles` stores the nibbles left-aligned in a `U256`, so the packed path is its big-endian
     // bytes. Only the bytes inside the path are read.
-    let uint = *nibbles.as_mut_uint_unchecked();
+    let limbs = *nibbles.as_mut_uint_unchecked().as_limbs();
     let mut buf = [0u8; 36];
     if len % 2 != 0 {
-        // The first nibble lands in the low half of the flag byte.
-        buf[..32].copy_from_slice(&(uint >> 4usize).to_be_bytes::<32>());
+        // Shift right by one nibble, so the first nibble lands in the low half of the flag byte.
+        let shifted = [
+            limbs[3] >> 4,
+            limbs[2] >> 4 | limbs[3] << 60,
+            limbs[1] >> 4 | limbs[2] << 60,
+            limbs[0] >> 4 | limbs[1] << 60,
+        ];
+        for (chunk, limb) in buf.chunks_exact_mut(8).zip(shifted) {
+            chunk.copy_from_slice(&limb.to_be_bytes());
+        }
         buf[0] |= odd_flag;
     } else {
-        buf[1..33].copy_from_slice(&uint.to_be_bytes::<32>());
+        for (chunk, limb) in buf[1..33].chunks_exact_mut(8).zip(limbs.iter().rev()) {
+            chunk.copy_from_slice(&limb.to_be_bytes());
+        }
         buf[0] = even_flag;
     }
     SmallVec::from_buf_and_len(buf, len / 2 + 1)
