@@ -82,11 +82,17 @@ impl Encodable for TrieAccount {
         #[cfg(feature = "account-ext")]
         let payload_length = payload_length
             + if self.extension.is_empty() { 0 } else { self.extension.as_ref().length() };
-        Header { list: true, payload_length }.encode(out);
-        self.nonce.encode(out);
-        self.balance.encode(out);
-        self.storage_root.encode(out);
-        self.code_hash.encode(out);
+        // Encode the header and fixed fields on the stack, so that `out` sees a single write.
+        const CAP: usize = 9 + 9 + 33 + 33 + 33;
+        let mut buf = [0u8; CAP];
+        let mut rest = &mut buf[..];
+        Header { list: true, payload_length }.encode(&mut rest);
+        self.nonce.encode(&mut rest);
+        self.balance.encode(&mut rest);
+        self.storage_root.encode(&mut rest);
+        self.code_hash.encode(&mut rest);
+        let len = CAP - rest.len();
+        out.put_slice(&buf[..len]);
         #[cfg(feature = "account-ext")]
         if !self.extension.is_empty() {
             self.extension.as_ref().encode(out);
@@ -184,6 +190,32 @@ mod tests {
         };
         let encoded = alloy_rlp::encode(&account);
         assert_eq!(encoded, alloy_rlp::encode(legacy));
+        assert_eq!(encoded.len(), account.length());
+        assert_eq!(TrieAccount::decode(&mut encoded.as_slice()).unwrap(), account);
+    }
+
+    #[test]
+    fn max_fields_preserve_rlp() {
+        let account =
+            TrieAccount::new(u64::MAX, U256::MAX, B256::repeat_byte(0xff), B256::repeat_byte(0xff));
+        let legacy = LegacyAccount {
+            nonce: account.nonce,
+            balance: account.balance,
+            storage_root: account.storage_root,
+            code_hash: account.code_hash,
+        };
+        let encoded = alloy_rlp::encode(&account);
+        assert_eq!(encoded, alloy_rlp::encode(legacy));
+        assert_eq!(encoded.len(), account.length());
+        assert_eq!(TrieAccount::decode(&mut encoded.as_slice()).unwrap(), account);
+    }
+
+    #[cfg(feature = "account-ext")]
+    #[test]
+    fn long_extension_roundtrip() {
+        let account = TrieAccount::default()
+            .with_extension(AccountExtension::copy_from_slice(&[0xaa; 70_000]));
+        let encoded = alloy_rlp::encode(&account);
         assert_eq!(encoded.len(), account.length());
         assert_eq!(TrieAccount::decode(&mut encoded.as_slice()).unwrap(), account);
     }
