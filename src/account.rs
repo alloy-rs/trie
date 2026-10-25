@@ -82,7 +82,7 @@ impl Encodable for TrieAccount {
         #[cfg(feature = "account-ext")]
         let payload_length = payload_length
             + if self.extension.is_empty() { 0 } else { self.extension.as_ref().length() };
-        // Encode the header and fixed fields on the stack, so that `out` sees a single write.
+        // Encode the header and fixed fields on the stack, so that `out` sees one write for them.
         const CAP: usize = 9 + 9 + 33 + 33 + 33;
         let mut buf = [0u8; CAP];
         let mut rest = &mut buf[..];
