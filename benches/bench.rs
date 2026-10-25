@@ -2,6 +2,8 @@
 
 use alloy_primitives::{B256, Bytes, U256};
 use alloy_rlp::{Decodable, Encodable, Header};
+#[cfg(feature = "ethereum")]
+use alloy_trie::TrieAccount;
 use alloy_trie::{
     HashBuilder, TrieMask,
     nodes::{BranchNode, ExtensionNode, LeafNode, RlpNode, TrieNode, encode_path_leaf},
@@ -166,6 +168,33 @@ pub fn verify_proof_bench(c: &mut Criterion) {
     });
 }
 
+/// Benchmarks RLP encoding of [`TrieAccount`]s, as done for every account leaf of a state root.
+#[cfg(feature = "ethereum")]
+pub fn trie_account_encode(c: &mut Criterion) {
+    let mut rng = Rng(SEED);
+    let accounts = (0..1_000)
+        .map(|_| TrieAccount::new(rng.next() % 1_000_000, rng.u256(16), rng.b256(), rng.b256()))
+        .collect::<Vec<_>>();
+    let len = accounts.iter().map(Encodable::length).sum::<usize>();
+
+    let mut g = group(c, "trie_account");
+    g.throughput(Throughput::Elements(accounts.len() as u64));
+    g.bench_function("encode", |b| {
+        let mut buf = Vec::with_capacity(len);
+        b.iter(|| {
+            buf.clear();
+            for account in black_box(&accounts) {
+                account.encode(&mut buf);
+            }
+            black_box(&buf);
+        })
+    });
+}
+
+/// Benchmarks RLP encoding of [`TrieAccount`]s; requires the `ethereum` feature.
+#[cfg(not(feature = "ethereum"))]
+pub fn trie_account_encode(_: &mut Criterion) {}
+
 type ValueFn = fn(&mut Rng) -> Vec<u8>;
 
 /// Deterministic SplitMix64 generator.
@@ -259,6 +288,7 @@ criterion_group!(
     hash_builder_root_with_proofs,
     ordered_root,
     trie_node_rlp,
+    trie_account_encode,
     verify_proof_bench
 );
 criterion_main!(benches);
