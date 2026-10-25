@@ -1,5 +1,5 @@
 use super::{super::Nibbles, RlpNode, encode_path_leaf, unpack_path_to_nibbles};
-use alloy_primitives::{Bytes, hex};
+use alloy_primitives::hex;
 use alloy_rlp::{BufMut, Decodable, Encodable, Header, length_of_length};
 use core::fmt;
 
@@ -48,7 +48,7 @@ impl Encodable for ExtensionNode {
 impl Decodable for ExtensionNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let mut bytes = Header::decode_bytes(buf, true)?;
-        let encoded_key = Bytes::decode(&mut bytes)?;
+        let encoded_key = Header::decode_bytes(&mut bytes, false)?;
         if encoded_key.is_empty() {
             return Err(alloy_rlp::Error::Custom("extension node key empty"));
         }
