@@ -47,7 +47,8 @@ impl Decodable for BranchNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
         let mut bytes = Header::decode_bytes(buf, true)?;
 
-        let mut stack = Vec::new();
+        let mut children = [&[][..]; 16];
+        let mut child_count = 0;
         let mut state_mask = TrieMask::default();
         for index in CHILD_INDEX_RANGE {
             // The buffer must contain empty string code for value.
@@ -63,7 +64,8 @@ impl Decodable for BranchNode {
             // Decode without advancing
             let Header { payload_length, .. } = Header::decode(&mut &bytes[..])?;
             let len = payload_length + length_of_length(payload_length);
-            stack.push(RlpNode::from_raw_rlp(&bytes[..len])?);
+            children[child_count] = &bytes[..len];
+            child_count += 1;
             bytes.advance(len);
             state_mask.set_bit(index);
         }
@@ -74,6 +76,11 @@ impl Decodable for BranchNode {
             return Err(alloy_rlp::Error::Custom("branch values not supported"));
         }
         debug_assert!(bytes.is_empty(), "bytes {}", alloy_primitives::hex::encode(bytes));
+
+        let mut stack = Vec::with_capacity(child_count);
+        for child in &children[..child_count] {
+            stack.push(RlpNode::from_raw_rlp(child)?);
+        }
 
         Ok(Self { stack, state_mask })
     }
