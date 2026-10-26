@@ -229,6 +229,19 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
 
         trace!(target: "trie::hash_builder", ?current, ?succeeding, "updating merkle tree");
 
+        // A lone leaf is the whole trie, so it needs no masks.
+        if succeeding.is_empty() && self.state_masks.is_empty() {
+            if let HashBuilderValueRef::Bytes(leaf_value) = self.value.as_ref() {
+                self.rlp_buf.clear();
+                let rlp = LeafNodeRef::new(&current, leaf_value).rlp(&mut self.rlp_buf);
+                self.stack.push(rlp);
+                if let Some(proof_retainer) = self.proof_retainer.as_mut() {
+                    proof_retainer.retain_leaf_proof(&Nibbles::default(), &self.rlp_buf)
+                }
+                return;
+            }
+        }
+
         let mut i = 0usize;
         loop {
             let _span = tracing::trace_span!(target: "trie::hash_builder", "loop", i, ?current, build_extensions).entered();
@@ -541,6 +554,20 @@ mod tests {
         proptest!(|(state: BTreeMap<B256, U256>)| {
             assert_hashed_trie_root(state.iter());
         });
+    }
+
+    #[test]
+    fn single_leaf_proof() {
+        let key = Nibbles::unpack(B256::with_last_byte(0x2));
+        let value = alloy_rlp::encode(U256::from(2));
+
+        let retainer = ProofRetainer::from_iter([key]);
+        let mut hb = HashBuilder::default().with_proof_retainer(retainer);
+        hb.add_leaf(key, &value);
+        assert_eq!(hb.root(), triehash_trie_root([(key.pack(), &value)]));
+
+        let leaf = alloy_rlp::encode(LeafNode::new(key, value));
+        assert_eq!(hb.take_proof_nodes().into_nodes_sorted(), [(Nibbles::default(), leaf.into())]);
     }
 
     #[test]
