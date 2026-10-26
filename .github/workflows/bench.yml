@@ -39,7 +39,7 @@ jobs:
         with:
           tool: cargo-codspeed
       - name: Build the benchmark target(s)
-        run: cargo codspeed build --profile profiling --features="arbitrary,ethereum"
+        run: cargo codspeed build --profile profiling --features="arbitrary"
       - name: Run the benchmarks
         uses: CodSpeedHQ/action@c4fd08a3a159bd0cc208da1e0edf32b8c47d75e5 # v5.4.0
         with:
