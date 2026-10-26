@@ -69,7 +69,7 @@ impl Default for HashBuilder {
             stored_in_database: Default::default(),
             updated_branch_nodes: None,
             proof_retainer: None,
-            rlp_buf: Default::default(),
+            rlp_buf: Vec::with_capacity(128),
         }
     }
 }
