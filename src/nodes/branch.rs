@@ -193,15 +193,9 @@ impl<'a> BranchNodeRef<'a> {
     /// Returns the length of RLP encoded fields of branch node.
     #[inline]
     fn rlp_payload_length(&self) -> usize {
-        let mut payload_length = 1;
-        for (_, child) in self.children() {
-            if let Some(child) = child {
-                payload_length += child.len();
-            } else {
-                payload_length += 1;
-            }
-        }
-        payload_length
+        let children = &self.stack[self.first_child_index()..];
+        // One byte for each empty child slot and for the empty value.
+        1 + (16 - children.len()) + children.iter().map(|child| child.len()).sum::<usize>()
     }
 }
 
@@ -215,6 +209,7 @@ struct BranchChildrenIter<'a> {
 
 impl<'a> BranchChildrenIter<'a> {
     /// Create new iterator over branch node children.
+    #[inline]
     fn new(node: &BranchNodeRef<'a>) -> Self {
         Self {
             range: CHILD_INDEX_RANGE,

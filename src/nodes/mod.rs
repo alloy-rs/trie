@@ -240,24 +240,35 @@ pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles 
 #[inline]
 pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> {
     let mut nibbles = *nibbles;
-    let encoded_len = nibbles.len() / 2 + 1;
-    let odd_nibbles = nibbles.len() % 2 != 0;
-    // SAFETY: `len` is calculated correctly.
-    unsafe {
-        nybbles::smallvec_with(encoded_len, |buf| {
-            let (first, rest) = buf.split_first_mut().unwrap_unchecked();
-            first.write(match (is_leaf, odd_nibbles) {
-                (true, true) => LeafNode::ODD_FLAG | nibbles.get_unchecked(0),
-                (true, false) => LeafNode::EVEN_FLAG,
-                (false, true) => ExtensionNode::ODD_FLAG | nibbles.get_unchecked(0),
-                (false, false) => ExtensionNode::EVEN_FLAG,
-            });
-            if odd_nibbles {
-                nibbles = nibbles.slice(1..);
-            }
-            nibbles.pack_to_slice_unchecked(rest);
-        })
+    let len = nibbles.len();
+    let (even_flag, odd_flag) = if is_leaf {
+        (LeafNode::EVEN_FLAG, LeafNode::ODD_FLAG)
+    } else {
+        (ExtensionNode::EVEN_FLAG, ExtensionNode::ODD_FLAG)
+    };
+    // `Nibbles` stores the nibbles left-aligned in a `U256`, so the packed path is its big-endian
+    // bytes. Only the bytes inside the path are read.
+    let limbs = *nibbles.as_mut_uint_unchecked().as_limbs();
+    let mut buf = [0u8; 36];
+    if len % 2 != 0 {
+        // Shift right by one nibble, so the first nibble lands in the low half of the flag byte.
+        let shifted = [
+            limbs[3] >> 4,
+            limbs[2] >> 4 | limbs[3] << 60,
+            limbs[1] >> 4 | limbs[2] << 60,
+            limbs[0] >> 4 | limbs[1] << 60,
+        ];
+        for (chunk, limb) in buf.chunks_exact_mut(8).zip(shifted) {
+            chunk.copy_from_slice(&limb.to_be_bytes());
+        }
+        buf[0] |= odd_flag;
+    } else {
+        for (chunk, limb) in buf[1..33].chunks_exact_mut(8).zip(limbs.iter().rev()) {
+            chunk.copy_from_slice(&limb.to_be_bytes());
+        }
+        buf[0] = even_flag;
     }
+    SmallVec::from_buf_and_len(buf, len / 2 + 1)
 }
 
 #[cfg(test)]
