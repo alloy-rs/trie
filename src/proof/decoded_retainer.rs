@@ -1,5 +1,5 @@
-use crate::{Nibbles, proof::DecodedProofNodes};
-use alloy_primitives::Bytes;
+use crate::{Nibbles, nodes::TrieNode, proof::DecodedProofNodes};
+use alloy_rlp::Decodable;
 
 use alloc::vec::Vec;
 
@@ -21,13 +21,16 @@ impl FromIterator<Nibbles> for DecodedProofRetainer {
 
 impl DecodedProofRetainer {
     /// Create new retainer with target nibbles.
-    pub fn new(targets: Vec<Nibbles>) -> Self {
+    pub fn new(mut targets: Vec<Nibbles>) -> Self {
+        targets.sort_unstable();
         Self { targets, proof_nodes: Default::default() }
     }
 
     /// Returns `true` if the given prefix matches the retainer target.
     pub fn matches(&self, prefix: &Nibbles) -> bool {
-        self.targets.iter().any(|target| target.starts_with(prefix))
+        self.targets
+            .get(self.targets.partition_point(|target| target < prefix))
+            .is_some_and(|target| target.starts_with(prefix))
     }
 
     /// Returns all collected proofs.
@@ -40,7 +43,7 @@ impl DecodedProofRetainer {
     /// Returns an error if the proof could not be decoded from the given proof bytes.
     pub fn retain(&mut self, prefix: &Nibbles, proof: &[u8]) -> Result<(), alloy_rlp::Error> {
         if prefix.is_empty() || self.matches(prefix) {
-            self.proof_nodes.insert_encoded(*prefix, Bytes::from(proof.to_vec()))?;
+            self.proof_nodes.insert(*prefix, TrieNode::decode(&mut &proof[..])?);
         }
 
         Ok(())
