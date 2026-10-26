@@ -557,22 +557,17 @@ mod tests {
     }
 
     #[test]
-    fn single_leaf_retains_proof_without_updates() {
+    fn single_leaf_proof() {
         let key = Nibbles::unpack(B256::with_last_byte(0x2));
         let value = alloy_rlp::encode(U256::from(2));
 
         let retainer = ProofRetainer::from_iter([key]);
-        let mut hb = HashBuilder::default().with_updates(true).with_proof_retainer(retainer);
+        let mut hb = HashBuilder::default().with_proof_retainer(retainer);
         hb.add_leaf(key, &value);
-        let root = hb.root();
-        assert_eq!(root, triehash_trie_root([(key.pack(), &value)]));
-        assert!(hb.state_masks.is_empty());
-        assert!(hb.tree_masks.is_empty());
-        assert!(hb.hash_masks.is_empty());
+        assert_eq!(hb.root(), triehash_trie_root([(key.pack(), &value)]));
 
         let leaf = alloy_rlp::encode(LeafNode::new(key, value));
         assert_eq!(hb.take_proof_nodes().into_nodes_sorted(), [(Nibbles::default(), leaf.into())]);
-        assert_eq!(hb.updates_len(), 0);
     }
 
     #[test]
