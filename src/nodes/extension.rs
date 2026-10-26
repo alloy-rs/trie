@@ -60,7 +60,7 @@ impl Decodable for ExtensionNode {
             _ => return Err(alloy_rlp::Error::Custom("node is not extension")),
         };
 
-        let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
+        let key = unpack_path_to_nibbles(first, &encoded_key[1..])?;
         let child = RlpNode::from_raw_rlp(bytes)?;
         Ok(Self { key, child })
     }

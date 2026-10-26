@@ -130,7 +130,7 @@ impl Decodable for TrieNode {
                     _ => return Err(alloy_rlp::Error::Custom("node is not extension or leaf")),
                 };
 
-                let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
+                let key = unpack_path_to_nibbles(first, &encoded_key[1..])?;
                 let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
                     let mut value = items[1];
                     let value = Header::decode_bytes(&mut value, false)?.to_vec();
@@ -179,13 +179,18 @@ pub const fn word_rlp(word: &B256) -> RlpNode {
 ///
 /// `first` - first nibble of the path if it is odd
 /// `rest` - rest of the nibbles packed
+///
+/// Returns an error if the path is longer than 64 nibbles.
 #[inline]
-pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> Nibbles {
+pub(crate) fn unpack_path_to_nibbles(first: Option<u8>, rest: &[u8]) -> alloy_rlp::Result<Nibbles> {
+    if rest.len() > 32 - first.is_some() as usize {
+        return Err(alloy_rlp::Error::Custom("trie node key too long"));
+    }
     let rest = Nibbles::unpack(rest);
-    let Some(first) = first else { return rest };
+    let Some(first) = first else { return Ok(rest) };
     debug_assert!(first <= 0xf);
     // TODO: optimize
-    Nibbles::from_nibbles_unchecked([first]).join(&rest)
+    Ok(Nibbles::from_nibbles_unchecked([first]).join(&rest))
 }
 
 /// Encodes a given path leaf as a compact array of bytes.
@@ -309,6 +314,51 @@ mod tests {
                 Err(alloy_rlp::Error::Custom("invalid number of items in the list")),
                 "{items} items"
             );
+        }
+    }
+
+    #[test]
+    fn decode_rejects_oversized_keys() {
+        // `flag` byte followed by `len` key bytes, as a leaf (value `0x01`) or an extension (hash
+        // child).
+        let node = |leaf: bool, flag: u8, len: usize| {
+            let mut key = vec![flag];
+            key.extend(vec![0xab; len]);
+            let mut payload = vec![];
+            key.as_slice().encode(&mut payload);
+            if leaf {
+                payload.push(0x01);
+            } else {
+                B256::ZERO.encode(&mut payload);
+            }
+            let mut rlp = vec![];
+            Header { list: true, payload_length: payload.len() }.encode(&mut rlp);
+            rlp.extend(payload);
+            rlp
+        };
+
+        let too_long = Err(alloy_rlp::Error::Custom("trie node key too long"));
+        // (leaf, flag, max key bytes after the flag): 64 nibbles when even, 63 when odd.
+        for (leaf, flag, max) in [
+            (true, LeafNode::EVEN_FLAG, 32),
+            (true, LeafNode::ODD_FLAG | 0x0c, 31),
+            (false, ExtensionNode::EVEN_FLAG, 32),
+            (false, ExtensionNode::ODD_FLAG | 0x0c, 31),
+        ] {
+            let ok = node(leaf, flag, max);
+            let over = node(leaf, flag, max + 1);
+
+            let decoded = TrieNode::decode(&mut &ok[..]).unwrap();
+            assert_eq!(alloy_rlp::encode(&decoded), ok);
+            assert_eq!(TrieNode::decode(&mut &over[..]).map(drop), too_long);
+
+            if leaf {
+                assert!(LeafNode::decode(&mut &ok[..]).is_ok());
+                assert_eq!(LeafNode::decode(&mut &over[..]).map(drop), too_long);
+            } else {
+                assert!(ExtensionNode::decode(&mut &ok[..]).is_ok());
+                assert_eq!(ExtensionNode::decode(&mut &over[..]).map(drop), too_long);
+            }
         }
     }
 
