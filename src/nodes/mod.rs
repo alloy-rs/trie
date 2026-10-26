@@ -1,6 +1,7 @@
 //! Various branch nodes produced by the hash builder.
 
-use alloy_primitives::{B256, Bytes};
+use crate::TrieMask;
+use alloy_primitives::B256;
 use alloy_rlp::{Decodable, EMPTY_STRING_CODE, Encodable, Header};
 use core::ops::Range;
 use nybbles::Nibbles;
@@ -64,38 +65,56 @@ impl Encodable for TrieNode {
 
 impl Decodable for TrieNode {
     fn decode(buf: &mut &[u8]) -> alloy_rlp::Result<Self> {
-        let mut items = match Header::decode_raw(buf)? {
-            alloy_rlp::PayloadView::List(list) => list,
-            alloy_rlp::PayloadView::String(val) => {
-                return if val.is_empty() {
-                    Ok(Self::EmptyRoot)
-                } else {
-                    Err(alloy_rlp::Error::UnexpectedString)
-                };
-            }
-        };
+        let Header { list, payload_length } = Header::decode(buf)?;
+        // `Header::decode` checks that the buffer holds `payload_length` bytes.
+        let (mut payload, rest) = buf.split_at(payload_length);
+        *buf = rest;
+
+        if !list {
+            return if payload.is_empty() {
+                Ok(Self::EmptyRoot)
+            } else {
+                Err(alloy_rlp::Error::UnexpectedString)
+            };
+        }
 
         // A valid number of trie node items is either 17 (branch node)
         // or 2 (extension or leaf node).
-        match items.len() {
+        let mut items = [&[][..]; 17];
+        let mut len = 0;
+        while !payload.is_empty() {
+            let item_start = payload;
+            let Header { payload_length, .. } = Header::decode(&mut payload)?;
+            payload = &payload[payload_length..];
+
+            if len == items.len() {
+                return Err(alloy_rlp::Error::Custom("invalid number of items in the list"));
+            }
+            items[len] = &item_start[..item_start.len() - payload.len()];
+            len += 1;
+        }
+
+        match len {
             17 => {
-                let mut branch = BranchNode::default();
-                for (idx, item) in items.into_iter().enumerate() {
-                    if idx == 16 {
-                        if item != [EMPTY_STRING_CODE] {
-                            return Err(alloy_rlp::Error::Custom(
-                                "branch node values are not supported",
-                            ));
-                        }
-                    } else if item != [EMPTY_STRING_CODE] {
-                        branch.stack.push(RlpNode::from_raw_rlp(item)?);
-                        branch.state_mask.set_bit(idx as u8);
+                let (children, value) = items.split_at(16);
+                let child_count =
+                    children.iter().filter(|item| **item != [EMPTY_STRING_CODE]).count();
+
+                let mut stack = Vec::with_capacity(child_count);
+                let mut state_mask = TrieMask::default();
+                for (idx, item) in children.iter().enumerate() {
+                    if *item != [EMPTY_STRING_CODE] {
+                        stack.push(RlpNode::from_raw_rlp(item)?);
+                        state_mask.set_bit(idx as u8);
                     }
                 }
-                Ok(Self::Branch(branch))
+                if value[0] != [EMPTY_STRING_CODE] {
+                    return Err(alloy_rlp::Error::Custom("branch node values are not supported"));
+                }
+                Ok(Self::Branch(BranchNode::new(stack, state_mask)))
             }
             2 => {
-                let mut key = items.remove(0);
+                let mut key = items[0];
 
                 let encoded_key = Header::decode_bytes(&mut key, false)?;
                 if encoded_key.is_empty() {
@@ -113,14 +132,12 @@ impl Decodable for TrieNode {
 
                 let key = unpack_path_to_nibbles(first, &encoded_key[1..]);
                 let node = if key_flag == LeafNode::EVEN_FLAG || key_flag == LeafNode::ODD_FLAG {
-                    let value = Bytes::decode(&mut items.remove(0))?.into();
+                    let mut value = items[1];
+                    let value = Header::decode_bytes(&mut value, false)?.to_vec();
                     Self::Leaf(LeafNode::new(key, value))
                 } else {
                     // We don't decode value because it is expected to be RLP encoded.
-                    Self::Extension(ExtensionNode::new(
-                        key,
-                        RlpNode::from_raw_rlp(items.remove(0))?,
-                    ))
+                    Self::Extension(ExtensionNode::new(key, RlpNode::from_raw_rlp(items[1])?))
                 };
                 Ok(node)
             }
@@ -246,7 +263,6 @@ pub fn encode_path_leaf(nibbles: &Nibbles, is_leaf: bool) -> SmallVec<[u8; 36]> 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::TrieMask;
     use alloy_primitives::hex;
 
     #[test]
@@ -255,6 +271,34 @@ mod tests {
         let rlp = empty_root.rlp(&mut vec![]);
         assert_eq!(rlp[..], hex!("80"));
         assert_eq!(TrieNode::decode(&mut &rlp[..]).unwrap(), empty_root);
+    }
+
+    #[test]
+    fn decode_rejects_invalid_item_counts_and_branch_values() {
+        let list = |items: usize, value: &[u8]| {
+            let mut payload = vec![EMPTY_STRING_CODE; items - 1];
+            payload.extend_from_slice(value);
+            let mut rlp = vec![0xc0 + payload.len() as u8];
+            rlp.extend(payload);
+            rlp
+        };
+
+        assert!(matches!(
+            TrieNode::decode(&mut &list(17, &[EMPTY_STRING_CODE])[..]),
+            Ok(TrieNode::Branch(branch)) if branch.stack.is_empty()
+        ));
+        assert_eq!(
+            TrieNode::decode(&mut &list(17, &[0x01])[..]),
+            Err(alloy_rlp::Error::Custom("branch node values are not supported"))
+        );
+        for items in [0, 1, 3, 16, 18, 20] {
+            let rlp = if items == 0 { vec![0xc0] } else { list(items, &[EMPTY_STRING_CODE]) };
+            assert_eq!(
+                TrieNode::decode(&mut &rlp[..]),
+                Err(alloy_rlp::Error::Custom("invalid number of items in the list")),
+                "{items} items"
+            );
+        }
     }
 
     #[test]
