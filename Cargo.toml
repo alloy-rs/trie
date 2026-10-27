@@ -19,21 +19,21 @@ repository = "https://github.com/alloy-rs/trie"
 exclude = [".github/", "deny.toml", "release.toml", "rustfmt.toml"]
 
 [lints.rust]
-missing-debug-implementations = "warn"
-missing-docs = "warn"
-unreachable-pub = "warn"
-unused-must-use = "deny"
-rust-2018-idioms = "deny"
-unnameable-types = "warn"
+missing_debug_implementations = "warn"
+missing_docs = "warn"
+unreachable_pub = "warn"
+unused_must_use = "deny"
+rust_2018_idioms = "deny"
+unnameable_types = "warn"
 
 [lints.rustdoc]
 all = "warn"
 
 [lints.clippy]
 all = { level = "warn", priority = -1 }
-missing-const-for-fn = "warn"
-use-self = "warn"
-redundant-clone = "warn"
+missing_const_for_fn = "warn"
+use_self = "warn"
+redundant_clone = "warn"
 result_large_err = "allow"
 
 # Use the `--profile profiling` flag to show symbols in release mode.
