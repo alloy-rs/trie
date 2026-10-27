@@ -52,6 +52,7 @@ pub struct HashBuilder<K = AddedRemovedKeys> {
     pub stored_in_database: bool,
 
     pub updated_branch_nodes: Option<HashMap<Nibbles, BranchNodeCompact>>,
+    pub all_branch_nodes: bool,
     pub proof_retainer: Option<ProofRetainer<K>>,
 
     pub rlp_buf: Vec<u8>,
@@ -68,6 +69,7 @@ impl Default for HashBuilder {
             hash_masks: Default::default(),
             stored_in_database: Default::default(),
             updated_branch_nodes: None,
+            all_branch_nodes: false,
             proof_retainer: None,
             rlp_buf: Vec::with_capacity(128),
         }
@@ -94,6 +96,7 @@ impl<K> HashBuilder<K> {
             hash_masks: self.hash_masks,
             stored_in_database: self.stored_in_database,
             updated_branch_nodes: self.updated_branch_nodes,
+            all_branch_nodes: self.all_branch_nodes,
             proof_retainer: Some(retainer),
             rlp_buf: self.rlp_buf,
         }
@@ -106,6 +109,27 @@ impl<K> HashBuilder<K> {
         if retain_updates {
             self.updated_branch_nodes = Some(HashMap::default());
         }
+    }
+
+    /// Sets whether updates include every branch node the Hash Builder computes.
+    ///
+    /// By default, updates leave out branch nodes that are cheap to rebuild from their leaves, such
+    /// as one whose children are all leaves. With this enabled, every computed branch node is
+    /// included, the root too, and each parent's tree mask marks it. Use this when the updates
+    /// must describe the whole trie, such as when syncing it to a store that does not keep the
+    /// leaves.
+    ///
+    /// Has no effect unless updates are enabled with [HashBuilder::with_updates].
+    pub const fn with_all_branch_nodes(mut self, all_branch_nodes: bool) -> Self {
+        self.set_all_branch_nodes(all_branch_nodes);
+        self
+    }
+
+    /// Sets whether updates include every branch node the Hash Builder computes.
+    ///
+    /// See [HashBuilder::with_all_branch_nodes].
+    pub const fn set_all_branch_nodes(&mut self, all_branch_nodes: bool) {
+        self.all_branch_nodes = all_branch_nodes;
     }
 }
 
@@ -446,7 +470,9 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
                 TrieMask::from_nibble(current.get_unchecked(parent_index));
         }
 
-        let store_in_db_trie = !self.tree_masks[len].is_empty() || !self.hash_masks[len].is_empty();
+        let store_in_db_trie = self.all_branch_nodes
+            || !self.tree_masks[len].is_empty()
+            || !self.hash_masks[len].is_empty();
         if store_in_db_trie {
             if len > 0 {
                 let parent_index = len - 1;
@@ -640,6 +666,97 @@ mod tests {
         assert_eq!(update.hashes.len(), 2);
 
         assert_eq!(_root, triehash_trie_root(data));
+    }
+
+    /// Builds a trie over equal-length nibble keys with all branch nodes retained and checks the
+    /// updates against the branch nodes derived from the keys alone.
+    fn assert_all_branch_nodes(keys: &[Nibbles]) {
+        let mut hb = HashBuilder::default().with_updates(true).with_all_branch_nodes(true);
+        for key in keys {
+            hb.add_leaf(*key, &[0x01; 32]);
+        }
+        let root = hb.root();
+        let (_, updates) = hb.split();
+
+        // A branch node sits at every prefix whose keys diverge at the next nibble.
+        let mut expected = BTreeMap::<Nibbles, TrieMask>::new();
+        for i in 0..keys[0].len() {
+            for key in keys {
+                let prefix = key.slice(..i);
+                let mask = keys
+                    .iter()
+                    .filter(|k| k.starts_with(&prefix))
+                    .fold(TrieMask::default(), |m, k| {
+                        m | TrieMask::from_nibble(k.get_unchecked(i))
+                    });
+                if mask.count_ones() > 1 {
+                    expected.insert(prefix, mask);
+                }
+            }
+        }
+
+        let mut paths = updates.keys().copied().collect::<Vec<_>>();
+        paths.sort();
+        assert_eq!(paths, expected.keys().copied().collect::<Vec<_>>());
+
+        for (path, state_mask) in &expected {
+            let node = &updates[path];
+            assert_eq!(node.state_mask, *state_mask, "state mask at {path:?}");
+            let mut tree_mask = TrieMask::default();
+            let mut hash_mask = TrieMask::default();
+            for nibble in 0..16 {
+                let mut child = *path;
+                child.push(nibble);
+                if expected.keys().any(|p| p.starts_with(&child)) {
+                    tree_mask |= TrieMask::from_nibble(nibble);
+                }
+                if expected.contains_key(&child) {
+                    hash_mask |= TrieMask::from_nibble(nibble);
+                }
+            }
+            assert_eq!(node.tree_mask, tree_mask, "tree mask at {path:?}");
+            assert_eq!(node.hash_mask, hash_mask, "hash mask at {path:?}");
+            assert_eq!(node.root_hash, path.is_empty().then_some(root), "root hash at {path:?}");
+        }
+    }
+
+    #[test]
+    fn all_branch_nodes_leaf_only_root() {
+        let keys = [Nibbles::from_nibbles([0x0, 0x0]), Nibbles::from_nibbles([0x1, 0x0])];
+
+        let mut hb = HashBuilder::default().with_updates(true);
+        for key in keys {
+            hb.add_leaf(key, &[0x01; 32]);
+        }
+        hb.root();
+        assert_eq!(hb.updates_len(), 0);
+
+        assert_all_branch_nodes(&keys);
+    }
+
+    #[test]
+    fn all_branch_nodes_under_extensions() {
+        // Extension 3 leads to the root branch at 3. Its child 0 is extension 2 leading to a
+        // leaf-only branch at 302, and its child 1 is a leaf-only branch at 31.
+        assert_all_branch_nodes(&[
+            Nibbles::from_nibbles([0x3, 0x0, 0x2, 0x0]),
+            Nibbles::from_nibbles([0x3, 0x0, 0x2, 0x1]),
+            Nibbles::from_nibbles([0x3, 0x1, 0x0, 0x0]),
+            Nibbles::from_nibbles([0x3, 0x1, 0x1, 0x0]),
+        ]);
+    }
+
+    #[test]
+    #[cfg(feature = "arbitrary")]
+    #[cfg_attr(miri, ignore = "no proptest")]
+    fn arbitrary_all_branch_nodes() {
+        use proptest::prelude::*;
+        // A small nibble alphabet makes extension nodes common.
+        let keys = prop::collection::btree_set(prop::collection::vec(0u8..3, 6), 2..40);
+        proptest!(|(keys in keys)| {
+            let keys = keys.into_iter().map(Nibbles::from_nibbles).collect::<Vec<_>>();
+            assert_all_branch_nodes(&keys);
+        });
     }
 
     #[test]
