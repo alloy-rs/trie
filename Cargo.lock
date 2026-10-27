@@ -32,7 +32,7 @@ dependencies = [
  "keccak-asm",
  "paste",
  "proptest",
- "proptest-derive",
+ "proptest-derive 0.8.0",
  "rand 0.9.5",
  "rapidhash",
  "ruint",
@@ -80,7 +80,7 @@ dependencies = [
  "plain_hasher",
  "postcard",
  "proptest",
- "proptest-derive",
+ "proptest-derive 0.7.0",
  "rmp-serde",
  "serde",
  "serde_json",
@@ -1591,6 +1591,17 @@ dependencies = [
  "rusty-fork",
  "tempfile",
  "unarray",
+]
+
+[[package]]
+name = "proptest-derive"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb6dc647500e84a25a85b100e76c85b8ace114c209432dc174f20aac11d4ed6c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.119",
 ]
 
 [[package]]
