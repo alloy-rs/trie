@@ -5,6 +5,46 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.9](https://github.com/alloy-rs/trie/releases/tag/v0.9.9) - 2026-10-27
+
+### Bug Fixes
+
+- [hash_builder] Skip hash mask bit for inlined branch nodes ([#199](https://github.com/alloy-rs/trie/issues/199))
+- [proof] Reject an in-place extension with a non-branch child ([#180](https://github.com/alloy-rs/trie/issues/180))
+- [nodes] Reject oversized leaf and extension keys ([#192](https://github.com/alloy-rs/trie/issues/192))
+- [ci] Pin setup-mold to the v1 tag commit ([#190](https://github.com/alloy-rs/trie/issues/190))
+- [serde] Validate hash builder value length ([#182](https://github.com/alloy-rs/trie/issues/182))
+- [ci] Buffer the action update cooldown ([#174](https://github.com/alloy-rs/trie/issues/174))
+
+### Dependencies
+
+- [deps] Bump proptest-derive from 0.7.0 to 0.8.0 in the cargo-weekly group ([#196](https://github.com/alloy-rs/trie/issues/196))
+- [deps] Bump CodSpeedHQ/action from 5.4.0 to 5.5.0 in the ci-weekly group ([#191](https://github.com/alloy-rs/trie/issues/191))
+- [deps] Bump the ci-weekly group with 2 updates ([#173](https://github.com/alloy-rs/trie/issues/173))
+
+### Features
+
+- [hash_builder] Add option to retain all branch nodes in updates ([#198](https://github.com/alloy-rs/trie/issues/198))
+
+### Miscellaneous Tasks
+
+- Use snake_case lint names in Cargo.toml ([#197](https://github.com/alloy-rs/trie/issues/197))
+- Commit Cargo.lock and add Cargo Dependabot ([#195](https://github.com/alloy-rs/trie/issues/195))
+- [ci] Enable automatic Cyclops PR review ([#183](https://github.com/alloy-rs/trie/issues/183))
+- Allow Git dependency sources ([#176](https://github.com/alloy-rs/trie/issues/176))
+- Remove redundant package homepages ([#175](https://github.com/alloy-rs/trie/issues/175))
+- [ci] Update gh-actions to latest revision ([#172](https://github.com/alloy-rs/trie/issues/172))
+- [ci] Use vendored dtolnay/rust-toolchain ([#171](https://github.com/alloy-rs/trie/issues/171))
+
+### Performance
+
+- [hash_builder] Skip mask bookkeeping for a single leaf ([#193](https://github.com/alloy-rs/trie/issues/193))
+- Speed up trie node RLP encoding ([#187](https://github.com/alloy-rs/trie/issues/187))
+- Encode TrieAccount fixed fields on the stack ([#188](https://github.com/alloy-rs/trie/issues/188))
+- [hash-builder] Preallocate rlp buffer ([#189](https://github.com/alloy-rs/trie/issues/189))
+- [proof] Binary-search proof retainer targets ([#186](https://github.com/alloy-rs/trie/issues/186))
+- [nodes] Avoid allocations when decoding trie nodes ([#185](https://github.com/alloy-rs/trie/issues/185))
+
 ## [0.9.8](https://github.com/alloy-rs/trie/releases/tag/v0.9.8) - 2026-09-29
 
 ### Bug Fixes
@@ -22,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Miscellaneous Tasks
 
+- Release 0.9.8
 - [ci] Migrate deny to gh-actions ([#168](https://github.com/alloy-rs/trie/issues/168))
 - Update gh-actions and deny workflow pins ([#167](https://github.com/alloy-rs/trie/issues/167))
 - Update gh-actions to ee2960a6 ([#166](https://github.com/alloy-rs/trie/issues/166))
