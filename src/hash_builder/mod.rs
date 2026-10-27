@@ -440,7 +440,8 @@ impl<K: AsRef<AddedRemovedKeys>> HashBuilder<K> {
     /// masks in the database. We will use that when consuming the intermediate nodes
     /// from the database to efficiently build the trie.
     fn store_branch_node(&mut self, current: &Nibbles, len: usize, children: Vec<B256>) {
-        if len > 0 {
+        // A branch whose RLP is shorter than 32 bytes is inlined in its parent, so it has no hash.
+        if len > 0 && self.stack.last().is_some_and(RlpNode::is_hash) {
             let parent_index = len - 1;
             self.hash_masks[parent_index] |=
                 TrieMask::from_nibble(current.get_unchecked(parent_index));
@@ -640,6 +641,22 @@ mod tests {
         assert_eq!(update.hashes.len(), 2);
 
         assert_eq!(_root, triehash_trie_root(data));
+    }
+
+    #[test]
+    fn test_updates_inlined_branch_node() {
+        // https://github.com/alloy-rs/trie/issues/9
+        let data =
+            BTreeMap::from([(hex!("80"), "cake"), (hex!("01"), "pie"), (hex!("02"), "candy")]);
+        let mut hb = HashBuilder::default().with_updates(true);
+        for (key, val) in &data {
+            hb.add_leaf(Nibbles::unpack(key), val.as_bytes());
+        }
+        assert_eq!(hb.root(), triehash_trie_root(&data));
+
+        // The branch at nibble `0` is inlined in the root, so the root has no hashed children.
+        let (_, updates) = hb.split();
+        assert!(updates.is_empty());
     }
 
     #[test]
