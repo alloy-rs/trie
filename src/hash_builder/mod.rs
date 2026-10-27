@@ -646,17 +646,26 @@ mod tests {
     #[test]
     fn test_updates_inlined_branch_node() {
         // https://github.com/alloy-rs/trie/issues/9
-        let data =
-            BTreeMap::from([(hex!("80"), "cake"), (hex!("01"), "pie"), (hex!("02"), "candy")]);
+        let big = [0xff; 32];
+        let data = BTreeMap::from([
+            (hex!("80"), &b"cake"[..]),
+            (hex!("01"), b"pie"),
+            (hex!("02"), b"candy"),
+            (hex!("11"), &big),
+            (hex!("12"), &big),
+        ]);
         let mut hb = HashBuilder::default().with_updates(true);
         for (key, val) in &data {
-            hb.add_leaf(Nibbles::unpack(key), val.as_bytes());
+            hb.add_leaf(Nibbles::unpack(key), val);
         }
         assert_eq!(hb.root(), triehash_trie_root(&data));
 
-        // The branch at nibble `0` is inlined in the root, so the root has no hashed children.
+        // The branch at nibble `0` is inlined in the root, so only the branch at nibble `1` is
+        // hashed.
         let (_, updates) = hb.split();
-        assert!(updates.is_empty());
+        let root = &updates[&Nibbles::default()];
+        assert_eq!(root.hash_mask, TrieMask::new(0b10));
+        assert_eq!(root.hashes.len(), 1);
     }
 
     #[test]
