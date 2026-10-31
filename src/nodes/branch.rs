@@ -71,11 +71,13 @@ impl Decodable for BranchNode {
         }
 
         // Consume empty string code for branch node value.
-        let bytes = Header::decode_bytes(&mut bytes, false)?;
-        if !bytes.is_empty() {
+        let value = Header::decode_bytes(&mut bytes, false)?;
+        if !value.is_empty() {
             return Err(alloy_rlp::Error::Custom("branch values not supported"));
         }
-        debug_assert!(bytes.is_empty(), "bytes {}", alloy_primitives::hex::encode(bytes));
+        if !bytes.is_empty() {
+            return Err(alloy_rlp::Error::Custom("invalid number of items in the list"));
+        }
 
         let mut stack = Vec::with_capacity(child_count);
         for child in &children[..child_count] {
