@@ -43,44 +43,36 @@ where
     }
 
     let mut walked_path = Nibbles::new();
-    let mut last_decoded_node = Some(NodeDecodingResult::Node(RlpNode::word_rlp(&root)));
+    let mut state = WalkState::Pending(RlpNode::word_rlp(&root));
     for node in proof {
-        // Check if the node that we just decoded (or root node, if we just started) matches
-        // the expected node from the proof.
-        let expected_node = last_decoded_node.as_ref().and_then(NodeDecodingResult::as_node);
-        if Some(RlpNode::from_rlp(node).as_slice()) != expected_node {
+        // Check that the next proof node is the one the walk is waiting for (the root node, if we
+        // just started). Once the walk has reached a value or ended, no further node is expected.
+        if Some(RlpNode::from_rlp(node).as_slice()) != state.pending_node() {
             let got = Some(Bytes::copy_from_slice(node));
-            let expected = last_decoded_node
-                .as_ref()
-                .map(NodeDecodingResult::as_slice)
-                .map(Bytes::copy_from_slice);
+            let expected = state.as_slice().map(Bytes::copy_from_slice);
             return Err(ProofVerificationError::ValueMismatch { path: walked_path, got, expected });
         }
 
         // Decode the next node from the proof.
-        last_decoded_node =
-            process_trie_node(TrieNode::decode(&mut &node[..])?, &mut walked_path, &key)?;
+        state = process_trie_node(TrieNode::decode(&mut &node[..])?, &mut walked_path, &key)?;
     }
 
     // Reject incomplete proofs: if the walked path has not diverged from the key
-    // and there is still a pending node, the proof was truncated.
-    if key.starts_with(&walked_path)
-        && matches!(last_decoded_node, Some(NodeDecodingResult::Node(_)))
-    {
+    // and the walk is still waiting for a node, the proof was truncated.
+    if key.starts_with(&walked_path) && matches!(state, WalkState::Pending(_)) {
         return Err(ProofVerificationError::ValueMismatch {
             path: key,
-            got: last_decoded_node
-                .as_ref()
-                .map(NodeDecodingResult::as_slice)
-                .map(Bytes::copy_from_slice),
+            got: state.as_slice().map(Bytes::copy_from_slice),
             expected: expected_value.map(Bytes::from),
         });
     }
 
     // If the walked path diverged from the key (e.g. via an extension node whose
     // key doesn't match), the key does not exist — valid exclusion.
-    last_decoded_node = last_decoded_node.filter(|_| walked_path == key);
-    let decoded_value = last_decoded_node.as_ref().map(NodeDecodingResult::as_slice);
+    if walked_path != key {
+        state = WalkState::Ended;
+    }
+    let decoded_value = state.as_slice();
     if decoded_value == expected_value.as_deref() {
         Ok(())
     } else {
@@ -92,32 +84,44 @@ where
     }
 }
 
-/// The result of decoding a node from the proof.
+/// The state of the walk from the root down the key's path.
 ///
-/// - [`TrieNode::Branch`] is decoded into a [`NodeDecodingResult::Value`] if the node at the
-///   specified nibble was decoded into an in-place encoded [`TrieNode::Leaf`], or into a
-///   [`NodeDecodingResult::Node`] otherwise.
-/// - [`TrieNode::Extension`] is decoded into a [`NodeDecodingResult::Node`] if its child is hashed,
-///   or recursively into the result of its in-place child.
-/// - [`TrieNode::Leaf`] is always decoded into a [`NodeDecodingResult::Value`].
+/// Every proof node advances the walk:
+///
+/// - [`TrieNode::Branch`] moves to [`WalkState::Value`] if the child at the key's next nibble is an
+///   in-place encoded [`TrieNode::Leaf`], to [`WalkState::Pending`] if it is a hashed node, and to
+///   [`WalkState::Ended`] if the branch has no child there or the key has no nibble left.
+/// - [`TrieNode::Extension`] moves to [`WalkState::Pending`] if its child is hashed, or recursively
+///   to the state its in-place child gives.
+/// - [`TrieNode::Leaf`] always moves to [`WalkState::Value`].
+///
+/// Only [`WalkState::Pending`] accepts another proof node.
 #[derive(Debug, PartialEq, Eq)]
-enum NodeDecodingResult {
-    Node(RlpNode),
+enum WalkState {
+    /// The walk waits for the proof node with this reference (its hash, or the node itself when
+    /// it is encoded in place).
+    Pending(RlpNode),
+    /// The walk reached a leaf with this value.
     Value(Vec<u8>),
+    /// The walk ended without reaching a value: the key is not in the trie.
+    Ended,
 }
 
-impl NodeDecodingResult {
-    const fn as_node(&self) -> Option<&[u8]> {
+impl WalkState {
+    /// The node reference the next proof node must match, if the walk still expects one.
+    const fn pending_node(&self) -> Option<&[u8]> {
         match self {
-            Self::Node(node) => Some(node.as_slice()),
-            Self::Value(_) => None,
+            Self::Pending(node) => Some(node.as_slice()),
+            Self::Value(_) | Self::Ended => None,
         }
     }
 
-    fn as_slice(&self) -> &[u8] {
+    /// The bytes the walk holds: the pending node reference or the leaf value.
+    fn as_slice(&self) -> Option<&[u8]> {
         match self {
-            Self::Node(node) => node.as_slice(),
-            Self::Value(value) => value.as_slice(),
+            Self::Pending(node) => Some(node.as_slice()),
+            Self::Value(value) => Some(value.as_slice()),
+            Self::Ended => None,
         }
     }
 }
@@ -127,20 +131,20 @@ fn process_trie_node(
     node: TrieNode,
     walked_path: &mut Nibbles,
     key: &Nibbles,
-) -> Result<Option<NodeDecodingResult>, ProofVerificationError> {
+) -> Result<WalkState, ProofVerificationError> {
     let node = match node {
         TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
         TrieNode::Extension(extension) => {
             walked_path.extend(&extension.key);
             if extension.child.is_hash() {
-                Some(NodeDecodingResult::Node(extension.child))
+                WalkState::Pending(extension.child)
             } else {
                 process_trie_node(TrieNode::decode(&mut &extension.child[..])?, walked_path, key)?
             }
         }
         TrieNode::Leaf(leaf) => {
             walked_path.extend(&leaf.key);
-            Some(NodeDecodingResult::Value(leaf.value))
+            WalkState::Value(leaf.value)
         }
         TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
     };
@@ -152,7 +156,7 @@ fn process_branch(
     mut branch: BranchNode,
     walked_path: &mut Nibbles,
     key: &Nibbles,
-) -> Result<Option<NodeDecodingResult>, ProofVerificationError> {
+) -> Result<WalkState, ProofVerificationError> {
     if let Some(next) = key.get(walked_path.len()) {
         let mut stack_ptr = branch.as_ref().first_child_index();
         for index in CHILD_INDEX_RANGE {
@@ -162,7 +166,7 @@ fn process_branch(
 
                     let child = branch.stack.remove(stack_ptr);
                     if child.len() == B256::len_bytes() + 1 {
-                        return Ok(Some(NodeDecodingResult::Node(child)));
+                        return Ok(WalkState::Pending(child));
                     } else {
                         // This node is encoded in-place.
                         match TrieNode::decode(&mut &child[..])? {
@@ -205,7 +209,7 @@ fn process_branch(
                             }
                             TrieNode::Leaf(child_leaf) => {
                                 walked_path.extend(&child_leaf.key);
-                                return Ok(Some(NodeDecodingResult::Value(child_leaf.value)));
+                                return Ok(WalkState::Value(child_leaf.value));
                             }
                             TrieNode::EmptyRoot => {
                                 return Err(ProofVerificationError::UnexpectedEmptyRoot);
@@ -218,7 +222,7 @@ fn process_branch(
         }
     }
 
-    Ok(None)
+    Ok(WalkState::Ended)
 }
 
 #[cfg(test)]
