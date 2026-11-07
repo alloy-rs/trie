@@ -35,7 +35,7 @@ impl ProofNodes {
         &'a self,
         target: &'a Nibbles,
     ) -> impl Iterator<Item = (&'a Nibbles, &'a Bytes)> {
-        self.0.iter().filter(|(key, _)| target.starts_with(key))
+        super::matching_entries(&self.0, target)
     }
 
     /// Return the vec of proof nodes that match the target.
@@ -77,5 +77,38 @@ impl ProofNodes {
     /// Extends with the elements of another `ProofNodes`.
     pub fn extend_from(&mut self, other: Self) {
         self.extend(other.0);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use alloy_primitives::{B256, keccak256};
+
+    #[test]
+    fn matching_nodes_by_lookup_and_scan_agree() {
+        let target = Nibbles::unpack(B256::repeat_byte(0x12));
+        let other = Nibbles::unpack(B256::repeat_byte(0x13));
+        // Every prefix of the target and of another key, plus unrelated paths, so the map is
+        // large enough to be searched by prefix lookups.
+        let mut nodes = ProofNodes::default();
+        for len in 0..=64 {
+            nodes.insert(target.slice(..len), Bytes::from(vec![len as u8]));
+            nodes.insert(other.slice(..len), Bytes::from(vec![len as u8, 1]));
+        }
+        for i in 0u64..300 {
+            nodes.insert(Nibbles::unpack(keccak256(i.to_be_bytes())), Bytes::new());
+        }
+        assert!(nodes.len() > 4 * (target.len() + 1));
+
+        for target in [target, target.slice(..7), other, Nibbles::default()] {
+            let mut expected = nodes
+                .iter()
+                .filter(|(path, _)| target.starts_with(path))
+                .map(|(path, node)| (*path, node.clone()))
+                .collect::<Vec<_>>();
+            expected.sort_unstable_by_key(|(path, _)| *path);
+            assert_eq!(nodes.matching_nodes_sorted(&target), expected);
+        }
     }
 }
