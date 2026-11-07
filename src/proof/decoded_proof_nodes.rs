@@ -49,7 +49,7 @@ impl DecodedProofNodes {
         &'a self,
         target: &'a Nibbles,
     ) -> impl Iterator<Item = (&'a Nibbles, &'a TrieNode)> {
-        self.0.iter().filter(|(key, _)| target.starts_with(key))
+        super::matching_entries(&self.0, target)
     }
 
     /// Return the vec of proof nodes that match the target.
