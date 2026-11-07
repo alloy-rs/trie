@@ -88,9 +88,11 @@ where
 ///
 /// Every proof node advances the walk:
 ///
-/// - [`TrieNode::Branch`] moves to [`WalkState::Value`] if the child at the key's next nibble is an
-///   in-place encoded [`TrieNode::Leaf`], to [`WalkState::Pending`] if it is a hashed node, and to
-///   [`WalkState::Ended`] if the branch has no child there or the key has no nibble left.
+/// - [`TrieNode::Branch`] looks at the child at the key's next nibble: it moves to
+///   [`WalkState::Pending`] if that child is hashed, to [`WalkState::Value`] if it is an in-place
+///   [`TrieNode::Leaf`], recursively to the state an in-place [`TrieNode::Branch`] (or an in-place
+///   [`TrieNode::Extension`] wrapping one) gives, and to [`WalkState::Ended`] if the branch has no
+///   child there or the key has no nibble left.
 /// - [`TrieNode::Extension`] moves to [`WalkState::Pending`] if its child is hashed, or recursively
 ///   to the state its in-place child gives.
 /// - [`TrieNode::Leaf`] always moves to [`WalkState::Value`].
@@ -98,8 +100,8 @@ where
 /// Only [`WalkState::Pending`] accepts another proof node.
 #[derive(Debug, PartialEq, Eq)]
 enum WalkState {
-    /// The walk waits for the proof node with this reference (its hash, or the node itself when
-    /// it is encoded in place).
+    /// The walk waits for the proof node with this hash reference. In-place children are decoded
+    /// immediately and never become pending.
     Pending(RlpNode),
     /// The walk reached a leaf with this value.
     Value(Vec<u8>),
