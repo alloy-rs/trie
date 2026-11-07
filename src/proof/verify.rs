@@ -128,6 +128,20 @@ impl WalkState {
     }
 }
 
+/// Appends a node's key to the walked path.
+///
+/// Returns `false`, leaving the path unchanged, if the result would exceed the 64 nibbles a key can
+/// have. Only a forged proof gets there, and its path can't be any key: the walk ends as an
+/// exclusion, and later proof nodes are rejected.
+#[inline]
+fn extend_walked_path(walked_path: &mut Nibbles, node_key: &Nibbles) -> bool {
+    if walked_path.len() + node_key.len() > B256::len_bytes() * 2 {
+        return false;
+    }
+    walked_path.extend(node_key);
+    true
+}
+
 #[inline]
 fn process_trie_node(
     node: TrieNode,
@@ -137,7 +151,9 @@ fn process_trie_node(
     let node = match node {
         TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
         TrieNode::Extension(extension) => {
-            walked_path.extend(&extension.key);
+            if !extend_walked_path(walked_path, &extension.key) {
+                return Ok(WalkState::Ended);
+            }
             if extension.child.is_hash() {
                 WalkState::Pending(extension.child)
             } else {
@@ -145,7 +161,9 @@ fn process_trie_node(
             }
         }
         TrieNode::Leaf(leaf) => {
-            walked_path.extend(&leaf.key);
+            if !extend_walked_path(walked_path, &leaf.key) {
+                return Ok(WalkState::Ended);
+            }
             WalkState::Value(leaf.value)
         }
         TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
@@ -180,7 +198,9 @@ fn process_branch(
                                 return process_branch(child_branch, walked_path, key);
                             }
                             TrieNode::Extension(child_extension) => {
-                                walked_path.extend(&child_extension.key);
+                                if !extend_walked_path(walked_path, &child_extension.key) {
+                                    return Ok(WalkState::Ended);
+                                }
 
                                 // If the extension node's child is a hash, the encoded extension
                                 // node itself wouldn't fit for encoding in-place. So this extension
@@ -210,7 +230,9 @@ fn process_branch(
                                 }
                             }
                             TrieNode::Leaf(child_leaf) => {
-                                walked_path.extend(&child_leaf.key);
+                                if !extend_walked_path(walked_path, &child_leaf.key) {
+                                    return Ok(WalkState::Ended);
+                                }
                                 return Ok(WalkState::Value(child_leaf.value));
                             }
                             TrieNode::EmptyRoot => {
@@ -839,6 +861,76 @@ mod tests {
                 "in-place extension node child is not a branch node"
             )))
         );
+    }
+
+    #[test]
+    fn path_longer_than_key_space_is_exclusion() {
+        // A forged proof whose node keys sum to more than 64 nibbles must not overflow the walked
+        // path. The full path can't be any key, so it proves exclusion.
+        let leaf = TrieNode::Leaf(LeafNode::new(Nibbles::unpack(B256::ZERO), vec![0x01]));
+        let leaf = Bytes::from(alloy_rlp::encode(leaf));
+        let leaf_ref = RlpNode::from_rlp(&leaf);
+        assert!(leaf_ref.is_hash());
+        let branch = TrieNode::Branch(BranchNode::new(vec![leaf_ref], TrieMask::new(0b1)));
+        let branch = Bytes::from(alloy_rlp::encode(branch));
+        let root = alloy_primitives::keccak256(&branch);
+        let key = Nibbles::unpack(B256::ZERO);
+
+        assert_eq!(verify_proof(root, key, None, [&branch, &leaf]), Ok(()));
+        assert_eq!(
+            verify_proof(root, key, Some(vec![0x01]), [&branch, &leaf]),
+            Err(ProofVerificationError::ValueMismatch {
+                path: key,
+                got: None,
+                expected: Some(Bytes::from_static(&[0x01])),
+            })
+        );
+
+        // The same through a hashed extension node below another extension.
+        let inner = TrieNode::Extension(ExtensionNode::new(
+            Nibbles::unpack(B256::ZERO),
+            RlpNode::word_rlp(&B256::repeat_byte(0x11)),
+        ));
+        let inner = Bytes::from(alloy_rlp::encode(inner));
+        let outer = TrieNode::Extension(ExtensionNode::new(
+            Nibbles::from_nibbles([0x0]),
+            RlpNode::from_rlp(&inner),
+        ));
+        let outer = Bytes::from(alloy_rlp::encode(outer));
+        let root = alloy_primitives::keccak256(&outer);
+        assert_eq!(verify_proof(root, key, None, [&outer, &inner]), Ok(()));
+
+        // The same through in-place children of a branch below a long hashed extension: an in-place
+        // leaf, and an in-place extension over an in-place branch.
+        let inner_leaf =
+            alloy_rlp::encode(TrieNode::Leaf(LeafNode::new(Nibbles::new(), vec![0x01])));
+        let inner_branch = alloy_rlp::encode(TrieNode::Branch(BranchNode::new(
+            vec![RlpNode::from_raw(&inner_leaf).unwrap()],
+            TrieMask::new(0b1),
+        )));
+        let in_place_children = [
+            TrieNode::Leaf(LeafNode::new(Nibbles::from_nibbles([0x0; 4]), vec![0x01])),
+            TrieNode::Extension(ExtensionNode::new(
+                Nibbles::from_nibbles([0x0; 4]),
+                RlpNode::from_raw(&inner_branch).unwrap(),
+            )),
+        ];
+        for child in in_place_children {
+            let child = RlpNode::from_raw(&alloy_rlp::encode(child)).unwrap();
+            assert!(!child.is_hash());
+            let branch = TrieNode::Branch(BranchNode::new(
+                vec![child, RlpNode::word_rlp(&B256::repeat_byte(0x22))],
+                TrieMask::new(0b11),
+            ));
+            let branch = Bytes::from(alloy_rlp::encode(branch));
+            let extension = TrieNode::Extension(ExtensionNode::new(
+                Nibbles::from_nibbles([0x0; 60]),
+                RlpNode::from_rlp(&branch),
+            ));
+            let extension = Bytes::from(alloy_rlp::encode(extension));
+            let root = alloy_primitives::keccak256(&extension);
+            assert_eq!(verify_proof(root, key, None, [&extension, &branch]), Ok(()));
+        }
     }
 
     #[test]
