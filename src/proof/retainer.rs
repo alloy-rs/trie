@@ -73,11 +73,19 @@ pub struct ProofRetainer<K = AddedRemovedKeys> {
     targets: Vec<Nibbles>,
     /// The map retained trie node keys to RLP serialized trie nodes.
     proof_nodes: ProofNodes,
+    /// Retention of extra proofs for added and removed keys: [`None`] when disabled.
+    added_removed: Option<AddedRemovedRetention<K>>,
+}
+
+/// Retention of extra proofs which are needed to add or remove keys but are outside the target
+/// set. The tracking state only exists while added and removed keys are known.
+#[derive(Clone, Debug)]
+struct AddedRemovedRetention<K> {
     /// Provided by the user to give the necessary context to retain extra proofs.
-    added_removed_keys: Option<K>,
+    keys: K,
     /// Tracks data related to previously seen proofs; required for certain edge-cases where we
     /// want to keep proofs for nodes which aren't in the target set.
-    added_removed_tracking: AddedRemovedKeysTracking,
+    tracking: AddedRemovedKeysTracking,
 }
 
 impl FromIterator<Nibbles> for ProofRetainer {
@@ -101,11 +109,11 @@ impl<K> ProofRetainer<K> {
     ///
     /// If None is given then retention of extra proofs is disabled.
     pub fn with_added_removed_keys<K2>(self, added_removed_keys: Option<K2>) -> ProofRetainer<K2> {
+        let tracking = self.added_removed.map(|retention| retention.tracking).unwrap_or_default();
         ProofRetainer {
             targets: self.targets,
             proof_nodes: self.proof_nodes,
-            added_removed_keys,
-            added_removed_tracking: self.added_removed_tracking,
+            added_removed: added_removed_keys.map(|keys| AddedRemovedRetention { keys, tracking }),
         }
     }
 }
@@ -164,16 +172,16 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
     /// Non-target tracking is only used for retaining of extra branch children in cases where the
     /// branch is getting deleted, hence why root node is not kept.
     fn maybe_track_nontarget(&mut self, path: &Nibbles, proof: &[u8]) {
-        if let Some(added_removed_keys) = self.added_removed_keys.as_ref() {
+        if let Some(added_removed) = self.added_removed.as_mut() {
             if path.is_empty() {
                 return;
             }
 
             let branch_path = path.slice_unchecked(0, path.len() - 1);
             let child_bit = path.get_unchecked(path.len() - 1);
-            let removed_mask = added_removed_keys.as_ref().get_removed_mask(&branch_path);
+            let removed_mask = added_removed.keys.as_ref().get_removed_mask(&branch_path);
             if !removed_mask.is_bit_set(child_bit) {
-                self.added_removed_tracking.track_nontarget(path, proof)
+                added_removed.tracking.track_nontarget(path, proof)
             }
         }
     }
@@ -192,7 +200,7 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
         if self.matches(path) {
             self.retain_unchecked(*path, Bytes::copy_from_slice(proof));
 
-            if let Some(added_removed_keys) = self.added_removed_keys.as_ref() {
+            if let Some(AddedRemovedRetention { keys, tracking }) = self.added_removed.as_ref() {
                 // When a new leaf is being added to a trie, it can happen that an extension node's
                 // path is a prefix of the new leaf's, but the extension child's path is not. In
                 // this case a new branch node is created; the new leaf is one child, the previous
@@ -219,9 +227,9 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                 // In order to support this case we can optimistically retain the proof for
                 // non-target children of target extensions.
                 //
-                let is_prefix_added = added_removed_keys.as_ref().is_prefix_added(path);
+                let is_prefix_added = keys.as_ref().is_prefix_added(path);
                 let extension_child_is_nontarget =
-                    self.added_removed_tracking.extension_child_is_nontarget(path, short_key);
+                    tracking.extension_child_is_nontarget(path, short_key);
                 trace!(
                     target: "trie::proof_retainer",
                     ?path,
@@ -231,9 +239,8 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                     "Deciding to retain non-target extension child",
                 );
                 if is_prefix_added && extension_child_is_nontarget {
-                    let last_branch_path = self.added_removed_tracking.last_branch_path;
-                    let last_branch_proof =
-                        Bytes::copy_from_slice(&self.added_removed_tracking.last_branch_proof);
+                    let last_branch_path = tracking.last_branch_path;
+                    let last_branch_proof = Bytes::copy_from_slice(&tracking.last_branch_proof);
                     self.retain_unchecked(last_branch_path, last_branch_proof);
                 }
             }
@@ -247,7 +254,7 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
         if self.matches(path) {
             self.retain_unchecked(*path, Bytes::copy_from_slice(proof));
 
-            if let Some(added_removed_keys) = self.added_removed_keys.as_ref() {
+            if let Some(AddedRemovedRetention { keys, tracking }) = self.added_removed.as_ref() {
                 // When we remove all but one child from a branch, that branch gets "collapsed"
                 // into its parent branch/extension, i.e. it is deleted and the remaining child is
                 // adopted by its grandparent.
@@ -280,10 +287,9 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                 // Using `removed_keys` we can discern if there is one remaining child in a branch
                 // which is not a target, and optimistically retain that child if so.
                 //
-                let removed_mask = added_removed_keys.as_ref().get_removed_mask(path);
+                let removed_mask = keys.as_ref().get_removed_mask(path);
                 let nonremoved_mask = !removed_mask & state_mask;
-                let branch_child_is_nontarget = self
-                    .added_removed_tracking
+                let branch_child_is_nontarget = tracking
                     .branch_child_is_nontarget(path, nonremoved_mask.trailing_zeros() as u8);
 
                 trace!(
@@ -297,9 +303,9 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
                 );
 
                 if nonremoved_mask.count_ones() == 1 && branch_child_is_nontarget {
-                    let last_nontarget_path = self.added_removed_tracking.last_nontarget_path;
+                    let last_nontarget_path = tracking.last_nontarget_path;
                     let last_nontarget_proof =
-                        Bytes::copy_from_slice(&self.added_removed_tracking.last_nontarget_proof);
+                        Bytes::copy_from_slice(&tracking.last_nontarget_proof);
                     self.retain_unchecked(last_nontarget_path, last_nontarget_proof);
                 }
             }
@@ -307,8 +313,8 @@ impl<K: AsRef<AddedRemovedKeys>> ProofRetainer<K> {
             self.maybe_track_nontarget(path, proof);
         }
 
-        if self.added_removed_keys.is_some() {
-            self.added_removed_tracking.track_branch(path, proof)
+        if let Some(added_removed) = self.added_removed.as_mut() {
+            added_removed.tracking.track_branch(path, proof)
         }
     }
 }
