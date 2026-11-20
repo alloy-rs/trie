@@ -61,6 +61,12 @@ impl Decodable for ExtensionNode {
         };
 
         let key = unpack_path_to_nibbles(first, &encoded_key[1..])?;
+        // The child is kept RLP encoded, so it has to be the only item left in the list.
+        let mut rest = bytes;
+        let Header { payload_length, .. } = Header::decode(&mut rest)?;
+        if rest.len() != payload_length {
+            return Err(alloy_rlp::Error::Custom("invalid number of items in the list"));
+        }
         let child = RlpNode::from_raw_rlp(bytes)?;
         Ok(Self { key, child })
     }
