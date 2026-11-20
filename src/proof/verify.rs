@@ -6,7 +6,7 @@ use crate::{
     proof::ProofVerificationError,
 };
 use alloc::vec::Vec;
-use alloy_primitives::{B256, Bytes};
+use alloy_primitives::{B256, Bytes, keccak256};
 use alloy_rlp::{Decodable, EMPTY_STRING_CODE};
 use nybbles::Nibbles;
 
@@ -44,11 +44,14 @@ where
 
     let mut walked_path = Nibbles::new();
     let mut last_decoded_node = Some(NodeDecodingResult::Node(RlpNode::word_rlp(&root)));
-    for node in proof {
+    for (i, node) in proof.enumerate() {
         // Check if the node that we just decoded (or root node, if we just started) matches
-        // the expected node from the proof.
+        // the expected node from the proof. The root node is referenced by its hash even when its
+        // RLP is shorter than 32 bytes.
         let expected_node = last_decoded_node.as_ref().and_then(NodeDecodingResult::as_node);
-        if Some(RlpNode::from_rlp(node).as_slice()) != expected_node {
+        let node_ref =
+            if i == 0 { RlpNode::word_rlp(&keccak256(node)) } else { RlpNode::from_rlp(node) };
+        if Some(node_ref.as_slice()) != expected_node {
             let got = Some(Bytes::copy_from_slice(node));
             let expected = last_decoded_node
                 .as_ref()
@@ -833,6 +836,33 @@ mod tests {
                 "in-place extension node child is not a branch node"
             )))
         );
+    }
+
+    #[test]
+    fn short_root_node_proof_verification() {
+        // The root node is a lone leaf, then an extension with an in-place branch, and both are
+        // shorter than 32 bytes. The root hash still commits to them.
+        let leaves = [(hex!("01"), [0x64]), (hex!("02"), [0x65])];
+        let missing = Nibbles::unpack(hex!("03"));
+        for leaves in [&leaves[..1], &leaves[..]] {
+            let targets = leaves.iter().map(|(key, _)| Nibbles::unpack(key));
+            let mut hash_builder =
+                HashBuilder::default().with_proof_retainer(ProofRetainer::from_iter(targets));
+            for (key, value) in leaves {
+                hash_builder.add_leaf(Nibbles::unpack(key), value);
+            }
+            let root = hash_builder.root();
+            assert_eq!(root, triehash_trie_root(leaves.iter().copied()));
+
+            let proof = hash_builder.take_proof_nodes();
+            let root_node = &proof[&Nibbles::default()];
+            assert!(root_node.len() < 32);
+            for (key, value) in leaves {
+                let key = Nibbles::unpack(key);
+                assert_eq!(verify_proof(root, key, Some(value.to_vec()), [root_node]), Ok(()));
+            }
+            assert_eq!(verify_proof(root, missing, None, [root_node]), Ok(()));
+        }
     }
 
     #[test]
