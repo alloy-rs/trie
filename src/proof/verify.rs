@@ -122,6 +122,20 @@ impl NodeDecodingResult {
     }
 }
 
+/// Appends `path` to the walked path. Rejects a cumulative path longer than a 256-bit key, since
+/// [`Nibbles::extend`] panics beyond that length.
+#[inline]
+fn extend_walked_path(
+    walked_path: &mut Nibbles,
+    path: &Nibbles,
+) -> Result<(), ProofVerificationError> {
+    if walked_path.len() + path.len() > B256::len_bytes() * 2 {
+        return Err(alloy_rlp::Error::Custom("proof path exceeds 64 nibbles").into());
+    }
+    walked_path.extend(path);
+    Ok(())
+}
+
 #[inline]
 fn process_trie_node(
     node: TrieNode,
@@ -131,7 +145,7 @@ fn process_trie_node(
     let node = match node {
         TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
         TrieNode::Extension(extension) => {
-            walked_path.extend(&extension.key);
+            extend_walked_path(walked_path, &extension.key)?;
             if extension.child.is_hash() {
                 Some(NodeDecodingResult::Node(extension.child))
             } else {
@@ -139,7 +153,7 @@ fn process_trie_node(
             }
         }
         TrieNode::Leaf(leaf) => {
-            walked_path.extend(&leaf.key);
+            extend_walked_path(walked_path, &leaf.key)?;
             Some(NodeDecodingResult::Value(leaf.value))
         }
         TrieNode::EmptyRoot => return Err(ProofVerificationError::UnexpectedEmptyRoot),
@@ -174,7 +188,7 @@ fn process_branch(
                                 return process_branch(child_branch, walked_path, key);
                             }
                             TrieNode::Extension(child_extension) => {
-                                walked_path.extend(&child_extension.key);
+                                extend_walked_path(walked_path, &child_extension.key)?;
 
                                 // If the extension node's child is a hash, the encoded extension
                                 // node itself wouldn't fit for encoding in-place. So this extension
@@ -204,7 +218,7 @@ fn process_branch(
                                 }
                             }
                             TrieNode::Leaf(child_leaf) => {
-                                walked_path.extend(&child_leaf.key);
+                                extend_walked_path(walked_path, &child_leaf.key)?;
                                 return Ok(Some(NodeDecodingResult::Value(child_leaf.value)));
                             }
                             TrieNode::EmptyRoot => {
@@ -831,6 +845,36 @@ mod tests {
             verify_proof(root, Nibbles::from_nibbles([0x0, 0x1, 0x2]), None, [&branch]),
             Err(ProofVerificationError::Rlp(alloy_rlp::Error::Custom(
                 "in-place extension node child is not a branch node"
+            )))
+        );
+    }
+
+    #[test]
+    fn cumulative_path_over_64_nibbles_rejected() {
+        // A hash-linked extension of 30 nibbles followed by a leaf. A leaf of 34 nibbles makes the
+        // walked path exactly the 64 nibbles of the key, while 35 nibbles overflows `Nibbles`.
+        // The value is 32 bytes so the leaf is referenced by hash rather than encoded in-place.
+        let key = Nibbles::from_nibbles([0x1; 64]);
+        let value = vec![0x64; 32];
+        let verify = |leaf_len: usize| {
+            let leaf = TrieNode::Leaf(LeafNode::new(
+                Nibbles::from_nibbles(vec![0x1; leaf_len]),
+                value.clone(),
+            ));
+            let leaf = Bytes::from(alloy_rlp::encode(leaf));
+            let child = RlpNode::word_rlp(&alloy_primitives::keccak256(&leaf));
+            let extension =
+                TrieNode::Extension(ExtensionNode::new(Nibbles::from_nibbles([0x1; 30]), child));
+            let extension = Bytes::from(alloy_rlp::encode(extension));
+            let root = alloy_primitives::keccak256(&extension);
+            verify_proof(root, key, Some(value.clone()), [&extension, &leaf])
+        };
+
+        assert_eq!(verify(34), Ok(()));
+        assert_eq!(
+            verify(35),
+            Err(ProofVerificationError::Rlp(alloy_rlp::Error::Custom(
+                "proof path exceeds 64 nibbles"
             )))
         );
     }
