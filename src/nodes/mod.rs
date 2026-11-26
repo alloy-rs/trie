@@ -363,6 +363,33 @@ mod tests {
     }
 
     #[test]
+    fn decode_rejects_extra_items() {
+        let list = |payload: &[u8]| {
+            let mut rlp = vec![];
+            Header { list: true, payload_length: payload.len() }.encode(&mut rlp);
+            rlp.extend_from_slice(payload);
+            rlp
+        };
+        let extra_item = Err(alloy_rlp::Error::Custom("invalid number of items in the list"));
+
+        // Leaf `12` with value `0x64`, then `0x65`.
+        let leaf = list(&hex!("8220126465"));
+        assert_eq!(LeafNode::decode(&mut &leaf[..]).map(drop), extra_item);
+        // Extension `12` with an in-place leaf child, then an empty string.
+        let extension = list(&hex!("820012c2206480"));
+        assert_eq!(ExtensionNode::decode(&mut &extension[..]).map(drop), extra_item);
+        // Empty branch, then an empty string after the value.
+        let branch = list(&[EMPTY_STRING_CODE; 18]);
+        assert_eq!(BranchNode::decode(&mut &branch[..]).map(drop), extra_item);
+
+        for rlp in [leaf, extension, branch] {
+            assert_eq!(TrieNode::decode(&mut &rlp[..]).map(drop), extra_item);
+        }
+        // Extension `12` without a child.
+        assert!(ExtensionNode::decode(&mut &list(&hex!("820012"))[..]).is_err());
+    }
+
+    #[test]
     fn rlp_zero_value_leaf_roundtrip() {
         let leaf = TrieNode::Leaf(LeafNode::new(
             Nibbles::from_nibbles_unchecked(hex!("0604060f")),

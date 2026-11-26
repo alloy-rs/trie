@@ -60,6 +60,9 @@ impl Decodable for LeafNode {
 
         let key = unpack_path_to_nibbles(first, &encoded_key[1..])?;
         let value = Header::decode_bytes(&mut bytes, false)?.to_vec();
+        if !bytes.is_empty() {
+            return Err(alloy_rlp::Error::Custom("invalid number of items in the list"));
+        }
         Ok(Self { key, value })
     }
 }
