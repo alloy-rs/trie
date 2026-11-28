@@ -14,6 +14,8 @@ use nybbles::Nibbles;
 ///
 /// The expected node value can be either [Some] if it's expected to be present
 /// in the tree or [None] if this is an exclusion proof.
+///
+/// Proof nodes that are already encoded in place in a verified parent node are ignored.
 pub fn verify_proof<'a, I>(
     root: B256,
     key: Nibbles,
@@ -44,11 +46,16 @@ where
 
     let mut walked_path = Nibbles::new();
     let mut last_decoded_node = Some(NodeDecodingResult::Node(RlpNode::word_rlp(&root)));
+    // Nodes encoded in place in a verified parent, which proofs may also list separately.
+    let mut embedded: Vec<RlpNode> = Vec::new();
     for node in proof {
         // Check if the node that we just decoded (or root node, if we just started) matches
         // the expected node from the proof.
         let expected_node = last_decoded_node.as_ref().and_then(NodeDecodingResult::as_node);
         if Some(RlpNode::from_rlp(node).as_slice()) != expected_node {
+            if embedded.iter().any(|e| e.as_slice() == node.as_ref()) {
+                continue;
+            }
             let got = Some(Bytes::copy_from_slice(node));
             let expected = last_decoded_node
                 .as_ref()
@@ -58,8 +65,12 @@ where
         }
 
         // Decode the next node from the proof.
-        last_decoded_node =
-            process_trie_node(TrieNode::decode(&mut &node[..])?, &mut walked_path, &key)?;
+        last_decoded_node = process_trie_node(
+            TrieNode::decode(&mut &node[..])?,
+            &mut walked_path,
+            &key,
+            &mut embedded,
+        )?;
     }
 
     // Reject incomplete proofs: if the walked path has not diverged from the key
@@ -141,15 +152,18 @@ fn process_trie_node(
     node: TrieNode,
     walked_path: &mut Nibbles,
     key: &Nibbles,
+    embedded: &mut Vec<RlpNode>,
 ) -> Result<Option<NodeDecodingResult>, ProofVerificationError> {
     let node = match node {
-        TrieNode::Branch(branch) => process_branch(branch, walked_path, key)?,
+        TrieNode::Branch(branch) => process_branch(branch, walked_path, key, embedded)?,
         TrieNode::Extension(extension) => {
             extend_walked_path(walked_path, &extension.key)?;
             if extension.child.is_hash() {
                 Some(NodeDecodingResult::Node(extension.child))
             } else {
-                process_trie_node(TrieNode::decode(&mut &extension.child[..])?, walked_path, key)?
+                let child = TrieNode::decode(&mut &extension.child[..])?;
+                embedded.push(extension.child);
+                process_trie_node(child, walked_path, key, embedded)?
             }
         }
         TrieNode::Leaf(leaf) => {
@@ -166,6 +180,7 @@ fn process_branch(
     mut branch: BranchNode,
     walked_path: &mut Nibbles,
     key: &Nibbles,
+    embedded: &mut Vec<RlpNode>,
 ) -> Result<Option<NodeDecodingResult>, ProofVerificationError> {
     if let Some(next) = key.get(walked_path.len()) {
         let mut stack_ptr = branch.as_ref().first_child_index();
@@ -179,13 +194,15 @@ fn process_branch(
                         return Ok(Some(NodeDecodingResult::Node(child)));
                     } else {
                         // This node is encoded in-place.
-                        match TrieNode::decode(&mut &child[..])? {
+                        let decoded = TrieNode::decode(&mut &child[..])?;
+                        embedded.push(child);
+                        match decoded {
                             TrieNode::Branch(child_branch) => {
                                 // An in-place branch node can only have direct, also in-place
                                 // encoded, leaf children, as anything else overflows this branch
                                 // node, making it impossible to be encoded in-place in the first
                                 // place.
-                                return process_branch(child_branch, walked_path, key);
+                                return process_branch(child_branch, walked_path, key, embedded);
                             }
                             TrieNode::Extension(child_extension) => {
                                 extend_walked_path(walked_path, &child_extension.key)?;
@@ -197,12 +214,15 @@ fn process_branch(
                                 // Since the child cannot be a leaf node (otherwise this node itself
                                 // would be a leaf node, not an extension node), the child must be a
                                 // branch node encoded in-place.
-                                match TrieNode::decode(&mut &child_extension.child[..])? {
+                                let decoded = TrieNode::decode(&mut &child_extension.child[..])?;
+                                embedded.push(child_extension.child);
+                                match decoded {
                                     TrieNode::Branch(extension_child_branch) => {
                                         return process_branch(
                                             extension_child_branch,
                                             walked_path,
                                             key,
+                                            embedded,
                                         );
                                     }
                                     // Not produced by a valid trie, but the proof is untrusted
@@ -695,6 +715,66 @@ mod tests {
             proof.clone(),
         )
         .unwrap();
+    }
+
+    #[test]
+    fn proof_verification_with_retained_in_place_nodes() {
+        let hashed_leaf = (Nibbles::from_nibbles([0, 0xf, 0xe, 0]), vec![0x5f; 40]);
+        let build = |leaves: &[(Nibbles, Vec<u8>)], target: Nibbles| {
+            let retainer = ProofRetainer::from_iter([target]);
+            let mut hash_builder = HashBuilder::default().with_proof_retainer(retainer);
+            for (key, value) in leaves {
+                hash_builder.add_leaf(*key, value);
+            }
+            let root = hash_builder.root();
+            let proof = hash_builder.take_proof_nodes().matching_nodes_sorted(&target);
+            (root, proof.into_iter().map(|(_, node)| node).collect::<Vec<_>>())
+        };
+
+        // Leaf `0403` is encoded in place in the branch at `0` and also retained on its own.
+        let leaves = [
+            (Nibbles::from_nibbles([0, 4, 0, 3]), vec![0x62]),
+            (Nibbles::from_nibbles([0, 5, 0, 4]), vec![0xff]),
+            hashed_leaf.clone(),
+        ];
+        let target = Nibbles::from_nibbles([0, 4, 0, 3]);
+        let (root, mut proof) = build(&leaves, target);
+        assert_eq!(proof.last().unwrap().as_ref(), hex!("c482200362"));
+        assert_eq!(verify_proof(root, target, Some(vec![0x62]), &proof), Ok(()));
+
+        let absent = Nibbles::from_nibbles([0, 4, 0, 2]);
+        let (absent_root, absent_proof) = build(&leaves, absent);
+        assert_eq!(verify_proof(absent_root, absent, None, &absent_proof), Ok(()));
+
+        // A short node that is not encoded in a verified parent is still rejected.
+        proof.push(Bytes::from_static(&hex!("c482200363")));
+        assert!(matches!(
+            verify_proof(root, target, Some(vec![0x62]), &proof),
+            Err(ProofVerificationError::ValueMismatch { .. })
+        ));
+
+        // The extension at `01`, its branch at `010` and leaf `0103` are all encoded in place
+        // and also retained on their own.
+        let leaves = [
+            (Nibbles::from_nibbles([0, 1, 0, 3]), vec![0x01]),
+            (Nibbles::from_nibbles([0, 1, 0, 4]), vec![0x02]),
+            hashed_leaf,
+        ];
+        let target = Nibbles::from_nibbles([0, 1, 0, 3]);
+        let (root, proof) = build(&leaves, target);
+        assert_eq!(proof.len(), 5);
+        assert_eq!(verify_proof(root, target, Some(vec![0x01]), &proof), Ok(()));
+
+        // A hashed root extension whose branch and leaf are encoded in place.
+        let mut first = [0; 32];
+        first[31] = 1;
+        let mut second = first;
+        second[31] = 2;
+        let leaves = [(Nibbles::unpack(first), vec![0x01]), (Nibbles::unpack(second), vec![0x02])];
+        let target = Nibbles::unpack(first);
+        let (root, proof) = build(&leaves, target);
+        assert_eq!(proof.len(), 3);
+        assert_eq!(verify_proof(root, target, Some(vec![0x01]), &proof), Ok(()));
     }
 
     /// Truncated proof must not be accepted as valid exclusion proof. Verifies that an incomplete
